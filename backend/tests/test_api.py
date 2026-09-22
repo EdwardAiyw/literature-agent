@@ -17,7 +17,11 @@ def test_create_task_and_run():
                 break
             time.sleep(0.05)
         assert current["status"] == "completed"
+        assert current["started_at"]
         assert current["progress"] == 6
+        task_runs = client.get(f"/api/tasks/{task['id']}/runs?limit=1")
+        assert task_runs.status_code == 200
+        assert task_runs.json()[0]["id"] == run_id
         papers = client.get(f"/api/runs/{run_id}/papers").json()
         assert len(papers) == 2
         events = client.get(f"/api/runs/{run_id}/events").json()
@@ -106,3 +110,18 @@ def test_subscription_requires_schedule_recipient_and_source():
     with TestClient(app) as client:
         response = client.post("/api/subscriptions", json={"name": "Incomplete", "topic": "topic", "target_count": 10})
         assert response.status_code == 422
+
+
+def test_subscription_rejects_invalid_calendar_values():
+    with TestClient(app) as client:
+        base = {
+            "name": "Invalid schedule",
+            "topic": "topic",
+            "target_count": 10,
+            "recipient": "researcher@example.org",
+            "schedule_time": "08:00",
+            "sources": ["openalex"],
+        }
+        assert client.post("/api/subscriptions", json={**base, "date_from": "2026-02-30"}).status_code == 422
+        assert client.post("/api/subscriptions", json={**base, "timezone": "Mars/Olympus"}).status_code == 422
+        assert client.post("/api/subscriptions", json={**base, "recipient": "not-an-email"}).status_code == 422

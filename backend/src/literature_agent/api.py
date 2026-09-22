@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings
@@ -49,6 +49,13 @@ def get_task(task_id: str):
     if not task:
         raise HTTPException(404, "Task not found")
     return task
+
+
+@app.get("/api/tasks/{task_id}/runs", response_model=list[RunRead])
+def list_task_runs(task_id: str, limit: int = Query(default=20, ge=1, le=100)):
+    if not database.get_task(task_id):
+        raise HTTPException(404, "Task not found")
+    return database.list_runs(task_id, limit)
 
 
 @app.post("/api/tasks/{task_id}/runs", response_model=RunRead, status_code=202)
@@ -110,8 +117,8 @@ def delete_subscription(subscription_id: str):
 
 
 @app.get("/api/deliveries", response_model=list[DeliveryRead])
-def list_deliveries(subscription_id: str | None = None):
-    return database.list_deliveries(subscription_id)
+def list_deliveries(subscription_id: str | None = None, limit: int = Query(default=50, ge=1, le=100)):
+    return database.list_deliveries(subscription_id, limit)
 
 
 @app.post("/api/subscriptions/{subscription_id}/runs", response_model=RunRead, status_code=202)

@@ -26,6 +26,7 @@ class Database:
             paper_count INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', progress INTEGER NOT NULL DEFAULT 0,
             total_steps INTEGER NOT NULL DEFAULT 0, started_at TEXT, finished_at TEXT
         );
+        CREATE INDEX IF NOT EXISTS idx_runs_task_started ON runs(task_id, started_at DESC);
         CREATE TABLE IF NOT EXISTS papers (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL, canonical_id TEXT NOT NULL, payload TEXT NOT NULL,
             review TEXT NOT NULL DEFAULT 'unreviewed', UNIQUE(run_id, canonical_id)
@@ -186,8 +187,8 @@ class Database:
     def create_run(self, task_id: str, total_steps: int) -> dict:
         run_id = str(uuid4())
         self.connection.execute(
-            "INSERT INTO runs(id, task_id, status, total_steps) VALUES (?, ?, 'queued', ?)",
-            (run_id, task_id, total_steps),
+            "INSERT INTO runs(id, task_id, status, total_steps, started_at) VALUES (?, ?, 'queued', ?, ?)",
+            (run_id, task_id, total_steps, now()),
         )
         self.connection.commit()
         return self.get_run(run_id)
@@ -197,6 +198,25 @@ class Database:
         if not row:
             return None
         return dict(row)
+
+    def list_runs(self, task_id: str, limit: int = 50) -> list[dict]:
+        rows = self.connection.execute(
+            """
+            SELECT * FROM runs
+            WHERE task_id = ?
+            ORDER BY COALESCE(started_at, '') DESC, rowid DESC
+            LIMIT ?
+            """,
+            (task_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def has_run_since(self, task_id: str, started_at: str) -> bool:
+        row = self.connection.execute(
+            "SELECT 1 FROM runs WHERE task_id = ? AND started_at >= ? LIMIT 1",
+            (task_id, started_at),
+        ).fetchone()
+        return row is not None
 
     def update_run(self, run_id: str, **values) -> None:
         if not values:

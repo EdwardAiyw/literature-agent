@@ -11,7 +11,7 @@
 - OpenAI-compatible model provider.
 - Subscription configuration, independent daily CLI, HTML/plain-text SMTP digest, and delivery history.
 - GUI source/date controls and per-source diagnostics.
-- Windows Task Scheduler registration for the daily CLI (manual CLI execution is available now).
+- Schedule-aware daily CLI and Windows Task Scheduler registration (implemented for the MVP).
 - Zotero DOI-based import and per-paper import status.
 - Durable run pause/resume/cancel, persistent logs, and settings.
 - Optional FAMOU evaluation workflow for labeled retrieval/ranking experiments.

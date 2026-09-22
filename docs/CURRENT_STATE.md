@@ -30,11 +30,12 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - API contracts for task creation, run control, paper review, prompts, and settings.
 - Subscription CRUD with required recipient, schedule, target count, source and date policy.
 - Independent daily CLI, SMTP HTML/plain-text digest rendering, delivery history, and GUI status views.
+- Schedule-aware `--run-due` execution plus a Windows Task Scheduler registration script.
+- Historical task runs can be reopened in the GUI after CLI or scheduled execution.
 
 ## Not yet migrated
 
 - Production source adapters are now implemented for OpenAlex, Crossref, arXiv, and PubMed; live credentials and provider-rate testing remain.
-- Windows Task Scheduler registration for the new daily CLI (manual CLI execution is available).
 - Durable pause/resume/cancel behavior across service restarts.
 - Zotero Web API connector.
 - Open-access PDF downloader.

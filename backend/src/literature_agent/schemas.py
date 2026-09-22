@@ -1,11 +1,52 @@
 from __future__ import annotations
 
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .sources import SUPPORTED_SOURCES
+
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _clean_required(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("value must not be blank")
+    return value
+
+
+def _clean_questions(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+
+def _validate_date(value: str) -> str:
+    if value:
+        try:
+            date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("date must be a valid ISO date") from exc
+    return value
+
+
+def _validate_email(value: str) -> str:
+    value = value.strip()
+    if not EMAIL_PATTERN.fullmatch(value):
+        raise ValueError("recipient must be an email address")
+    return value
+
+
+def _validate_timezone(value: str) -> str:
+    value = value.strip()
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError("timezone must be a valid IANA timezone") from exc
+    return value
 
 
 class TaskCreate(BaseModel):
@@ -20,12 +61,29 @@ class TaskCreate(BaseModel):
     sources: list[str] = Field(default_factory=lambda: ["openalex", "crossref", "arxiv", "pubmed"])
     evidence_review: bool = False
 
+    @field_validator("name", "topic")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        return _clean_required(value)
+
+    @field_validator("research_questions")
+    @classmethod
+    def validate_questions(cls, values: list[str]) -> list[str]:
+        return _clean_questions(values)
+
+    @field_validator("date_from", "date_to")
+    @classmethod
+    def validate_dates(cls, value: str) -> str:
+        return _validate_date(value)
+
     @field_validator("sources")
     @classmethod
     def validate_sources(cls, sources: list[str]) -> list[str]:
         invalid = sorted(set(sources) - set(SUPPORTED_SOURCES))
         if invalid:
             raise ValueError(f"Unsupported source(s): {', '.join(invalid)}")
+        if not sources:
+            raise ValueError("At least one source is required")
         return list(dict.fromkeys(sources))
 
     @model_validator(mode="after")
@@ -54,6 +112,26 @@ class SubscriptionCreate(BaseModel):
     evidence_review: bool = False
     enabled: bool = True
 
+    @field_validator("name", "topic")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        return _clean_required(value)
+
+    @field_validator("research_questions")
+    @classmethod
+    def validate_questions(cls, values: list[str]) -> list[str]:
+        return _clean_questions(values)
+
+    @field_validator("date_from", "date_to")
+    @classmethod
+    def validate_dates(cls, value: str) -> str:
+        return _validate_date(value)
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        return _validate_timezone(value)
+
     @field_validator("sources")
     @classmethod
     def validate_subscription_sources(cls, sources: list[str]) -> list[str]:
@@ -67,10 +145,7 @@ class SubscriptionCreate(BaseModel):
     @field_validator("recipient")
     @classmethod
     def validate_recipient(cls, recipient: str) -> str:
-        value = recipient.strip()
-        if "@" not in value or value.startswith("@") or value.endswith("@"):
-            raise ValueError("recipient must be an email address")
-        return value
+        return _validate_email(recipient)
 
     @model_validator(mode="after")
     def validate_subscription_dates(self):
@@ -94,6 +169,31 @@ class SubscriptionUpdate(BaseModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=80)
     evidence_review: bool | None = None
     enabled: bool | None = None
+
+    @field_validator("name", "topic")
+    @classmethod
+    def validate_required_text(cls, value: str | None) -> str | None:
+        return _clean_required(value) if value is not None else None
+
+    @field_validator("research_questions")
+    @classmethod
+    def validate_questions(cls, values: list[str] | None) -> list[str] | None:
+        return _clean_questions(values) if values is not None else None
+
+    @field_validator("date_from", "date_to")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_date(value) if value is not None else None
+
+    @field_validator("recipient")
+    @classmethod
+    def validate_recipient(cls, value: str | None) -> str | None:
+        return _validate_email(value) if value is not None else None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        return _validate_timezone(value) if value is not None else None
 
     @field_validator("sources")
     @classmethod
@@ -130,6 +230,11 @@ class DeliveryRead(BaseModel):
 
 class TestSendRequest(BaseModel):
     recipient: str | None = Field(default=None, min_length=3, max_length=320)
+
+    @field_validator("recipient")
+    @classmethod
+    def validate_recipient(cls, value: str | None) -> str | None:
+        return _validate_email(value) if value is not None else None
 
 
 class TaskRead(TaskCreate):

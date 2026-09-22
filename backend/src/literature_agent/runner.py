@@ -9,6 +9,9 @@ from .graph import build_graph
 
 
 def execute_run(settings: Settings, database: Database, run_id: str, task: dict) -> dict:
+    current = database.get_run(run_id) or {}
+    started_at = current.get("started_at") or datetime.now(timezone.utc).isoformat()
+    database.update_run(run_id, status="running", current_node="query_planner", started_at=started_at)
     try:
         graph = build_graph(settings, database, database.list_prompts())
         graph.invoke({"task": task, "run_id": run_id, "errors": []})
