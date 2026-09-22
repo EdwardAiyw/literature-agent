@@ -1,6 +1,6 @@
 # Prompt System
 
-Built-in prompts are versioned by role. Advanced users may clone and edit a prompt; built-ins remain immutable.
+Built-in prompts are versioned by role and seeded into SQLite at startup. Each run reads the catalog once, so its node decisions can be traced to the prompt version used. Advanced users may clone and edit a prompt in a later iteration; built-ins remain immutable in the product UI.
 
 ## Roles
 
@@ -8,6 +8,10 @@ Built-in prompts are versioned by role. Advanced users may clone and edit a prom
 - `relevance_screener.v1`: paper and task to relevance decision.
 - `literature_summarizer.v1`: paper to research decision summary.
 - `evidence_reviewer.v1`: summary to evidence warnings.
+
+## Runtime nodes
+
+The graph executes `query_planner`, `retrieval`, `dedupe`, `relevance_screener`, and `literature_summarizer`. `evidence_reviewer` runs only when the task enables evidence review. Each node writes a user-readable event and a structured artifact to the run record.
 
 ## Output contract
 
@@ -26,3 +30,5 @@ Built-in prompts are versioned by role. Advanced users may clone and edit a prom
 ```
 
 The model must write `not stated in source` when the supplied title or abstract does not support a claim. Original title, authors, abstract, DOI, and URLs are never rewritten by the model.
+
+When no model credentials are configured, deterministic fallback implementations satisfy the same output contracts. Fallback use is recorded through the `engine` field and does not silently claim model-generated evidence.

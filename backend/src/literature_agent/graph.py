@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import TypedDict
 
 import httpx
@@ -10,92 +10,245 @@ from langgraph.graph import END, StateGraph
 
 from .config import Settings
 from .db import Database
-from .llm import ModelProvider, fallback
+from .llm import ModelProvider, fallback, fallback_evidence_review, fallback_query_plan, fallback_screen
+from .prompts import prompt_for
+from .sources import search_sources
 
 
 class GraphState(TypedDict, total=False):
     task: dict
     run_id: str
     node: str
+    query_plan: dict
     records: list[dict]
+    source_diagnostics: dict[str, dict]
     errors: list[str]
 
 
 def fixture_records(topic: str) -> list[dict]:
     key = hashlib.sha1(topic.encode()).hexdigest()[:8]
     return [
-        {"title": f"Evidence-grounded retrieval for {topic}", "authors": ["Fixture Author"], "abstract": f"This fixture record demonstrates retrieval and evidence evaluation for {topic}.", "published_date": str(date.today()), "source": "fixture", "source_id": f"fixture-{key}-1", "official_url": "https://example.org/paper-1", "open_access_url": "", "doi": "", "language": "en"},
-        {"title": f"A review of methods related to {topic}", "authors": ["Fixture Researcher"], "abstract": f"This fixture record reviews methods, limitations, and evaluation settings related to {topic}.", "published_date": "2024-01-01", "source": "fixture", "source_id": f"fixture-{key}-2", "official_url": "https://example.org/paper-2", "open_access_url": "", "doi": "", "language": "en"},
+        {
+            "title": f"Evidence-grounded retrieval for {topic}",
+            "authors": ["Fixture Author"],
+            "abstract": f"This fixture record demonstrates retrieval and evidence evaluation for {topic}.",
+            "published_date": str(date.today()),
+            "source": "fixture",
+            "source_id": f"fixture-{key}-1",
+            "official_url": "https://example.org/paper-1",
+            "open_access_url": "",
+            "doi": "",
+            "language": "en",
+        },
+        {
+            "title": f"A review of methods related to {topic}",
+            "authors": ["Fixture Researcher"],
+            "abstract": f"This fixture record reviews methods, limitations, and evaluation settings related to {topic}.",
+            "published_date": "2024-01-01",
+            "source": "fixture",
+            "source_id": f"fixture-{key}-2",
+            "official_url": "https://example.org/paper-2",
+            "open_access_url": "",
+            "doi": "",
+            "language": "en",
+        },
     ]
 
 
 def canonical(record: dict) -> str:
     if record.get("doi"):
-        return "doi:" + record["doi"].lower().strip()
+        return "doi:" + record["doi"].lower().strip().removeprefix("https://doi.org/")
     if record.get("source_id"):
         return record["source"] + ":" + record["source_id"].lower().strip()
-    return "title:" + re.sub(r"[^a-z0-9]+", "", record.get("title", "").lower())
+    return "title:" + re.sub(r"[^\w]+", "", record.get("title", "").lower(), flags=re.UNICODE)
 
 
-def build_graph(settings: Settings, database: Database):
+def build_graph(settings: Settings, database: Database, prompts: list[dict]):
     provider = ModelProvider(settings.llm_base_url, settings.llm_api_key, settings.llm_model)
+
+    def errors_for(state: GraphState, node: str, exc: Exception) -> list[str]:
+        errors = list(state.get("errors", []))
+        errors.append(f"{node}: {type(exc).__name__}: {exc}")
+        return errors
+
+    def started(state: GraphState, node: str, message: str) -> None:
+        database.update_run(state["run_id"], status="running", current_node=node)
+        database.add_run_event(state["run_id"], node, "started", message)
+
+    def completed(state: GraphState, node: str, message: str, step: int, artifact: dict) -> None:
+        database.save_run_artifact(state["run_id"], node, artifact)
+        database.update_run(state["run_id"], current_node=node, progress=step)
+        database.add_run_event(state["run_id"], node, "completed", message, artifact_type=node)
+
     def plan(state: GraphState) -> GraphState:
-        database.update_run(state["run_id"], status="running", current_node="query_planner", started_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat())
+        started(state, "query_planner", "Building the research task contract")
         task = state["task"]
-        state["task"]["queries"] = [task["topic"], *task.get("research_questions", [])]
-        return {"node": "query_planner", "task": state["task"], "errors": []}
+        try:
+            query_plan = provider.plan_queries(task, prompt_for(prompts, "query_planner")["body"])
+            errors = list(state.get("errors", []))
+        except Exception as exc:
+            query_plan = fallback_query_plan(task)
+            errors = errors_for(state, "query_planner", exc)
+        contract = {
+            "topic": task["topic"],
+            "research_questions": task.get("research_questions", []),
+            "language": task["language"],
+            "output_language": task["output_language"],
+            "sources": task.get("sources", []),
+            "target_count": task["target_count"],
+            "evidence_review": task["evidence_review"],
+            "query_plan": query_plan,
+            "prompt_snapshot": {prompt["role"]: {"id": prompt["id"], "version": prompt["version"]} for prompt in prompts},
+        }
+        completed(state, "query_planner", f"Prepared {len(query_plan['queries'])} query route(s)", 1, contract)
+        return {"node": "query_planner", "query_plan": query_plan, "errors": errors}
 
     def retrieve(state: GraphState) -> GraphState:
-        database.update_run(state["run_id"], current_node="retrieval")
+        started(state, "retrieval", "Retrieving candidate records")
         task = state["task"]
-        records = fixture_records(task["topic"])
-        if settings.live:
-            try:
-                response = httpx.get("https://api.openalex.org/works", params={"search": task["topic"], "per-page": task["target_count"]}, timeout=30)
-                response.raise_for_status()
-                records = [{"title": item.get("title", ""), "authors": [x.get("author", {}).get("display_name", "") for x in item.get("authorships", [])], "abstract": "", "published_date": item.get("publication_date", ""), "source": "openalex", "source_id": item.get("id", "").rsplit("/", 1)[-1], "official_url": item.get("doi") or item.get("id", ""), "open_access_url": (item.get("open_access") or {}).get("oa_url", "") or "", "doi": (item.get("doi") or "").replace("https://doi.org/", ""), "language": "unknown"} for item in response.json().get("results", [])]
-            except Exception as exc:
-                state.setdefault("errors", []).append(f"OpenAlex: {type(exc).__name__}: {exc}")
-        return {"node": "retrieval", "records": records, "errors": state.get("errors", [])}
+        errors = list(state.get("errors", []))
+        requested_sources = task.get("sources") or state["query_plan"].get("source_routing", [])
+        records: list[dict] = []
+        diagnostics: dict[str, dict] = {}
+        source_mode = "fixture"
+        if not settings.live or requested_sources == ["fixture"]:
+            records = fixture_records(task["topic"])
+            diagnostics = {"fixture": {"status": "ok", "count": len(records), "error": ""}}
+        else:
+            source_mode = "live"
+            with httpx.Client(timeout=30, follow_redirects=True, headers={"User-Agent": "literature-agent/0.2"}) as client:
+                records, diagnostics = search_sources(
+                    requested_sources,
+                    tuple(state["query_plan"].get("queries") or [task["topic"]]),
+                    task["target_count"],
+                    task.get("date_from", ""),
+                    task.get("date_to", ""),
+                    client,
+                    settings,
+                )
+            for name, result in diagnostics.items():
+                if result["status"] == "failed":
+                    errors.append(f"retrieval/{name}: {result['error']}")
+            if not records:
+                records = fixture_records(task["topic"])
+                source_mode = "fixture_fallback"
+                diagnostics["fixture"] = {"status": "fallback", "count": len(records), "error": "No live source returned records"}
+        artifact = {"source_mode": source_mode, "sources": diagnostics, "retrieved_count": len(records), "errors": errors[-10:]}
+        completed(state, "retrieval", f"Retrieved {len(records)} candidate record(s)", 2, artifact)
+        return {"node": "retrieval", "records": records, "source_diagnostics": diagnostics, "errors": errors}
 
-    def screen(state: GraphState) -> GraphState:
-        database.update_run(state["run_id"], current_node="screening")
-        topic = state["task"]["topic"].lower()
+    def dedupe(state: GraphState) -> GraphState:
+        started(state, "dedupe", "Normalizing and removing duplicate records")
         seen: set[str] = set()
         records = []
         for record in state.get("records", []):
-            cid = canonical(record)
-            if cid in seen:
+            identifier = canonical(record)
+            if identifier in seen:
                 continue
-            seen.add(cid)
-            text = f"{record.get('title', '')} {record.get('abstract', '')}".lower()
-            score = 0.8 if any(token in text for token in topic.split()[:3]) else 0.35
-            record["canonical_id"] = cid
-            record["relevance_score"] = score
-            record["priority"] = "P0" if score >= 0.7 else "P1" if score >= 0.4 else "P2"
+            seen.add(identifier)
+            record["canonical_id"] = identifier
             records.append(record)
-        return {"node": "screening", "records": sorted(records, key=lambda item: item["relevance_score"], reverse=True)[: state["task"]["target_count"]], "errors": state.get("errors", [])}
+        completed(state, "dedupe", f"Kept {len(records)} unique record(s)", 3, {"unique_count": len(records)})
+        return {"node": "dedupe", "records": records, "errors": state.get("errors", [])}
 
-    def summarize(state: GraphState) -> GraphState:
-        database.update_run(state["run_id"], current_node="summarization")
+    def screen(state: GraphState) -> GraphState:
+        started(state, "relevance_screener", "Assessing relevance against the task contract")
+        task = state["task"]
+        errors = list(state.get("errors", []))
+        screened = []
+        prompt = prompt_for(prompts, "relevance_screener")["body"]
         for record in state.get("records", []):
             try:
-                record["summary"] = provider.summarize(record, state["task"]["topic"])
+                decision = provider.screen(record, task, prompt)
             except Exception as exc:
-                state.setdefault("errors", []).append(f"LLM: {type(exc).__name__}: {exc}")
-                record["summary"] = fallback(record, state["task"]["topic"])
+                decision = fallback_screen(record, task["topic"])
+                errors = errors_for({"errors": errors}, "relevance_screener", exc)
+            record["screening"] = decision
+            record["relevance_score"] = decision["relevance_score"]
+            record["priority"] = decision["priority"]
+            screened.append(record)
+        screened.sort(key=lambda item: item["relevance_score"], reverse=True)
+        screened = screened[: task["target_count"]]
+        completed(
+            state,
+            "relevance_screener",
+            f"Ranked {len(screened)} record(s)",
+            4,
+            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]]},
+        )
+        return {"node": "relevance_screener", "records": screened, "errors": errors}
+
+    def summarize(state: GraphState) -> GraphState:
+        started(state, "literature_summarizer", "Creating evidence-bounded research briefs")
+        errors = list(state.get("errors", []))
+        prompt = prompt_for(prompts, "literature_summarizer")["body"]
+        for record in state.get("records", []):
+            try:
+                summary = provider.summarize(record, state["task"]["topic"], prompt)
+            except Exception as exc:
+                summary = fallback(record, state["task"]["topic"])
+                errors = errors_for({"errors": errors}, "literature_summarizer", exc)
+            summary["relevance_reason"] = record["screening"]["relevance_reason"]
+            summary["recommended_action"] = record["screening"]["recommended_action"]
+            record["summary"] = summary
+        completed(state, "literature_summarizer", f"Prepared {len(state.get('records', []))} research brief(s)", 5, {"brief_count": len(state.get("records", []))})
+        return {"node": "literature_summarizer", "records": state.get("records", []), "errors": errors}
+
+    def evidence_review(state: GraphState) -> GraphState:
+        started(state, "evidence_reviewer", "Checking summary claims against supplied evidence")
+        errors = list(state.get("errors", []))
+        prompt = prompt_for(prompts, "evidence_reviewer")["body"]
+        for record in state.get("records", []):
+            try:
+                review = provider.review_evidence(record, record["summary"], prompt)
+            except Exception as exc:
+                review = fallback_evidence_review(record, record["summary"])
+                errors = errors_for({"errors": errors}, "evidence_reviewer", exc)
+            summary = record["summary"]
+            summary["evidence_warnings"] = list(dict.fromkeys([*summary.get("evidence_warnings", []), *review["evidence_warnings"]]))
+            summary["confidence"] = min(float(summary.get("confidence", 0.35)), float(review["confidence"]))
+            summary["evidence_review_engine"] = review["engine"]
+        completed(state, "evidence_reviewer", "Completed evidence review", 6, {"reviewed_count": len(state.get("records", []))})
+        return {"node": "evidence_reviewer", "records": state.get("records", []), "errors": errors}
+
+    def complete(state: GraphState) -> GraphState:
+        started(state, "complete", "Persisting reviewed literature records")
+        for record in state.get("records", []):
             database.add_paper(state["run_id"], record["canonical_id"], record)
-        database.update_run(state["run_id"], status="completed", current_node="completed", paper_count=len(state.get("records", [])), finished_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat())
+        total_steps = 7 if state["task"].get("evidence_review") else 6
+        database.save_run_artifact(
+            state["run_id"],
+            "result_manifest",
+            {"paper_count": len(state.get("records", [])), "errors": state.get("errors", []), "completed_at": datetime.now(timezone.utc).isoformat()},
+        )
+        database.update_run(
+            state["run_id"],
+            status="completed",
+            current_node="completed",
+            paper_count=len(state.get("records", [])),
+            progress=total_steps,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+        database.add_run_event(state["run_id"], "complete", "completed", f"Saved {len(state.get('records', []))} paper record(s)", artifact_type="result_manifest")
         return {"node": "completed", "records": state.get("records", []), "errors": state.get("errors", [])}
+
+    def should_review(state: GraphState) -> str:
+        return "evidence_reviewer" if state["task"].get("evidence_review") else "complete"
 
     graph = StateGraph(GraphState)
     graph.add_node("plan", plan)
     graph.add_node("retrieve", retrieve)
+    graph.add_node("dedupe", dedupe)
     graph.add_node("screen", screen)
     graph.add_node("summarize", summarize)
+    graph.add_node("evidence_reviewer", evidence_review)
+    graph.add_node("complete", complete)
     graph.set_entry_point("plan")
     graph.add_edge("plan", "retrieve")
-    graph.add_edge("retrieve", "screen")
+    graph.add_edge("retrieve", "dedupe")
+    graph.add_edge("dedupe", "screen")
     graph.add_edge("screen", "summarize")
-    graph.add_edge("summarize", END)
+    graph.add_conditional_edges("summarize", should_review, {"evidence_reviewer": "evidence_reviewer", "complete": "complete"})
+    graph.add_edge("evidence_reviewer", "complete")
+    graph.add_edge("complete", END)
     return graph.compile()

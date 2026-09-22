@@ -17,18 +17,25 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 
 `literature-agent` is a new product repository. It is not a direct rewrite inside the legacy repository. The product is a general single-user academic literature agent: each task has its own topic, language policy, date range, source selection, and output policy.
 
-## Implemented Alpha slice
+## Implemented MVP slice
 
 - FastAPI backend with SQLite task/run/paper storage.
 - LangGraph-compatible retrieval workflow with planning, retrieval, screening, and summarization nodes.
 - Deterministic fixture mode for offline development.
 - React/TypeScript result workbench.
 - Versioned built-in prompt catalog.
+- Runtime Agent stages for query planning, retrieval, deduplication, relevance screening, summarization, and optional evidence review.
+- Persisted run events, node artifacts, progress, result manifests, and Prompt version snapshots.
+- Optional project-local FAMOU evaluation skills, isolated from normal retrieval.
 - API contracts for task creation, run control, paper review, prompts, and settings.
+- Subscription CRUD with required recipient, schedule, target count, source and date policy.
+- Independent daily CLI, SMTP HTML/plain-text digest rendering, delivery history, and GUI status views.
 
 ## Not yet migrated
 
-- Production source adapters from the legacy project.
+- Production source adapters are now implemented for OpenAlex, Crossref, arXiv, and PubMed; live credentials and provider-rate testing remain.
+- Windows Task Scheduler registration for the new daily CLI (manual CLI execution is available).
+- Durable pause/resume/cancel behavior across service restarts.
 - Zotero Web API connector.
 - Open-access PDF downloader.
 - Windows Tauri packaging.
