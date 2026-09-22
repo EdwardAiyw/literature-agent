@@ -11,7 +11,7 @@ from .db import Database
 from .email import send_test_message
 from .prompts import BUILTIN_PROMPTS
 from .runner import execute_run, run_subscription
-from .schemas import DeliveryRead, PaperRead, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskCreate, TaskRead, TestSendRequest
+from .schemas import DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskUpdate, TestSendRequest
 from .sources import SOURCE_METADATA
 
 settings = Settings.from_env()
@@ -21,6 +21,7 @@ database.seed_builtin_prompts(BUILTIN_PROMPTS)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    database.cleanup_test_tasks()
     yield
 
 
@@ -35,6 +36,7 @@ def health() -> dict:
 
 @app.post("/api/tasks", response_model=TaskRead)
 def create_task(payload: TaskCreate):
+    _validate_prompt_overrides(payload.prompt_overrides)
     return database.create_task(payload.model_dump())
 
 
@@ -49,6 +51,44 @@ def get_task(task_id: str):
     if not task:
         raise HTTPException(404, "Task not found")
     return task
+
+
+@app.patch("/api/tasks/{task_id}", response_model=TaskRead)
+def update_task(task_id: str, patch: TaskUpdate):
+    current = database.get_task(task_id)
+    if not current:
+        raise HTTPException(404, "Task not found")
+    blockers = database.task_blockers(task_id)
+    if blockers["subscribed"]:
+        raise HTTPException(409, "Task is managed by a subscription; edit it from the subscriptions page")
+    if blockers["active_runs"]:
+        raise HTTPException(409, "Task cannot be edited while a run is queued, running, or paused")
+    values = {**current, **patch.model_dump(exclude_none=True)}
+    validated = TaskCreate.model_validate(values).model_dump()
+    _validate_prompt_overrides(validated["prompt_overrides"])
+    return database.update_task(task_id, validated)
+
+
+@app.post("/api/tasks/bulk-delete")
+def bulk_delete_tasks(payload: TaskBulkDelete):
+    outcome = database.delete_tasks(payload.task_ids)
+    if outcome["status"] == "missing":
+        raise HTTPException(404, {"message": "One or more tasks were not found", "task_ids": outcome["task_ids"]})
+    if outcome["status"] == "blocked":
+        raise HTTPException(409, {"message": "Batch deletion was not performed", "subscribed": outcome["subscribed"], "active": outcome["active"]})
+    return outcome
+
+
+@app.delete("/api/tasks/{task_id}")
+def delete_task(task_id: str):
+    outcome = database.delete_task(task_id)
+    if outcome == "missing":
+        raise HTTPException(404, "Task not found")
+    if outcome == "subscribed":
+        raise HTTPException(409, "Task is referenced by a subscription; delete the subscription first")
+    if outcome == "active":
+        raise HTTPException(409, "Task cannot be deleted while a run is queued, running, or paused")
+    return {"status": "deleted", "task_id": task_id}
 
 
 @app.get("/api/tasks/{task_id}/runs", response_model=list[RunRead])
@@ -70,12 +110,22 @@ def start_run(task_id: str, background: BackgroundTasks):
 
 
 def _task_payload(payload: dict) -> dict:
-    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review")}
+    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides")} | {"origin": "subscription"}
+
+
+def _validate_prompt_overrides(overrides: dict[str, str]) -> None:
+    for role, prompt_id in overrides.items():
+        prompt = database.get_prompt(prompt_id)
+        if not prompt:
+            raise HTTPException(422, f"Prompt not found: {prompt_id}")
+        if prompt["role"] != role:
+            raise HTTPException(422, f"Prompt {prompt_id} does not belong to role {role}")
 
 
 @app.post("/api/subscriptions", response_model=SubscriptionRead, status_code=201)
 def create_subscription(payload: SubscriptionCreate):
     values = payload.model_dump()
+    _validate_prompt_overrides(values["prompt_overrides"])
     task = database.create_task(_task_payload(values))
     return database.create_subscription(task["id"], values)
 
@@ -104,6 +154,7 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
     values.pop("created_at", None)
     values.pop("updated_at", None)
     validated = SubscriptionCreate.model_validate(values).model_dump()
+    _validate_prompt_overrides(validated["prompt_overrides"])
     updated = database.update_subscription(subscription_id, validated)
     database.update_task(current["task_id"], _task_payload(validated))
     return updated
@@ -191,6 +242,34 @@ def review_paper(paper_id: str, payload: ReviewRequest):
 @app.get("/api/prompts", response_model=list[PromptRead])
 def list_prompts():
     return database.list_prompts()
+
+
+@app.post("/api/prompts", response_model=PromptRead, status_code=201)
+def create_prompt(payload: PromptCreate):
+    if payload.parent_id:
+        parent = database.get_prompt(payload.parent_id)
+        if not parent or parent["role"] != payload.role:
+            raise HTTPException(422, "parent_id must reference a prompt from the same role")
+    return database.create_prompt_override(payload.role, payload.body, payload.parent_id)
+
+
+@app.post("/api/prompts/{prompt_id}/activate", response_model=PromptRead)
+def activate_prompt(prompt_id: str):
+    prompt = database.get_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(404, "Prompt not found")
+    return database.activate_prompt(prompt_id)
+
+
+@app.delete("/api/prompts/{prompt_id}")
+def delete_prompt(prompt_id: str):
+    prompt = database.get_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(404, "Prompt not found")
+    if prompt["builtin"]:
+        raise HTTPException(409, "Built-in prompts cannot be deleted")
+    database.delete_prompt_override(prompt_id)
+    return {"status": "deleted", "prompt_id": prompt_id}
 
 
 @app.get("/api/settings")

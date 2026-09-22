@@ -48,11 +48,117 @@ def test_evidence_review_adds_runtime_node():
         assert any(event["node"] == "evidence_reviewer" for event in client.get(f"/api/runs/{run['id']}/events").json())
 
 
+def test_delete_task_cascades_owned_run_data_and_protects_subscriptions():
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"name": "Delete task", "topic": "cleanup", "target_count": 2}).json()
+        run = database.create_run(task["id"], total_steps=6)
+        database.add_paper(run["id"], "doi:task-delete", {"title": "Delete task paper", "relevance_score": 0.2})
+        database.add_run_event(run["id"], "retrieval", "completed", "Delete task event")
+        database.save_run_artifact(run["id"], "retrieval", {"sources": {}})
+        database.update_run(run["id"], status="completed", finished_at="2026-09-22T00:00:00+00:00")
+
+        deleted = client.delete(f"/api/tasks/{task['id']}")
+        assert deleted.status_code == 200
+        assert deleted.json() == {"status": "deleted", "task_id": task["id"]}
+        assert client.get(f"/api/tasks/{task['id']}").status_code == 404
+        assert database.get_run(run["id"]) is None
+        assert database.list_papers(run["id"]) == []
+        assert database.list_run_events(run["id"]) == []
+        assert database.list_run_artifacts(run["id"]) == []
+        assert client.delete(f"/api/tasks/{task['id']}").status_code == 404
+
+        subscription = client.post("/api/subscriptions", json={
+            "name": "Protected task",
+            "topic": "cleanup",
+            "target_count": 2,
+            "recipient": "researcher@example.org",
+            "schedule_time": "08:00",
+            "sources": ["openalex"],
+        }).json()
+        blocked = client.delete(f"/api/tasks/{subscription['task_id']}")
+        assert blocked.status_code == 409
+        assert client.get(f"/api/tasks/{subscription['task_id']}").status_code == 200
+
+
+def test_task_update_and_bulk_delete_guards():
+    with TestClient(app) as client:
+        first = client.post("/api/tasks", json={"name": "Editable", "topic": "old topic", "target_count": 2}).json()
+        updated = client.patch(f"/api/tasks/{first['id']}", json={"name": "Edited", "topic": "new topic", "target_count": 4})
+        assert updated.status_code == 200
+        assert updated.json()["name"] == "Edited"
+        assert updated.json()["topic"] == "new topic"
+
+        active_run = database.create_run(first["id"], total_steps=6)
+        blocked_update = client.patch(f"/api/tasks/{first['id']}", json={"name": "Blocked"})
+        assert blocked_update.status_code == 409
+        blocked_delete = client.delete(f"/api/tasks/{first['id']}")
+        assert blocked_delete.status_code == 409
+        database.update_run(active_run["id"], status="completed", finished_at="2026-09-22T00:00:00+00:00")
+
+        second = client.post("/api/tasks", json={"name": "Second", "topic": "second", "target_count": 2}).json()
+        subscription = client.post("/api/subscriptions", json={
+            "name": "Protected",
+            "topic": "protected",
+            "target_count": 2,
+            "recipient": "researcher@example.org",
+            "schedule_time": "08:00",
+            "sources": ["openalex"],
+        }).json()
+        blocked_batch = client.post("/api/tasks/bulk-delete", json={"task_ids": [second["id"], subscription["task_id"]]})
+        assert blocked_batch.status_code == 409
+        assert client.get(f"/api/tasks/{second['id']}").status_code == 200
+        assert client.get(f"/api/tasks/{subscription['task_id']}").status_code == 200
+
+        deleted = client.post("/api/tasks/bulk-delete", json={"task_ids": [first["id"], second["id"]]})
+        assert deleted.status_code == 200
+        assert deleted.json()["task_ids"] == [first["id"], second["id"]]
+        assert client.get(f"/api/tasks/{first['id']}").status_code == 404
+        assert client.get(f"/api/tasks/{second['id']}").status_code == 404
+        assert client.post("/api/tasks/bulk-delete", json={"task_ids": [first["id"], first["id"]]}).status_code == 422
+
+
 def test_prompt_catalog():
     with TestClient(app) as client:
         response = client.get("/api/prompts")
         assert response.status_code == 200
         assert any(item["id"] == "literature_summarizer.v1" for item in response.json())
+
+
+def test_prompt_override_lifecycle_and_task_snapshot():
+    with TestClient(app) as client:
+        builtin = next(item for item in client.get("/api/prompts").json() if item["id"] == "query_planner.v1")
+        created = client.post("/api/prompts", json={"role": "query_planner", "parent_id": builtin["id"], "body": "Custom planner instructions."})
+        assert created.status_code == 201
+        override = created.json()
+        assert override["builtin"] is False
+        assert override["active"] is True
+
+        prompts = client.get("/api/prompts").json()
+        assert next(item for item in prompts if item["id"] == override["id"])["active"] is True
+        assert next(item for item in prompts if item["id"] == builtin["id"])["active"] is False
+
+        task = client.post("/api/tasks", json={
+            "name": "Prompt override test",
+            "topic": "runtime prompts",
+            "target_count": 2,
+            "prompt_overrides": {"query_planner": override["id"]},
+        })
+        assert task.status_code == 200
+        run = client.post(f"/api/tasks/{task.json()['id']}/runs")
+        assert run.status_code == 202
+        import time
+        for _ in range(20):
+            current = client.get(f"/api/runs/{run.json()['id']}").json()
+            if current["status"] == "completed":
+                break
+            time.sleep(0.05)
+        contract = next(item["payload"] for item in client.get(f"/api/runs/{run.json()['id']}/artifacts").json() if item["node"] == "query_planner")
+        assert contract["prompt_snapshot"]["query_planner"]["id"] == override["id"]
+        assert contract["prompt_snapshot"]["query_planner"]["body"] == "Custom planner instructions."
+
+        assert client.post(f"/api/prompts/{builtin['id']}/activate").status_code == 200
+        assert client.delete(f"/api/prompts/{override['id']}").status_code == 200
+        assert client.delete(f"/api/prompts/{builtin['id']}").status_code == 409
 
 
 def test_task_source_validation_and_settings_catalog():
