@@ -73,13 +73,18 @@ class ModelProvider:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
-        self.client = client or httpx.Client(timeout=45)
+        # Keep the offline/fallback path truly network-independent. Constructing
+        # httpx.Client eagerly can fail when a machine advertises an optional
+        # SOCKS proxy, even though no model request will ever be made.
+        self.client = client
 
     @property
     def configured(self) -> bool:
         return bool(self.api_key and self.model)
 
     def _complete_json(self, system: str, payload: dict) -> dict[str, Any]:
+        if self.client is None:
+            self.client = httpx.Client(timeout=45)
         response = self.client.post(
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},

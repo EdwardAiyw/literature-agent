@@ -77,6 +77,7 @@ LLM_MODEL=YOUR_MODEL_NAME
 - 工作台显示本次运行进度和来源诊断。
 - 收件箱收到包含论文标题、作者、DOI、原文链接、中文摘要和推荐理由的日报。
 - “投递记录”显示 `sent`；失败时记录错误原因。
+- 刷新 GUI 后，在“最近任务”选择该订阅对应任务，仍可重新打开本次运行的节点、来源诊断和论文结果。
 
 ## CLI 验证
 
@@ -89,4 +90,24 @@ cd backend
 
 ```powershell
 .\.venv\Scripts\python.exe -m literature_agent.daily --run-enabled --no-send
+```
+
+仅运行在各自时区内已到执行时间、且当天尚未运行的订阅：
+
+```powershell
+.\.venv\Scripts\python.exe -m literature_agent.daily --run-due
+```
+
+## Windows 定时任务
+
+首次手动投递验收通过后，在项目根目录执行：
+
+```powershell
+.\scripts\register-windows-task.ps1
+```
+
+脚本默认每 15 分钟检查一次到期订阅；同一订阅在其本地自然日内最多自动运行一次。卸载命令：
+
+```powershell
+.\scripts\register-windows-task.ps1 -Unregister
 ```
