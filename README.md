@@ -6,6 +6,10 @@ V2 adds a TypeSafe AI Jev System One decision plane for typed relevance screenin
 
 This is a new product repository. The legacy `literature-digest` repository remains an independent reference implementation.
 
+## V2 配置手册
+
+完整的 Windows 安装、V2 数据库、Jev Shadow、真实任务测试和故障排查步骤见 [`docs/V2_OPERATIONS_MANUAL.md`](docs/V2_OPERATIONS_MANUAL.md)。当前默认数据库是 `backend/data/literature_agent_v2.db`；旧版数据库不会被 V2 自动读取。
+
 ## Development
 
 Backend:
