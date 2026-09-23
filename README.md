@@ -1,6 +1,8 @@
-# Literature Agent
+# Literature Agent V2
 
 Local-first Windows research literature agent. The product accepts a research topic, plans queries, retrieves records, deduplicates them, screens relevance, generates a structured research summary, and exposes the run in a desktop-ready GUI.
+
+V2 adds a TypeSafe AI Jev System One decision plane for typed relevance screening and evidence checks. Jev runs behind feature flags, defaults to shadow mode, records confidence/model/latency/cache/fallback audit data, and falls back to the existing LLM or deterministic path when confidence is insufficient.
 
 This is a new product repository. The legacy `literature-digest` repository remains an independent reference implementation.
 
@@ -30,7 +32,18 @@ The default backend uses deterministic fixture records so the GUI can be evaluat
 
 ## MVP daily subscriptions
 
-The MVP supports OpenAlex, Crossref, arXiv, and PubMed subscriptions, Chinese digest rendering, SMTP delivery records, and an independent daily CLI. Configure `LLM_API_KEY`, `LLM_MODEL`, `LITERATURE_AGENT_LIVE=true`, and the `SMTP_*` variables in `backend/.env` before running a subscription.
+V2 supports Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed subscriptions, Chinese digest rendering, SMTP delivery records, source caching and a global daily request budget. Configure `LLM_API_KEY`, `LLM_MODEL`, `LITERATURE_AGENT_LIVE=true`, and the `SMTP_*` variables in `backend/.env` before running a subscription.
+
+Start Jev in shadow mode:
+
+```env
+TYPESAFE_API_KEY=your-key
+JEV_ENABLED=true
+JEV_SHADOW_MODE=true
+JEV_MODEL=jev-1.13.0
+```
+
+After validating audit results, set `JEV_SHADOW_MODE=false` to allow high-confidence Jev decisions to take effect. See [`docs/V2_JEV.md`](docs/V2_JEV.md).
 
 Create or manage subscriptions in the GUI, then run one manually with:
 

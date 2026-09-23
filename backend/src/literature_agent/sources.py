@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import html
+import hashlib
+import json
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -9,9 +12,10 @@ from xml.etree import ElementTree
 
 import httpx
 
-SUPPORTED_SOURCES = ("fixture", "openalex", "crossref", "arxiv", "pubmed")
+SUPPORTED_SOURCES = ("fixture", "semantic_scholar", "openalex", "crossref", "arxiv", "pubmed")
 SOURCE_METADATA = {
     "fixture": {"label": "Fixture", "requires_credentials": False, "live": False},
+    "semantic_scholar": {"label": "Semantic Scholar", "requires_credentials": False, "live": True},
     "openalex": {"label": "OpenAlex", "requires_credentials": False, "live": True},
     "crossref": {"label": "Crossref", "requires_credentials": False, "live": True},
     "arxiv": {"label": "arXiv", "requires_credentials": False, "live": True},
@@ -69,6 +73,14 @@ class SourceAdapter(Protocol):
 
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]: ...
 
+    def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int: ...
+
+
+class RetrievalStore(Protocol):
+    def get_source_cache(self, cache_key: str) -> list[dict] | None: ...
+    def save_source_cache(self, cache_key: str, provider: str, payload: list[dict], ttl_hours: int) -> None: ...
+    def reserve_source_requests(self, provider: str, count: int, budget: int) -> bool: ...
+
 
 class BaseSource:
     name = "source"
@@ -77,6 +89,47 @@ class BaseSource:
         self.client = client
         self.api_key = api_key
         self.email = email
+
+    def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
+        return len(queries)
+
+
+class SemanticScholarSource(BaseSource):
+    name = "semantic_scholar"
+    fields = "paperId,title,abstract,authors,year,publicationDate,citationCount,externalIds,url,openAccessPdf,venue,fieldsOfStudy,publicationTypes"
+
+    def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
+        return len(queries) * max(1, math.ceil(limit / 100))
+
+    def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
+        records = []
+        headers = {"x-api-key": self.api_key} if self.api_key else {}
+        for query in queries:
+            offset, remaining = 0, limit
+            while remaining > 0:
+                page_size = min(100, remaining)
+                response = self.client.get("https://api.semanticscholar.org/graph/v1/paper/search",
+                    params={"query": query, "offset": offset, "limit": page_size, "fields": self.fields}, headers=headers)
+                response.raise_for_status()
+                payload = response.json(); items = payload.get("data", [])
+                for item in items:
+                    ids = item.get("externalIds") or {}; paper_id = _text(item.get("paperId")); oa = item.get("openAccessPdf") or {}
+                    record = {"title": _text(item.get("title")),
+                        "authors": [_text(a.get("name")) for a in item.get("authors", []) if a.get("name")],
+                        "author_ids": [_text(a.get("authorId")) for a in item.get("authors", []) if a.get("authorId")],
+                        "abstract": _text(item.get("abstract")),
+                        "published_date": _date(item.get("publicationDate") or (f"{item['year']}-01-01" if item.get("year") else "")),
+                        "source": self.name, "source_id": paper_id, "semantic_scholar_id": paper_id,
+                        "doi": _normalize_doi(ids.get("DOI")), "venue": _text(item.get("venue")),
+                        "official_url": item.get("url") or (f"https://www.semanticscholar.org/paper/{paper_id}" if paper_id else ""),
+                        "open_access_url": oa.get("url", "") or "", "citation_count": item.get("citationCount"),
+                        "language": "unknown", "topics": item.get("fieldsOfStudy") or [],
+                        "publication_types": item.get("publicationTypes") or []}
+                    filtered = _with_date_status(record, date_from, date_to)
+                    if filtered: records.append(filtered)
+                if len(items) < page_size or payload.get("next") is None: break
+                offset = int(payload["next"]); remaining -= len(items)
+        return records
 
 
 class OpenAlexSource(BaseSource):
@@ -199,6 +252,9 @@ class ArxivSource(BaseSource):
 class PubMedSource(BaseSource):
     name = "pubmed"
 
+    def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
+        return len(queries) * 2
+
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
         records = []
         for query in queries:
@@ -293,6 +349,7 @@ def _pubmed_date(article: ElementTree.Element) -> str:
 
 def build_sources(client: httpx.Client, settings: Any) -> dict[str, SourceAdapter]:
     return {
+        "semantic_scholar": SemanticScholarSource(client, settings.semantic_scholar_api_key),
         "openalex": OpenAlexSource(client, settings.openalex_api_key),
         "crossref": CrossrefSource(client),
         "arxiv": ArxivSource(client),
@@ -308,6 +365,7 @@ def search_sources(
     date_to: str,
     client: httpx.Client,
     settings: Any,
+    cache: RetrievalStore | None = None,
 ) -> tuple[list[dict], dict[str, dict]]:
     adapters = build_sources(client, settings)
     requested = [name for name in dict.fromkeys(source_names) if name in adapters]
@@ -315,14 +373,28 @@ def search_sources(
     queries = tuple(dict.fromkeys(query.strip() for query in queries if query.strip()))[:4]
     records: list[dict] = []
     diagnostics: dict[str, dict] = {}
+    def retrieve(name: str):
+        cache_key = hashlib.sha256(json.dumps({"provider": name, "queries": queries, "limit": limit,
+            "date_from": date_from, "date_to": date_to}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        if cache:
+            cached = cache.get_source_cache(cache_key)
+            if cached is not None:
+                return cached, {"status": "cached", "count": len(cached), "error": "", "cache_hit": True, "requests_reserved": 0}
+        adapter = adapters[name]; request_count = adapter.estimated_requests(queries, limit)
+        if cache and not cache.reserve_source_requests(name, request_count, settings.source_daily_request_budget):
+            raise RuntimeError(f"Daily request budget exhausted ({settings.source_daily_request_budget} requests)")
+        source_records = adapter.search(queries, limit, date_from, date_to)
+        if cache: cache.save_source_cache(cache_key, name, source_records, settings.source_cache_ttl_hours)
+        return source_records, {"status": "ok", "count": len(source_records), "error": "", "cache_hit": False, "requests_reserved": request_count}
+
     with ThreadPoolExecutor(max_workers=max(1, len(requested))) as pool:
-        futures = {pool.submit(adapters[name].search, queries, limit, date_from, date_to): name for name in requested}
+        futures = {pool.submit(retrieve, name): name for name in requested}
         for future in as_completed(futures):
             name = futures[future]
             try:
-                source_records = future.result()
+                source_records, diagnostic = future.result()
                 records.extend(source_records)
-                diagnostics[name] = {"status": "ok", "count": len(source_records), "error": ""}
+                diagnostics[name] = diagnostic
             except Exception as exc:
-                diagnostics[name] = {"status": "failed", "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+                diagnostics[name] = {"status": "failed", "count": 0, "error": f"{type(exc).__name__}: {exc}", "cache_hit": False, "requests_reserved": 0}
     return records, diagnostics

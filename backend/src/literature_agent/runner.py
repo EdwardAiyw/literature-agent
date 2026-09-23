@@ -13,7 +13,7 @@ def execute_run(settings: Settings, database: Database, run_id: str, task: dict)
     started_at = current.get("started_at") or datetime.now(timezone.utc).isoformat()
     database.update_run(run_id, status="running", current_node="query_planner", started_at=started_at)
     try:
-        graph = build_graph(settings, database, database.resolve_prompts(task))
+        graph = build_graph(settings, database, database.list_prompts())
         graph.invoke({"task": task, "run_id": run_id, "errors": []})
     except Exception as exc:
         database.update_run(run_id, status="failed", current_node="failed", error=f"{type(exc).__name__}: {exc}", finished_at=datetime.now(timezone.utc).isoformat())
@@ -29,7 +29,9 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
     if not task:
         raise RuntimeError(f"Task {subscription['task_id']} not found for subscription")
     total_steps = 7 if task.get("evidence_review") else 6
-    run = database.get_run(run_id) if run_id else database.create_run(subscription["task_id"], total_steps=total_steps)
+    run = database.get_run(run_id) if run_id else database.create_run(
+        subscription["task_id"], total_steps=total_steps, trigger_kind="subscription", subscription_id=subscription["id"]
+    )
     if not run:
         raise RuntimeError(f"Run {run_id} not found")
     result = execute_run(settings, database, run["id"], task)

@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 
 from .config import Settings
 from .db import Database
+from .decisions import JevDecisionProvider
 from .llm import ModelProvider, fallback, fallback_evidence_review, fallback_query_plan, fallback_screen
 from .prompts import prompt_for
 from .sources import search_sources
@@ -65,6 +66,7 @@ def canonical(record: dict) -> str:
 
 def build_graph(settings: Settings, database: Database, prompts: list[dict]):
     provider = ModelProvider(settings.llm_base_url, settings.llm_api_key, settings.llm_model)
+    decisions = JevDecisionProvider(settings, database)
 
     def errors_for(state: GraphState, node: str, exc: Exception) -> list[str]:
         errors = list(state.get("errors", []))
@@ -97,11 +99,11 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             "sources": task.get("sources", []),
             "target_count": task["target_count"],
             "evidence_review": task["evidence_review"],
+            "decision_policy": {"jev_enabled": decisions.configured, "mode": decisions.mode,
+                                "model": settings.jev_model, "auto_threshold": settings.jev_auto_threshold,
+                                "review_threshold": settings.jev_review_threshold},
             "query_plan": query_plan,
-            "prompt_snapshot": {
-                prompt["role"]: {"id": prompt["id"], "version": prompt["version"], "body": prompt["body"]}
-                for prompt in prompts
-            },
+            "prompt_snapshot": {prompt["role"]: {"id": prompt["id"], "version": prompt["version"]} for prompt in prompts},
         }
         completed(state, "query_planner", f"Prepared {len(query_plan['queries'])} query route(s)", 1, contract)
         return {"node": "query_planner", "query_plan": query_plan, "errors": errors}
@@ -128,6 +130,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                     task.get("date_to", ""),
                     client,
                     settings,
+                    cache=database,
                 )
             for name, result in diagnostics.items():
                 if result["status"] == "failed":
@@ -159,13 +162,32 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         task = state["task"]
         errors = list(state.get("errors", []))
         screened = []
+        jev_evaluated = 0
+        jev_auto = 0
         prompt = prompt_for(prompts, "relevance_screener")["body"]
         for record in state.get("records", []):
-            try:
-                decision = provider.screen(record, task, prompt)
-            except Exception as exc:
-                decision = fallback_screen(record, task["topic"])
-                errors = errors_for({"errors": errors}, "relevance_screener", exc)
+            jev_decision = None
+            if decisions.configured:
+                try:
+                    jev_decision = decisions.screen_paper(state["run_id"], record, task)
+                    jev_evaluated += 1
+                    jev_auto += int(jev_decision["auto_eligible"])
+                except Exception as exc:
+                    errors = errors_for({"errors": errors}, "jev_relevance_screener", exc)
+            if jev_decision and not settings.jev_shadow_mode and jev_decision["auto_eligible"]:
+                decision = jev_decision
+            else:
+                try:
+                    decision = provider.screen(record, task, prompt)
+                except Exception as exc:
+                    decision = fallback_screen(record, task["topic"])
+                    errors = errors_for({"errors": errors}, "relevance_screener", exc)
+            if jev_decision:
+                decision["jev"] = {"mode": decisions.mode, "engine": jev_decision["engine"],
+                    "relevance_score": jev_decision["relevance_score"],
+                    "decision_confidence": jev_decision["decision_confidence"],
+                    "auto_eligible": jev_decision["auto_eligible"]}
+                decision["requires_human_review"] = jev_decision["decision_confidence"] < settings.jev_review_threshold
             record["screening"] = decision
             record["relevance_score"] = decision["relevance_score"]
             record["priority"] = decision["priority"]
@@ -177,7 +199,9 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             "relevance_screener",
             f"Ranked {len(screened)} record(s)",
             4,
-            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]]},
+            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]],
+             "jev": {"configured": decisions.configured, "mode": decisions.mode,
+                     "evaluated_count": jev_evaluated, "auto_eligible_count": jev_auto}},
         )
         return {"node": "relevance_screener", "records": screened, "errors": errors}
 
@@ -202,15 +226,28 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         errors = list(state.get("errors", []))
         prompt = prompt_for(prompts, "evidence_reviewer")["body"]
         for record in state.get("records", []):
-            try:
-                review = provider.review_evidence(record, record["summary"], prompt)
-            except Exception as exc:
-                review = fallback_evidence_review(record, record["summary"])
-                errors = errors_for({"errors": errors}, "evidence_reviewer", exc)
+            jev_review = None
+            if decisions.configured:
+                try:
+                    jev_review = decisions.review_evidence(state["run_id"], record, record["summary"])
+                except Exception as exc:
+                    errors = errors_for({"errors": errors}, "jev_evidence_reviewer", exc)
+            if jev_review and not settings.jev_shadow_mode and jev_review["auto_eligible"]:
+                review = jev_review
+            else:
+                try:
+                    review = provider.review_evidence(record, record["summary"], prompt)
+                except Exception as exc:
+                    review = fallback_evidence_review(record, record["summary"])
+                    errors = errors_for({"errors": errors}, "evidence_reviewer", exc)
             summary = record["summary"]
             summary["evidence_warnings"] = list(dict.fromkeys([*summary.get("evidence_warnings", []), *review["evidence_warnings"]]))
             summary["confidence"] = min(float(summary.get("confidence", 0.35)), float(review["confidence"]))
             summary["evidence_review_engine"] = review["engine"]
+            if jev_review:
+                summary["jev_evidence_review"] = {"mode": decisions.mode, "engine": jev_review["engine"],
+                    "confidence": jev_review["decision_confidence"], "auto_eligible": jev_review["auto_eligible"],
+                    "warnings": jev_review["evidence_warnings"]}
         completed(state, "evidence_reviewer", "Completed evidence review", 6, {"reviewed_count": len(state.get("records", []))})
         return {"node": "evidence_reviewer", "records": state.get("records", []), "errors": errors}
 
@@ -222,7 +259,9 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         database.save_run_artifact(
             state["run_id"],
             "result_manifest",
-            {"paper_count": len(state.get("records", [])), "errors": state.get("errors", []), "completed_at": datetime.now(timezone.utc).isoformat()},
+            {"paper_count": len(state.get("records", [])),
+             "decision_count": len(database.list_decision_calls(state["run_id"])),
+             "errors": state.get("errors", []), "completed_at": datetime.now(timezone.utc).isoformat()},
         )
         database.update_run(
             state["run_id"],

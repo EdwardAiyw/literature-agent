@@ -78,3 +78,21 @@ def test_source_failure_is_reported_without_losing_other_results(tmp_path):
     assert diagnostics["openalex"]["status"] == "failed"
     assert diagnostics["crossref"]["status"] == "ok"
     assert records[0]["doi"] == "10.1000/ok"
+
+
+def test_semantic_scholar_cache_and_global_budget(tmp_path):
+    from literature_agent.db import Database
+    calls = 0
+    def handler(request):
+        nonlocal calls; calls += 1
+        return httpx.Response(200, json={"data":[{"paperId":"S2-1","title":"Semantic paper","year":2025,
+            "authors":[{"authorId":"A1","name":"Ada"}],"externalIds":{"DOI":"10.1/s2"}}],"next":None})
+    database = Database(tmp_path / "cache.db")
+    settings = Settings(root=tmp_path, live=True, source_daily_request_budget=1)
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    first, _ = search_sources(["semantic_scholar"], ("agents",), 1, "", "", client, settings, cache=database)
+    second, diagnostics = search_sources(["semantic_scholar"], ("agents",), 1, "", "", client, settings, cache=database)
+    assert first == second and calls == 1
+    assert diagnostics["semantic_scholar"]["status"] == "cached"
+    assert database.source_usage_total() == 1
+    database.close()

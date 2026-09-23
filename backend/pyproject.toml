@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "literature-agent"
-version = "0.1.0"
-requires-python = ">=3.11"
+version = "0.2.0"
+requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
   "httpx[socks]>=0.27,<1",
   "pydantic>=2.8,<3",
   "langgraph>=0.2,<1",
+  "alembic>=1.14,<2",
+  "sqlalchemy>=2.0,<3",
+  "typesafe-sdk>=0.7.1,<1",
   "tzdata>=2024.1",
 ]
 

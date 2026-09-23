@@ -58,10 +58,8 @@ class TaskCreate(BaseModel):
     date_from: str = Field(default="", pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
     date_to: str = Field(default="", pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
     target_count: int = Field(default=10, ge=1, le=100)
-    sources: list[str] = Field(default_factory=lambda: ["openalex", "crossref", "arxiv", "pubmed"])
+    sources: list[str] = Field(default_factory=lambda: ["semantic_scholar", "openalex", "crossref", "arxiv", "pubmed"])
     evidence_review: bool = False
-    prompt_overrides: dict[str, str] = Field(default_factory=dict)
-    origin: Literal["user", "test", "subscription"] = "user"
 
     @field_validator("name", "topic")
     @classmethod
@@ -88,11 +86,6 @@ class TaskCreate(BaseModel):
             raise ValueError("At least one source is required")
         return list(dict.fromkeys(sources))
 
-    @field_validator("prompt_overrides")
-    @classmethod
-    def validate_task_prompt_overrides(cls, value: dict[str, str]) -> dict[str, str]:
-        return _validate_prompt_overrides(value)
-
     @model_validator(mode="after")
     def validate_date_range(self):
         if self.date_from and self.date_to and self.date_from > self.date_to:
@@ -100,88 +93,7 @@ class TaskCreate(BaseModel):
         return self
 
 
-class TaskUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    topic: str | None = Field(default=None, min_length=1, max_length=1000)
-    research_questions: list[str] | None = None
-    language: Literal["zh", "en", "bilingual"] | None = None
-    output_language: Literal["zh", "en", "bilingual"] | None = None
-    date_from: str | None = Field(default=None, pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
-    date_to: str | None = Field(default=None, pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
-    target_count: int | None = Field(default=None, ge=1, le=100)
-    sources: list[str] | None = None
-    evidence_review: bool | None = None
-    prompt_overrides: dict[str, str] | None = None
-
-    @field_validator("name", "topic")
-    @classmethod
-    def validate_required_text(cls, value: str | None) -> str | None:
-        return _clean_required(value) if value is not None else None
-
-    @field_validator("research_questions")
-    @classmethod
-    def validate_questions(cls, values: list[str] | None) -> list[str] | None:
-        return _clean_questions(values) if values is not None else None
-
-    @field_validator("date_from", "date_to")
-    @classmethod
-    def validate_dates(cls, value: str | None) -> str | None:
-        return _validate_date(value) if value is not None else None
-
-    @field_validator("sources")
-    @classmethod
-    def validate_sources(cls, sources: list[str] | None) -> list[str] | None:
-        if sources is None:
-            return None
-        invalid = sorted(set(sources) - set(SUPPORTED_SOURCES))
-        if invalid:
-            raise ValueError(f"Unsupported source(s): {', '.join(invalid)}")
-        if not sources:
-            raise ValueError("At least one source is required")
-        return list(dict.fromkeys(sources))
-
-    @field_validator("prompt_overrides")
-    @classmethod
-    def validate_prompt_overrides(cls, value: dict[str, str] | None) -> dict[str, str] | None:
-        return _validate_prompt_overrides(value) if value is not None else None
-
-    @model_validator(mode="after")
-    def validate_date_range(self):
-        if self.date_from and self.date_to and self.date_from > self.date_to:
-            raise ValueError("date_from must be before or equal to date_to")
-        return self
-
-
-class TaskBulkDelete(BaseModel):
-    task_ids: list[str] = Field(min_length=1, max_length=100)
-
-    @field_validator("task_ids")
-    @classmethod
-    def validate_task_ids(cls, values: list[str]) -> list[str]:
-        cleaned = [value.strip() for value in values]
-        if any(not value for value in cleaned):
-            raise ValueError("task_ids must contain non-empty ids")
-        if len(set(cleaned)) != len(cleaned):
-            raise ValueError("task_ids must not contain duplicates")
-        return cleaned
-
-
-DEFAULT_SOURCES = ["openalex", "crossref", "arxiv", "pubmed"]
-PROMPT_ROLES = ("query_planner", "relevance_screener", "literature_summarizer", "evidence_reviewer")
-
-
-def _validate_prompt_overrides(value: dict[str, str]) -> dict[str, str]:
-    if not isinstance(value, dict):
-        raise ValueError("prompt_overrides must be an object")
-    invalid = sorted(set(value) - set(PROMPT_ROLES))
-    if invalid:
-        raise ValueError(f"Unsupported prompt role(s): {', '.join(invalid)}")
-    cleaned: dict[str, str] = {}
-    for role, prompt_id in value.items():
-        if not isinstance(prompt_id, str) or not prompt_id.strip():
-            raise ValueError(f"Prompt override for {role} must be a non-empty prompt id")
-        cleaned[role] = prompt_id.strip()
-    return cleaned
+DEFAULT_SOURCES = ["semantic_scholar", "openalex", "crossref", "arxiv", "pubmed"]
 
 
 class SubscriptionCreate(BaseModel):
@@ -198,7 +110,6 @@ class SubscriptionCreate(BaseModel):
     schedule_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     timezone: str = Field(default="Asia/Hong_Kong", min_length=1, max_length=80)
     evidence_review: bool = False
-    prompt_overrides: dict[str, str] = Field(default_factory=dict)
     enabled: bool = True
 
     @field_validator("name", "topic")
@@ -242,11 +153,6 @@ class SubscriptionCreate(BaseModel):
             raise ValueError("date_from must be before or equal to date_to")
         return self
 
-    @field_validator("prompt_overrides")
-    @classmethod
-    def validate_prompt_override_map(cls, value: dict[str, str]) -> dict[str, str]:
-        return _validate_prompt_overrides(value)
-
 
 class SubscriptionUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -262,7 +168,6 @@ class SubscriptionUpdate(BaseModel):
     schedule_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     timezone: str | None = Field(default=None, min_length=1, max_length=80)
     evidence_review: bool | None = None
-    prompt_overrides: dict[str, str] | None = None
     enabled: bool | None = None
 
     @field_validator("name", "topic")
@@ -301,11 +206,6 @@ class SubscriptionUpdate(BaseModel):
         if not sources:
             raise ValueError("At least one source is required")
         return list(dict.fromkeys(sources))
-
-    @field_validator("prompt_overrides")
-    @classmethod
-    def validate_update_prompt_overrides(cls, value: dict[str, str] | None) -> dict[str, str] | None:
-        return _validate_prompt_overrides(value) if value is not None else None
 
 
 class SubscriptionRead(SubscriptionCreate):
@@ -352,6 +252,8 @@ class RunRead(BaseModel):
     error: str = ""
     progress: int = 0
     total_steps: int = 0
+    trigger_kind: Literal["manual", "subscription"] = "manual"
+    subscription_id: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
 
@@ -373,27 +275,34 @@ class RunArtifactRead(BaseModel):
     created_at: datetime
 
 
+class DecisionCallRead(BaseModel):
+    id: str
+    run_id: str
+    stage: str
+    subject_id: str = ""
+    mode: Literal["shadow", "active"]
+    status: str
+    requested_model: str
+    resolved_model: str = ""
+    schema_version: str
+    state_hash: str
+    answers: dict = Field(default_factory=dict)
+    outcome: dict = Field(default_factory=dict)
+    confidence: float = 0.0
+    latency_ms: float = 0.0
+    input_tokens: int = 0
+    cached: bool = False
+    fallback_used: bool = False
+    error: str = ""
+    created_at: datetime
+
+
 class PromptRead(BaseModel):
     id: str
     role: str
     version: str
     body: str
     builtin: bool
-    active: bool = False
-    parent_id: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-class PromptCreate(BaseModel):
-    role: Literal["query_planner", "relevance_screener", "literature_summarizer", "evidence_reviewer"]
-    body: str = Field(min_length=1, max_length=20000)
-    parent_id: str | None = None
-
-    @field_validator("body")
-    @classmethod
-    def validate_body(cls, value: str) -> str:
-        return _clean_required(value)
 
 
 class PaperRead(BaseModel):

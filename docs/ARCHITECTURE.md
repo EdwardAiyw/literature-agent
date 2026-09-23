@@ -1,5 +1,7 @@
 # Architecture
 
+V2 separates orchestration (LangGraph), open-ended generation (OpenAI-compatible LLM), typed decisions (Jev), and deterministic execution. SQLite uses WAL; Alembic owns versioned schema upgrades; queued/running work is recovered by a bounded local worker after restart.
+
 ```mermaid
 flowchart LR
   UI[React GUI] --> API[FastAPI]
@@ -15,6 +17,8 @@ flowchart LR
   E -->|no| M[Result manifest]
   V --> M
   G --> A[Run events and artifacts]
+  G --> J[Jev typed decisions]
+  J --> DB
   M --> DB
   A --> DB
   DB --> UI
