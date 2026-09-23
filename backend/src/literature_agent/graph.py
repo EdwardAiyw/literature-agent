@@ -103,7 +103,10 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                                 "model": settings.jev_model, "auto_threshold": settings.jev_auto_threshold,
                                 "review_threshold": settings.jev_review_threshold},
             "query_plan": query_plan,
-            "prompt_snapshot": {prompt["role"]: {"id": prompt["id"], "version": prompt["version"]} for prompt in prompts},
+            "prompt_snapshot": {
+                prompt["role"]: {"id": prompt["id"], "version": prompt["version"], "body": prompt["body"]}
+                for prompt in prompts
+            },
         }
         completed(state, "query_planner", f"Prepared {len(query_plan['queries'])} query route(s)", 1, contract)
         return {"node": "query_planner", "query_plan": query_plan, "errors": errors}
