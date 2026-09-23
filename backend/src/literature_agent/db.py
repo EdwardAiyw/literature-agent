@@ -7,6 +7,17 @@ from pathlib import Path
 from threading import RLock
 from uuid import uuid4
 
+from alembic import command
+from alembic.config import Config
+
+
+def upgrade_database(path: Path) -> None:
+    backend_root = Path(__file__).resolve().parents[2]
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{path.resolve().as_posix()}")
+    command.upgrade(config, "head")
+
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -16,85 +27,13 @@ class Database:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
+        upgrade_database(path)
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=NORMAL")
         self.connection.execute("PRAGMA busy_timeout=5000")
-        self.connection.executescript("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS runs (
-            id TEXT PRIMARY KEY, task_id TEXT NOT NULL, status TEXT NOT NULL, current_node TEXT NOT NULL DEFAULT '',
-            paper_count INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', progress INTEGER NOT NULL DEFAULT 0,
-            total_steps INTEGER NOT NULL DEFAULT 0, started_at TEXT, finished_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_runs_task_started ON runs(task_id, started_at DESC);
-        CREATE TABLE IF NOT EXISTS papers (
-            id TEXT PRIMARY KEY, run_id TEXT NOT NULL, canonical_id TEXT NOT NULL, payload TEXT NOT NULL,
-            review TEXT NOT NULL DEFAULT 'unreviewed', UNIQUE(run_id, canonical_id)
-        );
-        CREATE TABLE IF NOT EXISTS prompts (
-            id TEXT PRIMARY KEY, role TEXT NOT NULL, version TEXT NOT NULL, body TEXT NOT NULL, builtin INTEGER NOT NULL DEFAULT 1
-        );
-        CREATE TABLE IF NOT EXISTS run_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, node TEXT NOT NULL, status TEXT NOT NULL,
-            message TEXT NOT NULL, artifact_type TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id, id);
-        CREATE TABLE IF NOT EXISTS run_artifacts (
-            run_id TEXT NOT NULL, node TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
-            PRIMARY KEY(run_id, node)
-        );
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id TEXT PRIMARY KEY, task_id TEXT NOT NULL, payload TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_enabled ON subscriptions(enabled);
-        CREATE TABLE IF NOT EXISTS deliveries (
-            id TEXT PRIMARY KEY, subscription_id TEXT NOT NULL, run_id TEXT, kind TEXT NOT NULL,
-            status TEXT NOT NULL, recipient TEXT NOT NULL, subject TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL, sent_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_deliveries_subscription ON deliveries(subscription_id, created_at);
-        CREATE TABLE IF NOT EXISTS decision_calls (
-            id TEXT PRIMARY KEY, run_id TEXT NOT NULL, stage TEXT NOT NULL, subject_id TEXT NOT NULL DEFAULT '',
-            mode TEXT NOT NULL, status TEXT NOT NULL, requested_model TEXT NOT NULL, resolved_model TEXT NOT NULL DEFAULT '',
-            schema_version TEXT NOT NULL, state_hash TEXT NOT NULL, answers TEXT NOT NULL DEFAULT '{}',
-            outcome TEXT NOT NULL DEFAULT '{}', confidence REAL NOT NULL DEFAULT 0, latency_ms REAL NOT NULL DEFAULT 0,
-            input_tokens INTEGER NOT NULL DEFAULT 0, cached INTEGER NOT NULL DEFAULT 0,
-            fallback_used INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_decision_calls_run ON decision_calls(run_id, created_at);
-        CREATE TABLE IF NOT EXISTS decision_cache (
-            cache_key TEXT PRIMARY KEY, model TEXT NOT NULL, schema_version TEXT NOT NULL,
-            payload TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS source_cache (
-            cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, payload TEXT NOT NULL,
-            expires_at TEXT NOT NULL, created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS source_usage (
-            provider TEXT NOT NULL, usage_date TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY(provider, usage_date)
-        );
-        """)
-        self._ensure_column("runs", "progress", "INTEGER NOT NULL DEFAULT 0")
-        self._ensure_column("runs", "total_steps", "INTEGER NOT NULL DEFAULT 0")
-        self._ensure_column("runs", "trigger_kind", "TEXT NOT NULL DEFAULT 'manual'")
-        self._ensure_column("runs", "subscription_id", "TEXT")
-        self._ensure_column("prompts", "active", "INTEGER NOT NULL DEFAULT 0")
-        self._ensure_column("prompts", "parent_id", "TEXT")
-        self._ensure_column("prompts", "created_at", "TEXT NOT NULL DEFAULT ''")
-        self._ensure_column("prompts", "updated_at", "TEXT NOT NULL DEFAULT ''")
-        self.connection.commit()
-
-    def _ensure_column(self, table: str, column: str, definition: str) -> None:
-        columns = {row["name"] for row in self.connection.execute(f"PRAGMA table_info({table})")}
-        if column not in columns:
-            self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def create_task(self, payload: dict) -> dict:
         task_id = str(uuid4())
@@ -341,14 +280,19 @@ class Database:
             "outcome": json.dumps(value.get("outcome", {}), ensure_ascii=False),
             "confidence": float(value.get("confidence", 0)), "latency_ms": float(value.get("latency_ms", 0)),
             "input_tokens": int(value.get("input_tokens", 0)), "cached": int(bool(value.get("cached"))),
-            "fallback_used": int(bool(value.get("fallback_used"))), "error": value.get("error", ""),
+            "fallback_used": int(bool(value.get("fallback_used"))), "fallback_reason": value.get("fallback_reason", ""),
+            "error": value.get("error", ""),
             "created_at": value.get("created_at") or now(),
         }
         with self._lock:
             self.connection.execute(
-                """INSERT INTO decision_calls VALUES (:id,:run_id,:stage,:subject_id,:mode,:status,:requested_model,
-                :resolved_model,:schema_version,:state_hash,:answers,:outcome,:confidence,:latency_ms,:input_tokens,
-                :cached,:fallback_used,:error,:created_at)""", row)
+                """INSERT INTO decision_calls (
+                id,run_id,stage,subject_id,mode,status,requested_model,resolved_model,schema_version,state_hash,
+                answers,outcome,confidence,latency_ms,input_tokens,cached,fallback_used,fallback_reason,error,created_at
+                ) VALUES (
+                :id,:run_id,:stage,:subject_id,:mode,:status,:requested_model,:resolved_model,:schema_version,:state_hash,
+                :answers,:outcome,:confidence,:latency_ms,:input_tokens,:cached,:fallback_used,:fallback_reason,:error,:created_at
+                )""", row)
             self.connection.commit()
         return self.get_decision_call(call_id)
 

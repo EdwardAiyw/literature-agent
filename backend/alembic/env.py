@@ -1,12 +1,9 @@
 from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-from literature_agent.config import Settings
 
 config = context.config
 if config.config_file_name: fileConfig(config.config_file_name)
-settings = Settings.from_env()
-config.set_main_option("sqlalchemy.url", f"sqlite:///{settings.db_path}")
 
 def run_migrations_offline():
     context.configure(url=config.get_main_option("sqlalchemy.url"), literal_binds=True, render_as_batch=True)

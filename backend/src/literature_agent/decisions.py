@@ -76,16 +76,30 @@ class JevDecisionProvider:
                 "latency_ms": (time.perf_counter() - started) * 1000}
 
     def _audit(self, run_id: str, stage: str, subject_id: str, schema: str,
-               envelope: dict, outcome: dict, status: str = "completed", error: str = "") -> None:
+               envelope: dict, outcome: dict, status: str | None = None, error: str = "") -> None:
+        failed = bool(error)
+        fallback_used = self.mode == "active" and (failed or not outcome.get("auto_eligible", False))
+        if failed:
+            audit_status = "failed"
+            fallback_reason = "jev_error"
+        elif self.mode == "shadow":
+            audit_status = "shadow_observed"
+            fallback_reason = ""
+        elif fallback_used:
+            audit_status = "fallback"
+            fallback_reason = "low_confidence"
+        else:
+            audit_status = "applied"
+            fallback_reason = ""
         self.database.add_decision_call({
             "run_id": run_id, "stage": stage, "subject_id": subject_id, "mode": self.mode,
-            "status": status, "requested_model": self.settings.jev_model,
+            "status": status or audit_status, "requested_model": self.settings.jev_model,
             "resolved_model": envelope.get("resolved_model", ""), "schema_version": schema,
             "state_hash": envelope.get("state_hash", ""), "answers": envelope.get("answers", {}),
             "outcome": outcome, "confidence": outcome.get("decision_confidence", 0),
             "latency_ms": envelope.get("latency_ms", 0), "input_tokens": envelope.get("input_tokens", 0),
             "cached": envelope.get("cached", False),
-            "fallback_used": self.mode == "active" and not outcome.get("auto_eligible", False), "error": error,
+            "fallback_used": fallback_used, "fallback_reason": fallback_reason, "error": error,
         })
 
     def screen_paper(self, run_id: str, record: dict, task: dict) -> dict:

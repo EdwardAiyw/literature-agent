@@ -19,7 +19,7 @@ def load_dotenv(path: Path) -> None:
 class Settings:
     root: Path
     live: bool = False
-    db_path: Path = Path("data/literature_agent.db")
+    db_path: Path = Path("data/literature_agent_v2.db")
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
     llm_model: str = ""
@@ -50,7 +50,7 @@ class Settings:
     def from_env(cls, root: Path | None = None) -> "Settings":
         project_root = root or Path(__file__).resolve().parents[2]
         load_dotenv(project_root / ".env")
-        db = Path(os.getenv("LITERATURE_AGENT_DB", "data/literature_agent.db"))
+        db = Path(os.getenv("LITERATURE_AGENT_DB", "data/literature_agent_v2.db"))
         if not db.is_absolute():
             db = project_root / db
         return cls(

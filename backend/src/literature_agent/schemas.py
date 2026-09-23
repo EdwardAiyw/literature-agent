@@ -381,7 +381,7 @@ class DecisionCallRead(BaseModel):
     stage: str
     subject_id: str = ""
     mode: Literal["shadow", "active"]
-    status: str
+    status: Literal["shadow_observed", "applied", "fallback", "failed"]
     requested_model: str
     resolved_model: str = ""
     schema_version: str
@@ -393,6 +393,7 @@ class DecisionCallRead(BaseModel):
     input_tokens: int = 0
     cached: bool = False
     fallback_used: bool = False
+    fallback_reason: Literal["", "low_confidence", "jev_error"] = ""
     error: str = ""
     created_at: datetime
 
