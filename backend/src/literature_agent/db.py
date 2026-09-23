@@ -85,6 +85,10 @@ class Database:
         self._ensure_column("runs", "total_steps", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("runs", "trigger_kind", "TEXT NOT NULL DEFAULT 'manual'")
         self._ensure_column("runs", "subscription_id", "TEXT")
+        self._ensure_column("prompts", "active", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("prompts", "parent_id", "TEXT")
+        self._ensure_column("prompts", "created_at", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("prompts", "updated_at", "TEXT NOT NULL DEFAULT ''")
         self.connection.commit()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
@@ -304,6 +308,7 @@ class Database:
         return result.rowcount > 0
 
     def seed_builtin_prompts(self, prompts: list[dict]) -> None:
+        timestamp = now()
         for prompt in prompts:
             self.connection.execute(
                 """
@@ -312,11 +317,18 @@ class Database:
                 """,
                 (prompt["id"], prompt["role"], prompt["version"], prompt["body"]),
             )
+            self.connection.execute(
+                "UPDATE prompts SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END, updated_at = ? WHERE id = ?",
+                (timestamp, timestamp, prompt["id"]),
+            )
+            active = self.connection.execute("SELECT 1 FROM prompts WHERE role = ? AND active = 1", (prompt["role"],)).fetchone()
+            if not active:
+                self.connection.execute("UPDATE prompts SET active = 1 WHERE id = ?", (prompt["id"],))
         self.connection.commit()
 
     def list_prompts(self) -> list[dict]:
         rows = self.connection.execute("SELECT * FROM prompts ORDER BY role, version").fetchall()
-        return [{**dict(row), "builtin": bool(row["builtin"])} for row in rows]
+        return [{**dict(row), "builtin": bool(row["builtin"]), "active": bool(row["active"])} for row in rows]
 
     def add_decision_call(self, value: dict) -> dict:
         call_id = value.get("id") or str(uuid4())
