@@ -13,7 +13,7 @@ def execute_run(settings: Settings, database: Database, run_id: str, task: dict)
     started_at = current.get("started_at") or datetime.now(timezone.utc).isoformat()
     database.update_run(run_id, status="running", current_node="query_planner", started_at=started_at)
     try:
-        graph = build_graph(settings, database, database.list_prompts())
+        graph = build_graph(settings, database, database.resolve_prompts(task))
         graph.invoke({"task": task, "run_id": run_id, "errors": []})
     except Exception as exc:
         database.update_run(run_id, status="failed", current_node="failed", error=f"{type(exc).__name__}: {exc}", finished_at=datetime.now(timezone.utc).isoformat())
