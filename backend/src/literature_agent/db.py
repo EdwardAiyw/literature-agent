@@ -428,5 +428,163 @@ class Database:
     def source_usage_total(self) -> int:
         return sum(self.source_usage_snapshot().values())
 
+    def cleanup_test_tasks(self) -> int:
+        """Remove only explicitly marked or known fixture tasks during app startup."""
+        allowlist = {"Evidence test", "RAG test", "Prompt override test", "Protected", "Protected task", "Agentic RAG 测试"}
+        rows = self.connection.execute("SELECT id, payload FROM tasks").fetchall()
+        candidates: list[str] = []
+        for row in rows:
+            payload = json.loads(row["payload"])
+            marked_test = payload.get("origin") == "test" or payload.get("name") in allowlist
+            if marked_test:
+                blockers = self.task_blockers(row["id"])
+                if not blockers["active_runs"]:
+                    candidates.append(row["id"])
+        if not candidates:
+            return 0
+        try:
+            self.connection.execute("BEGIN")
+            for task_id in candidates:
+                self.connection.execute(
+                    "DELETE FROM deliveries WHERE subscription_id IN (SELECT id FROM subscriptions WHERE task_id = ?)",
+                    (task_id,),
+                )
+                self.connection.execute("DELETE FROM subscriptions WHERE task_id = ?", (task_id,))
+                self._delete_task_data(task_id)
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return len(candidates)
+
+    def task_blockers(self, task_id: str) -> dict:
+        subscription = self.connection.execute(
+            "SELECT id FROM subscriptions WHERE task_id = ? LIMIT 1", (task_id,)
+        ).fetchone()
+        active_runs = self.connection.execute(
+            "SELECT id FROM runs WHERE task_id = ? AND status IN ('queued', 'running', 'paused') ORDER BY started_at",
+            (task_id,),
+        ).fetchall()
+        return {
+            "subscribed": subscription is not None,
+            "active_runs": [row["id"] for row in active_runs],
+        }
+
+    def _delete_task_data(self, task_id: str) -> None:
+        run_rows = self.connection.execute("SELECT id FROM runs WHERE task_id = ?", (task_id,)).fetchall()
+        run_ids = [row["id"] for row in run_rows]
+        if run_ids:
+            placeholders = ",".join("?" for _ in run_ids)
+            self.connection.execute(f"DELETE FROM papers WHERE run_id IN ({placeholders})", run_ids)
+            self.connection.execute(f"DELETE FROM run_events WHERE run_id IN ({placeholders})", run_ids)
+            self.connection.execute(f"DELETE FROM run_artifacts WHERE run_id IN ({placeholders})", run_ids)
+            self.connection.execute(f"DELETE FROM runs WHERE id IN ({placeholders})", run_ids)
+        self.connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+
+    def delete_task(self, task_id: str) -> str:
+        """Delete an unowned task and its run data, returning the outcome."""
+        if not self.get_task(task_id):
+            return "missing"
+        blockers = self.task_blockers(task_id)
+        if blockers["subscribed"]:
+            return "subscribed"
+        if blockers["active_runs"]:
+            return "active"
+        try:
+            self.connection.execute("BEGIN")
+            self._delete_task_data(task_id)
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return "deleted"
+
+    def delete_tasks(self, task_ids: list[str]) -> dict:
+        missing = [task_id for task_id in task_ids if not self.get_task(task_id)]
+        if missing:
+            return {"status": "missing", "task_ids": missing}
+        subscribed: list[str] = []
+        active: dict[str, list[str]] = {}
+        for task_id in task_ids:
+            blockers = self.task_blockers(task_id)
+            if blockers["subscribed"]:
+                subscribed.append(task_id)
+            if blockers["active_runs"]:
+                active[task_id] = blockers["active_runs"]
+        if subscribed or active:
+            return {"status": "blocked", "subscribed": subscribed, "active": active}
+        try:
+            self.connection.execute("BEGIN")
+            for task_id in task_ids:
+                self._delete_task_data(task_id)
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return {"status": "deleted", "task_ids": task_ids}
+
+    def get_prompt(self, prompt_id: str) -> dict | None:
+        row = self.connection.execute("SELECT * FROM prompts WHERE id = ?", (prompt_id,)).fetchone()
+        if not row:
+            return None
+        return {**dict(row), "builtin": bool(row["builtin"]), "active": bool(row["active"])}
+
+    def create_prompt_override(self, role: str, body: str, parent_id: str | None = None) -> dict:
+        prompt_id = f"{role}.custom.{uuid4().hex[:10]}"
+        version = f"custom-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        timestamp = now()
+        self.connection.execute("BEGIN")
+        try:
+            self.connection.execute("UPDATE prompts SET active = 0, updated_at = ? WHERE role = ?", (timestamp, role))
+            self.connection.execute(
+                "INSERT INTO prompts(id, role, version, body, builtin, active, parent_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 1, ?, ?, ?)",
+                (prompt_id, role, version, body.strip(), parent_id, timestamp, timestamp),
+            )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return self.get_prompt(prompt_id)  # type: ignore[return-value]
+
+    def activate_prompt(self, prompt_id: str) -> dict | None:
+        prompt = self.get_prompt(prompt_id)
+        if not prompt:
+            return None
+        timestamp = now()
+        self.connection.execute("BEGIN")
+        try:
+            self.connection.execute("UPDATE prompts SET active = 0, updated_at = ? WHERE role = ?", (timestamp, prompt["role"]))
+            self.connection.execute("UPDATE prompts SET active = 1, updated_at = ? WHERE id = ?", (timestamp, prompt_id))
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return self.get_prompt(prompt_id)
+
+    def delete_prompt_override(self, prompt_id: str) -> dict | None:
+        prompt = self.get_prompt(prompt_id)
+        if not prompt or prompt["builtin"]:
+            return None
+        self.connection.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+        if prompt["active"]:
+            builtin = self.connection.execute("SELECT id FROM prompts WHERE role = ? AND builtin = 1 ORDER BY version LIMIT 1", (prompt["role"],)).fetchone()
+            if builtin:
+                self.connection.execute("UPDATE prompts SET active = 1, updated_at = ? WHERE id = ?", (now(), builtin["id"]))
+        self.connection.commit()
+        return {"id": prompt_id, "deleted": True}
+
+    def resolve_prompts(self, task: dict) -> list[dict]:
+        overrides = task.get("prompt_overrides") or {}
+        resolved: list[dict] = []
+        for role in ("query_planner", "relevance_screener", "literature_summarizer", "evidence_reviewer"):
+            selected = self.get_prompt(overrides[role]) if role in overrides else None
+            if not selected or selected["role"] != role:
+                selected = self.connection.execute("SELECT * FROM prompts WHERE role = ? AND active = 1 LIMIT 1", (role,)).fetchone()
+                selected = {**dict(selected), "builtin": bool(selected["builtin"]), "active": bool(selected["active"])} if selected else None
+            if not selected:
+                raise RuntimeError(f"Missing prompt for role: {role}")
+            resolved.append(selected)
+        return resolved
+
     def close(self) -> None:
         self.connection.close()

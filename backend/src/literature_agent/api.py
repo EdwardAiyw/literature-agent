@@ -10,7 +10,7 @@ from .config import Settings
 from .db import Database
 from .email import send_test_message
 from .prompts import BUILTIN_PROMPTS
-from .schemas import DecisionCallRead, DeliveryRead, PaperRead, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskCreate, TaskRead, TestSendRequest
+from .schemas import DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskUpdate, TestSendRequest
 from .sources import SOURCE_METADATA
 from .worker import LocalRunWorker
 
@@ -23,10 +23,14 @@ run_worker: LocalRunWorker | None = None
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global run_worker
-    run_worker = LocalRunWorker(settings, database); run_worker.recover()
-    try: yield
+    database.cleanup_test_tasks()
+    run_worker = LocalRunWorker(settings, database)
+    run_worker.recover()
+    try:
+        yield
     finally:
-        run_worker.close(); run_worker = None
+        run_worker.close()
+        run_worker = None
 
 
 app = FastAPI(title="Literature Agent", version="0.2.0", lifespan=lifespan)
@@ -35,12 +39,12 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.2.0", "live": settings.live,
-            "jev_enabled": settings.jev_enabled, "jev_configured": bool(settings.jev_enabled and settings.jev_api_key)}
+    return {"status": "ok", "version": "0.2.0", "live": settings.live, "jev_enabled": settings.jev_enabled, "jev_configured": bool(settings.jev_enabled and settings.jev_api_key)}
 
 
 @app.post("/api/tasks", response_model=TaskRead)
 def create_task(payload: TaskCreate):
+    _validate_prompt_overrides(payload.prompt_overrides)
     return database.create_task(payload.model_dump())
 
 
@@ -57,6 +61,44 @@ def get_task(task_id: str):
     return task
 
 
+@app.patch("/api/tasks/{task_id}", response_model=TaskRead)
+def update_task(task_id: str, patch: TaskUpdate):
+    current = database.get_task(task_id)
+    if not current:
+        raise HTTPException(404, "Task not found")
+    blockers = database.task_blockers(task_id)
+    if blockers["subscribed"]:
+        raise HTTPException(409, "Task is managed by a subscription; edit it from the subscriptions page")
+    if blockers["active_runs"]:
+        raise HTTPException(409, "Task cannot be edited while a run is queued, running, or paused")
+    values = {**current, **patch.model_dump(exclude_none=True)}
+    validated = TaskCreate.model_validate(values).model_dump()
+    _validate_prompt_overrides(validated["prompt_overrides"])
+    return database.update_task(task_id, validated)
+
+
+@app.post("/api/tasks/bulk-delete")
+def bulk_delete_tasks(payload: TaskBulkDelete):
+    outcome = database.delete_tasks(payload.task_ids)
+    if outcome["status"] == "missing":
+        raise HTTPException(404, {"message": "One or more tasks were not found", "task_ids": outcome["task_ids"]})
+    if outcome["status"] == "blocked":
+        raise HTTPException(409, {"message": "Batch deletion was not performed", "subscribed": outcome["subscribed"], "active": outcome["active"]})
+    return outcome
+
+
+@app.delete("/api/tasks/{task_id}")
+def delete_task(task_id: str):
+    outcome = database.delete_task(task_id)
+    if outcome == "missing":
+        raise HTTPException(404, "Task not found")
+    if outcome == "subscribed":
+        raise HTTPException(409, "Task is referenced by a subscription; delete the subscription first")
+    if outcome == "active":
+        raise HTTPException(409, "Task cannot be deleted while a run is queued, running, or paused")
+    return {"status": "deleted", "task_id": task_id}
+
+
 @app.get("/api/tasks/{task_id}/runs", response_model=list[RunRead])
 def list_task_runs(task_id: str, limit: int = Query(default=20, ge=1, le=100)):
     if not database.get_task(task_id):
@@ -71,18 +113,29 @@ def start_run(task_id: str):
         raise HTTPException(404, "Task not found")
     total_steps = 7 if task.get("evidence_review") else 6
     run = database.create_run(task_id, total_steps=total_steps)
-    if run_worker is None: raise HTTPException(503, "Run worker is not available")
+    if run_worker is None:
+        raise HTTPException(503, "Run worker is not available")
     run_worker.submit_task(run["id"], task)
     return run
 
 
 def _task_payload(payload: dict) -> dict:
-    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review")}
+    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides")} | {"origin": "subscription"}
+
+
+def _validate_prompt_overrides(overrides: dict[str, str]) -> None:
+    for role, prompt_id in overrides.items():
+        prompt = database.get_prompt(prompt_id)
+        if not prompt:
+            raise HTTPException(422, f"Prompt not found: {prompt_id}")
+        if prompt["role"] != role:
+            raise HTTPException(422, f"Prompt {prompt_id} does not belong to role {role}")
 
 
 @app.post("/api/subscriptions", response_model=SubscriptionRead, status_code=201)
 def create_subscription(payload: SubscriptionCreate):
     values = payload.model_dump()
+    _validate_prompt_overrides(values["prompt_overrides"])
     task = database.create_task(_task_payload(values))
     return database.create_subscription(task["id"], values)
 
@@ -111,6 +164,7 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
     values.pop("created_at", None)
     values.pop("updated_at", None)
     validated = SubscriptionCreate.model_validate(values).model_dump()
+    _validate_prompt_overrides(validated["prompt_overrides"])
     updated = database.update_subscription(subscription_id, validated)
     database.update_task(current["task_id"], _task_payload(validated))
     return updated
@@ -140,7 +194,8 @@ def run_subscription_now(subscription_id: str):
         raise HTTPException(409, "Configure LITERATURE_AGENT_LIVE, LLM_API_KEY, and LLM_MODEL before a subscription run")
     total_steps = 7 if task.get("evidence_review") else 6
     run = database.create_run(task["id"], total_steps=total_steps, trigger_kind="subscription", subscription_id=subscription_id)
-    if run_worker is None: raise HTTPException(503, "Run worker is not available")
+    if run_worker is None:
+        raise HTTPException(503, "Run worker is not available")
     run_worker.submit_subscription(run["id"], subscription)
     return run
 
@@ -191,7 +246,8 @@ def list_papers(run_id: str):
 
 @app.get("/api/runs/{run_id}/decisions", response_model=list[DecisionCallRead])
 def list_run_decisions(run_id: str):
-    if not database.get_run(run_id): raise HTTPException(404, "Run not found")
+    if not database.get_run(run_id):
+        raise HTTPException(404, "Run not found")
     return database.list_decision_calls(run_id)
 
 
@@ -205,6 +261,34 @@ def review_paper(paper_id: str, payload: ReviewRequest):
 @app.get("/api/prompts", response_model=list[PromptRead])
 def list_prompts():
     return database.list_prompts()
+
+
+@app.post("/api/prompts", response_model=PromptRead, status_code=201)
+def create_prompt(payload: PromptCreate):
+    if payload.parent_id:
+        parent = database.get_prompt(payload.parent_id)
+        if not parent or parent["role"] != payload.role:
+            raise HTTPException(422, "parent_id must reference a prompt from the same role")
+    return database.create_prompt_override(payload.role, payload.body, payload.parent_id)
+
+
+@app.post("/api/prompts/{prompt_id}/activate", response_model=PromptRead)
+def activate_prompt(prompt_id: str):
+    prompt = database.get_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(404, "Prompt not found")
+    return database.activate_prompt(prompt_id)
+
+
+@app.delete("/api/prompts/{prompt_id}")
+def delete_prompt(prompt_id: str):
+    prompt = database.get_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(404, "Prompt not found")
+    if prompt["builtin"]:
+        raise HTTPException(409, "Built-in prompts cannot be deleted")
+    database.delete_prompt_override(prompt_id)
+    return {"status": "deleted", "prompt_id": prompt_id}
 
 
 @app.get("/api/settings")
@@ -221,7 +305,6 @@ def get_settings():
         "jev_review_threshold": settings.jev_review_threshold,
         "source_daily_request_budget": settings.source_daily_request_budget,
         "source_usage": database.source_usage_snapshot(),
-        "source_usage_total": database.source_usage_total(),
         "famou_enabled": settings.famou_enabled,
         "sources": [{"id": name, **metadata} for name, metadata in SOURCE_METADATA.items()],
         "runtime_nodes": ["query_planner", "retrieval", "dedupe", "relevance_screener", "literature_summarizer", "evidence_reviewer"],
