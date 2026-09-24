@@ -54,6 +54,7 @@ def test_strict_mode_double_initialization_is_safe_during_writes(tmp_path, monke
         subscription["id"], run["id"], "digest", subscription["recipient"], "Concurrent digest", "sent"
     )
     monkeypatch.setattr(api, "database", isolated)
+    monkeypatch.setattr(api, "scheduler_status", lambda: {"supported": True, "tasks": []})
 
     paths = (
         "/api/tasks",

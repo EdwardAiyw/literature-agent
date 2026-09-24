@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Make Windows scheduler status checks degrade cleanly on timeout and keep Jev decision audit ordering deterministic.
+
 ## 0.3.0 - 2026-09-24
 
 - 增加页面化首次配置、LLM、SMTP、来源、Jev 和运行参数设置。

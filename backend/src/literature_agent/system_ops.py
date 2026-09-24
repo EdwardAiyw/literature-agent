@@ -33,11 +33,21 @@ def scheduler_status() -> dict:
         "name=$_.TaskName; state=[string]$_.State; last_run=$(if($i.LastRunTime){$i.LastRunTime.ToString('o')}else{''}); "
         "last_result=$i.LastTaskResult; next_run=$(if($i.NextRunTime){$i.NextRunTime.ToString('o')}else{''}) } } | ConvertTo-Json -Compress"
     )
-    result = _powershell(command)
+    try:
+        result = _powershell(command, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "supported": True,
+            "tasks": [],
+            "error": f"{type(exc).__name__}: Windows Task Scheduler status is unavailable",
+        }
     if result.returncode != 0:
         return {"supported": True, "tasks": [], "error": result.stderr.strip() or result.stdout.strip()}
     raw = result.stdout.strip()
-    items = [] if not raw else json.loads(raw)
+    try:
+        items = [] if not raw else json.loads(raw)
+    except json.JSONDecodeError:
+        return {"supported": True, "tasks": [], "error": "Windows Task Scheduler returned invalid JSON"}
     if isinstance(items, dict):
         items = [items]
     return {"supported": True, "tasks": items}

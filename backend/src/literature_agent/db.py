@@ -386,7 +386,7 @@ class Database:
 
     def list_decision_calls(self, run_id: str) -> list[dict]:
         rows = self.connection.execute(
-            "SELECT * FROM decision_calls WHERE run_id = ? ORDER BY created_at, id", (run_id,)
+            "SELECT * FROM decision_calls WHERE run_id = ? ORDER BY rowid", (run_id,)
         ).fetchall()
         return [self._decision(row) for row in rows]
 

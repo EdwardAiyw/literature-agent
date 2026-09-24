@@ -1,6 +1,9 @@
+import subprocess
+
 from fastapi.testclient import TestClient
 
 from literature_agent import api
+from literature_agent import system_ops
 from literature_agent.config import ConfigManager, MemorySecretStore, Settings
 from literature_agent.db import Database
 
@@ -98,3 +101,17 @@ def test_subscription_run_window_and_backup_integrity(tmp_path):
         Database.validate_backup(backup)
     finally:
         database.close()
+
+
+def test_scheduler_status_degrades_when_powershell_times_out(monkeypatch):
+    def timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired("powershell.exe", 10)
+
+    monkeypatch.setattr(system_ops.os, "name", "nt")
+    monkeypatch.setattr(system_ops, "_powershell", timeout)
+
+    status = system_ops.scheduler_status()
+
+    assert status["supported"] is True
+    assert status["tasks"] == []
+    assert status["error"].startswith("TimeoutExpired:")

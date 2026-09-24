@@ -35,6 +35,28 @@ def test_jev_screening_is_cached_and_audited(tmp_path):
     database.close()
 
 
+def test_decision_audit_order_follows_insertion_when_timestamps_match(tmp_path):
+    database = Database(tmp_path / "audit-order.db")
+    base = {
+        "run_id": "run-order",
+        "stage": "relevance_screener",
+        "subject_id": "paper-1",
+        "mode": "active",
+        "status": "applied",
+        "requested_model": "jev-1.13.0",
+        "schema_version": "paper-screen.v1",
+        "created_at": "2026-09-25T00:00:00+00:00",
+    }
+    database.add_decision_call({**base, "id": "z-first", "cached": False})
+    database.add_decision_call({**base, "id": "a-second", "cached": True})
+
+    audit = database.list_decision_calls("run-order")
+
+    assert [item["id"] for item in audit] == ["z-first", "a-second"]
+    assert audit[1]["cached"] is True
+    database.close()
+
+
 def test_shadow_decision_is_observed_without_counting_as_fallback(tmp_path):
     path = tmp_path / "shadow.db"
     database = Database(path)
