@@ -1,6 +1,6 @@
 # Literature Agent V2 配置与测试手册
 
-本文是当前 `v2/jev-hybrid` 分支的本地运行手册。V2 使用独立数据库 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。旧库和备份保留在本机，但不参与 V2 运行。
+本文是源码开发、API 调试和 Jev 审计的高级运行手册。普通 Windows 用户无需安装依赖或编辑 `.env`，请使用根目录 [`README.md`](../README.md) 的安装版页面操作。源码模式默认使用 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。
 
 ## 1. 组件与地址
 
@@ -29,7 +29,9 @@ npm install
 
 前端依赖目录是 `frontend/node_modules`，不是 `frontend/node_module`。
 
-## 3. 配置 `backend/.env`
+## 3. 配置 `backend/.env`（仅源码兼容方式）
+
+安装版和常规源码运行都可以直接在“设置”页保存配置；下面的 `.env` 方式保留给自动化测试、迁移和无法打开页面时的开发调试。
 
 ```powershell
 cd D:\jianguoyun\1usm-onedrive\PhD\literature-agent\backend
@@ -127,7 +129,7 @@ Get-NetTCPConnection -State Listen -LocalPort 8001,5175 | Select-Object LocalPor
 Stop-Process -Id <确认后的进程ID> -Force
 ```
 
-## 7. 明天的 Shadow 实测
+## 7. Shadow 实测
 
 使用一个明确主题，目标数量设为 5：
 
@@ -176,5 +178,5 @@ Active 下低置信度或调用异常仍会回到原有 LLM/规则路径。
 - `jev_configured=False`：检查 `TYPESAFE_API_KEY` 是否为空，并重启后端。Key 不要放前端 `.env`。
 - `live=False` 或 `llm_configured=False`：补齐 `LITERATURE_AGENT_LIVE=true`、`LLM_API_KEY`、`LLM_MODEL`，再重启后端。
 - 迁移失败：停止后端，执行 `alembic current` 查看状态；不要手动删除 `alembic_version`。
-- 前端显示旧数据：确认前端 API 是 `http://127.0.0.1:8001/api`，并确认数据库为 `data/literature_agent_v2.db`。V2 不读取旧库任务。
+- 前端显示旧数据：开发服务器默认通过 Vite 将同源 `/api` 代理到 `http://127.0.0.1:8001`；确认后端端口和数据库为 `data/literature_agent_v2.db`。V2 不读取旧库任务。
 - Jev 失败但任务继续：这是预期回退行为，检查 `/api/runs/{run_id}/decisions` 中的 `status=failed`、`fallback_reason=jev_error` 和运行事件。

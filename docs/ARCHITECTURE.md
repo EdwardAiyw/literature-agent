@@ -4,8 +4,12 @@ V2 separates orchestration (LangGraph), open-ended generation (OpenAI-compatible
 
 ```mermaid
 flowchart LR
-  UI[React GUI] --> API[FastAPI]
+  EXE[Windows launcher] --> API[FastAPI]
+  UI[React GUI] --> API
   API --> DB[(SQLite)]
+  API --> CFG[JSON settings]
+  API --> CRED[Windows Credential Manager]
+  API --> TASKS[Windows Task Scheduler]
   API --> G[LangGraph run]
   G --> P[Query planner]
   P --> R[Source retrieval]
@@ -28,6 +32,8 @@ flowchart LR
 
 The backend owns task state and run state. The GUI never calls data providers directly. Each graph node receives structured state and returns a structured state update. Provider adapters and the model adapter are replaceable interfaces.
 
+The packaged launcher binds only to `127.0.0.1`, serves the built React application from the same process, checks for an existing healthy instance, and opens the browser. Non-secret settings live beside the selected data directory; secrets are stored per Windows user. Scheduler helpers launch the same packaged executable for login startup and due-subscription checks.
+
 ## State invariants
 
 - Every paper has a stable canonical identifier.
@@ -37,3 +43,5 @@ The backend owns task state and run state. The GUI never calls data providers di
 - Model output is validated against a JSON shape before persistence.
 - A failed source does not fail the entire run.
 - A paper is not exported to Zotero until a user review or explicit auto-save policy allows it.
+- Settings APIs expose only configuration status, never saved secret values.
+- A subscription cannot start a second active run or run twice in its configured local calendar day.

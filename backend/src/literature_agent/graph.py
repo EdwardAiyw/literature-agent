@@ -26,6 +26,48 @@ class GraphState(TypedDict, total=False):
     errors: list[str]
 
 
+def select_diverse_records(screened: list[dict], target_count: int, minimum_score: float = 0.55) -> tuple[list[dict], dict]:
+    ranked = sorted(screened, key=lambda item: item["relevance_score"], reverse=True)
+    qualified_sources = {
+        item.get("source", "") for item in ranked
+        if item.get("source") and item["relevance_score"] >= minimum_score
+    }
+    diversity_required = target_count >= 2 and len(qualified_sources) >= 2
+    selected: list[dict] = []
+    if ranked:
+        selected.append(ranked[0])
+    if diversity_required and selected:
+        first_source = selected[0].get("source", "")
+        second = next(
+            (item for item in ranked if item.get("source") != first_source and item["relevance_score"] >= minimum_score),
+            None,
+        )
+        if second is not None:
+            selected.append(second)
+    selected_ids = {id(item) for item in selected}
+    selected.extend(item for item in ranked if id(item) not in selected_ids)
+    selected = sorted(selected[:target_count], key=lambda item: item["relevance_score"], reverse=True)
+    source_counts: dict[str, int] = {}
+    for item in selected:
+        source = item.get("source", "unknown") or "unknown"
+        source_counts[source] = source_counts.get(source, 0) + 1
+    satisfied = not diversity_required or len(source_counts) >= 2
+    if diversity_required and satisfied:
+        reason = "Selected qualified papers from at least two sources."
+    elif target_count < 2:
+        reason = "Target count is below two."
+    elif len(qualified_sources) < 2:
+        reason = "Fewer than two sources had candidates with relevance_score >= 0.55."
+    else:
+        reason = "No eligible second-source paper could be selected."
+    return selected, {
+        "selected_source_counts": source_counts,
+        "diversity_required": diversity_required,
+        "diversity_satisfied": satisfied,
+        "diversity_reason": reason,
+    }
+
+
 def fixture_records(topic: str) -> list[dict]:
     key = hashlib.sha1(topic.encode()).hexdigest()[:8]
     return [
@@ -136,7 +178,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                     cache=database,
                 )
             for name, result in diagnostics.items():
-                if result["status"] == "failed":
+                if result["status"] in {"failed", "partial"}:
                     errors.append(f"retrieval/{name}: {result['error']}")
             if not records:
                 records = fixture_records(task["topic"])
@@ -195,14 +237,13 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             record["relevance_score"] = decision["relevance_score"]
             record["priority"] = decision["priority"]
             screened.append(record)
-        screened.sort(key=lambda item: item["relevance_score"], reverse=True)
-        screened = screened[: task["target_count"]]
+        screened, diversity = select_diverse_records(screened, task["target_count"])
         completed(
             state,
             "relevance_screener",
             f"Ranked {len(screened)} record(s)",
             4,
-            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]],
+            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]], **diversity,
              "jev": {"configured": decisions.configured, "mode": decisions.mode,
                      "evaluated_count": jev_evaluated, "auto_eligible_count": jev_auto}},
         )

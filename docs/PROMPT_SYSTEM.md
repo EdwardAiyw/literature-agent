@@ -1,6 +1,6 @@
 # Prompt System
 
-Built-in prompts are versioned by role and seeded into SQLite at startup. Each run reads the catalog once, so its node decisions can be traced to the prompt version used. Advanced users may clone and edit a prompt in a later iteration; built-ins remain immutable in the product UI.
+Built-in prompts are versioned by role and seeded into SQLite at startup. Each run reads the catalog once, so its node decisions can be traced to the prompt version used. Advanced users can clone a prompt into a custom version, edit it, activate it globally, or select a version for one task. Built-ins remain immutable in the product UI.
 
 ## Roles
 

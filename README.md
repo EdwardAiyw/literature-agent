@@ -1,28 +1,508 @@
-# Literature Agent V2
+# Literature Agent
 
-Local-first Windows research literature agent. The product accepts a research topic, plans queries, retrieves records, deduplicates them, screens relevance, generates a structured research summary, and exposes the run in a desktop-ready GUI.
+一款运行在你自己 Windows 电脑上的文献检索与每日邮件助手。
 
-V2 adds a TypeSafe AI Jev System One decision plane for typed relevance screening and evidence checks. Jev runs behind feature flags, defaults to shadow mode, records confidence/model/latency/cache/fallback audit data, and falls back to the existing LLM or deterministic path when confidence is insufficient.
+你输入研究主题后，Literature Agent 会从多个公开学术来源检索论文，合并重复记录，判断相关性，生成中文研究摘要，并把结果保存在本机。你也可以设置每日订阅，让它在指定时间自动检索并把文献摘要发到邮箱。
 
-This is a new product repository. The legacy `literature-digest` repository remains an independent reference implementation.
+这份 README 面向第一次接触本项目的普通用户。日常使用不需要会编程，不需要安装 Python 或 Node.js，也不需要编辑 `.env` 文件。
 
-## V2 配置手册
+> **当前发布状态（2026-09-24）**
+>
+> 0.3.0 候选安装包已经重建。桌面首次加载竞态和窄屏横向溢出两个 P2 已修复；后端 45 项测试、Edge 浏览器 5 项回归以及独立端口打包版冒烟均通过。下载后请以同一 GitHub Release 附带的 `SHA256SUMS.txt` 为准。Windows Sandbox 功能已启用，但测试电脑需要重启后才能完成最终安装、备份恢复和卸载验收，因此目前仍属于候选版本，不应标记为正式发布完成。
 
-完整的 Windows 安装、V2 数据库、Jev Shadow、真实任务测试和故障排查步骤见 [`docs/V2_OPERATIONS_MANUAL.md`](docs/V2_OPERATIONS_MANUAL.md)。当前默认数据库是 `backend/data/literature_agent_v2.db`；旧版数据库不会被 V2 自动读取。
+## 目录
 
-## Development
+- [先看结论](#先看结论)
+- [它能做什么](#它能做什么)
+- [安装前要准备什么](#安装前要准备什么)
+- [下载和安装](#下载和安装)
+- [第一次打开：完成本机设置](#第一次打开完成本机设置)
+- [完成第一次文献检索](#完成第一次文献检索)
+- [设置每日文献邮件](#设置每日文献邮件)
+- [看懂研究结果](#看懂研究结果)
+- [数据、密钥和隐私](#数据密钥和隐私)
+- [备份、恢复、更新和卸载](#备份恢复更新和卸载)
+- [常见问题和排查方法](#常见问题和排查方法)
+- [常见问答](#常见问答)
+- [当前测试状态](#当前测试状态)
+- [开发者从源码运行](#开发者从源码运行)
 
-Backend:
+## 先看结论
+
+- 适用系统：64 位 Windows 10 或 Windows 11。
+- 使用方式：安装后在浏览器中操作，默认地址是 <http://127.0.0.1:8001>。
+- 是否需要注册 Literature Agent 账户：不需要。
+- 数据放在哪里：你选择的本机数据目录。
+- 密钥放在哪里：当前 Windows 用户的“凭据管理器”。
+- 是否需要联网：真实检索、调用模型、发送邮件和检查更新时需要。
+- 是否收费：Literature Agent 本身按 AGPL-3.0 开源；模型提供商和邮箱服务是否收费，取决于你使用的服务。
+- 是否必须使用 Jev：不需要。Jev 默认关闭，关闭后仍使用现有模型和规则路径。
+- 是否会下载或发送 PDF：不会。结果提供 DOI 和原文链接，不绕过付费墙。
+
+最快使用路径是：
+
+1. 下载 Windows 安装包。
+2. 安装并启动 Literature Agent。
+3. 在“设置”页配置数据目录、模型和邮箱。
+4. 点击“注册自动任务”。
+5. 在“工作台”执行一次文献检索。
+6. 在“每日订阅”发送测试邮件，再手动运行一次正式订阅。
+
+## 它能做什么
+
+Literature Agent 当前支持：
+
+- 从 Semantic Scholar、OpenAlex、Crossref、arXiv 和 PubMed 检索文献。
+- 按中文、英文或中英文检索。
+- 设置论文发表日期范围和目标篇数。
+- 自动完成检索规划、来源检索、去重、相关性筛选和文献摘要。
+- 可选地对摘要进行证据审查，提示来源材料无法支持的表述。
+- 展示每个来源的成功、失败和返回数量。
+- 给论文标记“精读”“保存”“背景”或“忽略”。
+- 创建每日订阅并发送 HTML 与纯文本邮件摘要。
+- 保存历史任务、运行过程、论文结果和邮件投递记录。
+- 从页面管理模型、SMTP、来源密钥、Jev、请求预算、备份和 Windows 自动任务。
+
+它不是论文质量的最终裁判。模型生成的摘要和相关性分数只能辅助筛选，引用论文前仍应打开原文核对。
+
+## 安装前要准备什么
+
+### 必需项目
+
+| 需要准备 | 用途 | 从哪里获得 |
+| --- | --- | --- |
+| 一台 Windows 电脑 | 安装和运行程序 | 64 位 Windows 10/11 |
+| 一个 OpenAI-compatible 模型服务 | 规划检索、筛选和生成摘要 | OpenAI 或其他兼容服务商的控制台 |
+| 模型 API Key | 允许本机程序调用模型 | 模型服务商的 API Keys 页面 |
+| 一个可发送邮件的邮箱 | 发送测试邮件和每日报告 | 126、QQ、Gmail、Microsoft 365 等 |
+| 邮箱 SMTP 授权码或应用密码 | 允许程序代表该邮箱发信 | 邮箱网页版的安全或 SMTP 设置 |
+
+“API Key”不是网站登录密码。“SMTP 授权码”通常也不是邮箱登录密码。不要把真实 Key、授权码或密码发到聊天、截图、Issue 或 GitHub 仓库中。
+
+### 可选项目
+
+- Semantic Scholar API Key：可提高该来源的可用额度和稳定性。
+- OpenAlex API Key：没有也可以使用公开接口。
+- PubMed API Key 和联系邮箱：有助于使用 NCBI 服务。
+- TypeSafe/Jev API Key：仅在你准备测试 Jev 决策层时需要。
+
+## 下载和安装
+
+### 第 1 步：下载正确文件
+
+打开项目的 [GitHub Releases](https://github.com/EdwardAiyw/literature-agent/releases) 页面，下载同一版本的两个文件：
+
+- `Literature-Agent-<版本号>-Windows-x64.exe`
+- `SHA256SUMS.txt`
+
+例如，版本 0.3.0 的安装包名称是 `Literature-Agent-0.3.0-Windows-x64.exe`。
+
+不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包。源代码压缩包面向开发者，双击不能直接安装。如果 Releases 页面暂时没有安装包，表示维护者还没有发布该版本。
+
+### 第 2 步：校验下载文件
+
+校验可以确认安装包在下载过程中没有损坏或被替换。
+
+1. 打开安装包所在的“下载”文件夹。
+2. 点击资源管理器地址栏，输入 `powershell`，按回车。
+3. 在打开的蓝色窗口中输入下面的命令，把文件名换成你下载的版本：
+
+```powershell
+Get-FileHash .\Literature-Agent-0.3.0-Windows-x64.exe -Algorithm SHA256
+```
+
+4. 屏幕会显示一串 64 位字符。
+5. 用记事本打开 `SHA256SUMS.txt`，确认两串字符完全相同。英文字母大小写不同没有关系。
+
+不相同就不要运行安装包，应删除文件并从 GitHub Releases 重新下载。
+
+### 第 3 步：安装
+
+1. 双击 Windows 安装包。
+2. Beta 安装包暂未进行商业代码签名，Windows SmartScreen 可能显示“Windows 已保护你的电脑”。确认文件来自本项目 Releases 且 SHA-256 一致后，点击“更多信息”，再点击“仍要运行”。
+3. 按安装向导完成安装。程序默认安装到当前 Windows 用户目录，不需要管理员权限。
+4. 安装完成后，勾选或点击“启动 Literature Agent”。
+
+程序启动后会打开默认浏览器。以后可以从 Windows 开始菜单找到 `Literature Agent`。浏览器没有自动打开时，手动访问 <http://127.0.0.1:8001>。
+
+`127.0.0.1` 表示“这台电脑自己”，不是公网网站。别人不能通过这个地址看到你的文献和设置。
+
+## 第一次打开：完成本机设置
+
+第一次打开时，系统会进入“设置”页，并显示五项进度：数据目录、模型、邮件、文献来源和自动运行。全部完成后，左侧“工作台”“每日订阅”和“Prompt 版本”才会开放。
+
+页面设置保存后立即生效，通常不需要重启程序。
+
+### 1. 选择数据目录
+
+数据目录用于保存数据库、普通设置、日志和备份。
+
+1. 在“数据目录”区域点击“选择目录”。
+2. 新建或选择一个长期保留的文件夹，例如 `D:\LiteratureAgentData`。
+3. 选择后等待页面显示“数据目录已更新”。
+
+建议：
+
+- 不要选择程序安装目录。
+- 不要选择 U 盘、临时目录或多人共用的网络盘。
+- 不建议让 OneDrive、坚果云等同步工具在程序运行时实时同步 SQLite 数据库；需要异地保存时，优先同步“备份”文件。
+- 更换目录时，程序会迁移现有数据库和普通设置。任务正在运行时不能更换目录。
+
+### 2. 配置模型提供商
+
+在“模型提供商”区域填写：
+
+| 页面字段 | 填什么 |
+| --- | --- |
+| API 地址 | 服务商提供的 OpenAI-compatible 地址，例如 OpenAI 官方是 `https://api.openai.com/v1` |
+| 模型 | 服务商给出的准确模型标识，不是自己随意起的名称 |
+| API Key | 在服务商控制台创建的密钥 |
+| 启用真实检索与模型调用 | 勾选 |
+
+操作顺序：
+
+1. 填完四项。
+2. 点击“测试连接”。
+3. 看到“连接测试通过”后点击“保存”。
+
+如果 Key 已保存，密码框会显示“已安全保存；留空则保持不变”。以后只修改模型名称时，不需要重新填写 Key。点击“清除已保存密钥”会真正删除旧 Key。
+
+常见误区：订阅 ChatGPT 网页版不一定等于拥有 OpenAI API 额度；API 是否可用及如何计费，以服务商控制台为准。
+
+### 3. 配置邮件发送
+
+在“邮件发送”区域填写 SMTP 信息。以下是常见参考值，服务商变更设置时以其官方帮助页为准。
+
+| 邮箱 | SMTP 主机 | 端口 | 加密方式 |
+| --- | --- | --- | --- |
+| 126 邮箱 | `smtp.126.com` | `465` | 勾选“直接 SSL”，不勾选 STARTTLS |
+| QQ 邮箱 | `smtp.qq.com` | `465` | 勾选“直接 SSL”，不勾选 STARTTLS |
+| Gmail | `smtp.gmail.com` | `465` | 直接 SSL |
+| Gmail | `smtp.gmail.com` | `587` | STARTTLS |
+| Microsoft 365 | `smtp.office365.com` | `587` | STARTTLS |
+
+各字段含义：
+
+| 页面字段 | 填什么 |
+| --- | --- |
+| SMTP 主机 | 上表或邮箱服务商提供的服务器地址 |
+| 端口 | 与加密方式对应的端口 |
+| 账号 | 通常是完整邮箱地址 |
+| 密码或授权码 | 邮箱生成的 SMTP 授权码或应用密码 |
+| 发件人 | 实际发信邮箱，通常与账号相同 |
+| 测试收件人 | 用来确认邮件是否到达的邮箱，可以与发件人不同 |
+
+“STARTTLS”和“直接 SSL”只能选一个。端口 465 通常使用直接 SSL，端口 587 通常使用 STARTTLS。
+
+操作顺序：
+
+1. 先在邮箱网页版开启 SMTP 服务并生成授权码。
+2. 按服务商要求填写字段。
+3. 点击“发送测试邮件”。
+4. 检查收件箱和垃圾邮件箱。
+5. 确认收到测试邮件后点击“保存”。
+
+测试邮件失败时，不要反复尝试网页登录密码。先确认 SMTP 功能已开启、授权码仍有效、端口和加密方式配套。
+
+### 4. 配置文献来源
+
+五个公开来源默认都可以使用。没有来源 API Key 时，可以把可选密钥框留空。
+
+- Semantic Scholar：公开访问可能遇到 429 限速；Key 可提高稳定性。
+- OpenAlex：可选 API Key。
+- Crossref：当前不需要单独填写 Key。
+- arXiv：当前不需要单独填写 Key。
+- PubMed：Key 可选；建议填写“PubMed 联系邮箱”。
+
+填完后点击“测试来源”，再点击“保存”。某一个来源暂时失败不会自动判定整个研究任务失败，系统会继续使用其他来源；实际运行后的“来源诊断”会显示每个来源的情况。
+
+### 5. Jev 决策层
+
+普通用户保持“启用 Jev”关闭即可。关闭时，检索、筛选、摘要和邮件仍能正常工作。
+
+只有已经获得 TypeSafe API Key，并且理解 Shadow/Active 模式时才需要配置：
+
+- 第一次测试应打开“影子模式”。
+- 影子模式只记录 Jev 判断，不让它直接改变最终选择。
+- 自动决策阈值必须大于或等于人工复核阈值。
+
+详细实验流程见 [Jev Shadow 测试说明](docs/V2_JEV.md)。
+
+### 6. 自动运行与维护
+
+保持默认值通常即可：
+
+- 每日请求预算：默认 `200`，用于限制一天内的来源请求总量。
+- 来源缓存：默认 `24` 小时，避免反复请求相同结果。
+
+点击“注册自动任务”。Windows 会创建：
+
+- `Literature Agent Local`：当前 Windows 用户登录时启动本地服务。
+- `Literature Agent Daily`：每 15 分钟检查一次是否有到期订阅。
+
+页面显示两项任务且状态正常后，首次配置完成。“修复”用于重新创建损坏或缺失的任务；“停用”会删除这两项任务，但不会删除订阅和历史结果。
+
+## 完成第一次文献检索
+
+打开左侧“工作台”，在“创建研究任务”区域填写：
+
+| 字段 | 怎么填 |
+| --- | --- |
+| 任务名称 | 便于自己识别的名称，例如“糖尿病数字干预综述” |
+| 研究主题 | 清楚描述想找什么论文，例如“面向 2 型糖尿病患者的数字健康干预效果” |
+| 检索语言 | 中文、英文或中英文 |
+| 目标数量 | 建议第一次填写 `5`，确认流程正常后再增加 |
+| 起始/结束日期 | 可留空；需要限定年份时再填写 |
+| 文献来源 | 第一次建议至少选择 OpenAlex、Crossref、arXiv 和 PubMed |
+| 启用证据审查 | 需要额外核对摘要表述时勾选，运行时间和模型用量会增加 |
+
+“高级配置”中的 Prompt 版本是给熟悉提示词的用户准备的。第一次使用保持“使用全局默认”即可。
+
+点击“开始执行”。执行状态会依次经过：
+
+1. 检索规划
+2. 来源检索
+3. 去重规范化
+4. 相关性筛选
+5. 文献简报
+6. 可选的证据审查
+7. 保存结果
+
+真实来源和模型需要联网，完成时间可能从几十秒到数分钟不等。运行中不要重复点击“开始执行”；同一任务同时只能有一个活动运行。
+
+## 设置每日文献邮件
+
+在创建正式订阅前，先确保“设置”页的模型测试和 SMTP 测试都已通过。
+
+### 创建订阅
+
+打开左侧“每日订阅”，填写：
+
+| 字段 | 说明 |
+| --- | --- |
+| 订阅名称 | 方便识别的名称，例如“Agentic RAG 日报” |
+| 研究主题 | 每天持续跟踪的主题 |
+| 收件人 | 接收日报的邮箱地址 |
+| 目标篇数 | 建议先用 `5`，稳定后再增加 |
+| 执行时间 | 希望每天开始检查的本地时间，例如 `08:00` |
+| 时区 | 中国大陆常用 `Asia/Shanghai`，香港常用 `Asia/Hong_Kong`，马来西亚常用 `Asia/Kuala_Lumpur` |
+| 起始/结束日期 | 通常留空；填写后只检索该发表日期范围 |
+| 订阅来源 | 至少选择一个，建议选择多个来源 |
+
+点击“保存订阅”。
+
+### 正式启用前的正确测试顺序
+
+1. 点击订阅右侧的信封图标，发送测试邮件。
+2. 确认收件箱实际收到 `[Literature Agent] SMTP test`，同时检查垃圾邮件箱。
+3. 点击“手动运行”。系统会转到工作台显示进度。
+4. 等待运行状态变为“已完成”。
+5. 确认收件箱收到正式文献摘要。
+6. 回到“每日订阅”，确认“投递记录”是 `sent`。
+7. 回到“设置”，确认两项 Windows 自动任务已注册。
+
+自动任务每 15 分钟检查一次，因此邮件不保证在设定时间的第 0 秒送达。电脑关机、休眠或没有网络时无法执行；恢复后，Windows 会按任务条件继续检查。同一订阅在自己的时区内每天最多自动运行一次。
+
+浏览器不需要一直打开。电脑需要开机，Windows 自动任务不能处于停用状态。
+
+## 看懂研究结果
+
+### 执行状态
+
+- `排队中`：任务已创建，正在等待本地工作进程。
+- `运行中`：正在检索或处理。
+- `已完成`：流程结束，可以查看结果。
+- `失败`：页面会显示错误原因，可修正设置后重新执行。
+
+### 来源诊断
+
+每个来源会显示状态和返回记录数。一个来源显示 `failed` 不代表整次任务一定失败。例如 Semantic Scholar 被限速时，OpenAlex、Crossref、arXiv 和 PubMed 仍可继续返回结果。
+
+### 论文列表
+
+- “相关性”是辅助排序分数，不是论文质量评分。
+- “查看原文”打开来源页面或 DOI 页面。
+- “精读”“保存”“背景”“忽略”是你自己的阅读标记。
+- 没有摘要的论文可能只能根据标题和元数据判断，使用前应打开原文核对。
+
+### 最近任务
+
+工作台底部可以搜索、筛选、编辑或删除历史任务。删除任务会同时永久删除它的运行记录和论文结果；订阅产生的任务应在“每日订阅”中管理。
+
+## 数据、密钥和隐私
+
+### 保存在本机的数据
+
+你选择的数据目录包含：
+
+- `literature_agent_v2.db`：任务、订阅、论文、运行和投递记录。
+- `settings.json`：不含密码的普通设置。
+- `logs/`：程序日志，按天轮转并保留 14 天。
+- `backups/`：手动备份、迁移前备份和恢复前安全副本。
+
+### 密钥存放位置
+
+模型 Key、SMTP 密码和来源 Key 保存在当前 Windows 用户的“凭据管理器”中，条目名称以 `LiteratureAgent/` 开头。设置接口和页面不会把已保存的真实密钥重新显示出来。
+
+这意味着：
+
+- 同一台电脑的其他 Windows 用户不会自动共享你的密钥。
+- 复制数据库到另一台电脑不会复制密钥，需要重新填写。
+- 卸载程序不会自动删除用户数据和凭据，防止误删。
+
+### 网络连接
+
+程序界面只监听 `127.0.0.1`。真实检索时，查询和必要的论文元数据会发送给已选择的学术来源；生成摘要时，主题和论文元数据会发送给你配置的模型服务商；发送邮件时，摘要会发送给 SMTP 服务商。
+
+不要在研究主题、Prompt 或邮箱配置里填入不应发送给这些第三方的机密信息。
+
+## 备份、恢复、更新和卸载
+
+### 创建备份
+
+1. 打开“设置”。
+2. 在“自动运行与维护”区域点击“立即备份”。
+3. 页面会显示备份文件的完整路径。
+4. 可以在程序关闭后，把这个 `.db` 文件复制到其他磁盘或云盘保存。
+
+### 恢复备份
+
+1. 确认当前没有任务处于“排队中”或“运行中”。
+2. 在“数据目录”区域点击“恢复备份”。
+3. 选择之前生成的 `.db` 文件。
+4. 阅读确认提示后继续。
+
+恢复前程序会自动创建 `before-restore-*.db` 安全副本。恢复会替换当前数据库中的任务、订阅和历史结果，但不会替换 Windows 凭据管理器中的密钥。
+
+### 更新
+
+1. 在“设置”中点击“检查更新”。
+2. 有新版本时打开对应 GitHub Release。
+3. 先创建备份。
+4. 下载并校验新版安装包。
+5. 关闭正在运行的任务，再运行新版安装包覆盖安装。
+
+数据目录和凭据不会被覆盖。不要通过删除数据目录来“更新”。
+
+### 卸载
+
+在 Windows“设置 > 应用 > 已安装的应用”中卸载 Literature Agent。卸载会删除程序文件和两个计划任务，但默认保留数据目录和 Windows 凭据。
+
+确认不再需要任何历史数据后，可以手动删除数据目录。确认不再使用这些密钥后，可以打开 Windows“凭据管理器 > Windows 凭据”，删除名称以 `LiteratureAgent/` 开头的条目。
+
+## 常见问题和排查方法
+
+### 页面打不开
+
+1. 从开始菜单重新启动 Literature Agent。
+2. 等待 10 秒，再打开 <http://127.0.0.1:8001>。
+3. 仍打不开时重启电脑。
+4. 如果提示端口 8001 被占用，关闭其他使用该端口的软件后再启动。
+
+### 点击其他页面总是回到设置
+
+首次配置还没完成。查看顶部五个步骤中哪一项没有完成。常见原因是没有勾选真实调用、没有保存模型、SMTP 信息不完整，或没有注册两项自动任务。
+
+### 模型连接测试失败
+
+- 检查 API 地址是否完整，常见兼容接口以 `/v1` 结尾。
+- 模型名称必须与服务商控制台完全一致。
+- 确认 API Key 没有复制到多余空格。
+- 确认账户有可用额度，并允许从当前网络访问。
+- 修改后先“测试连接”，通过后再“保存”。
+
+### SMTP 测试失败或收不到邮件
+
+- 使用 SMTP 授权码或应用密码，不要使用普通网页登录密码。
+- 端口 465 配直接 SSL；端口 587 配 STARTTLS；不要同时勾选两项。
+- 检查发件人是否与 SMTP 账号一致。
+- 查看垃圾邮件箱。
+- 某些邮箱会在新设备登录后暂时限制 SMTP，需要到邮箱安全中心确认。
+
+### 任务完成但没有选出论文
+
+- 主题可能太窄，尝试删除过细的限制词。
+- 日期范围可能太短，先留空再测试。
+- 只选了一个暂时失败的来源，改为选择多个来源。
+- 目标数量不是“保证数量”；系统只保留达到相关性要求的候选。
+
+### Semantic Scholar 显示 429
+
+429 表示对方限制了请求频率。系统会进行限速和退避，并继续使用其他来源。可以稍后重试，或填写 Semantic Scholar API Key。
+
+### arXiv 显示 406 或连接错误
+
+当前版本已经使用兼容查询编码和系统网络后备路径。偶发连接失败时可稍后重试；只要其他来源成功，整次任务仍可能完成。
+
+### 每日邮件没有自动发送
+
+1. 确认测试邮件和一次手动正式运行都成功。
+2. 在“设置”查看 `Literature Agent Local` 和 `Literature Agent Daily` 是否存在。
+3. 状态异常时点击“修复”。
+4. 确认订阅时间和时区正确。
+5. 确认电脑在执行时间附近处于开机、有网络状态。
+6. 检查“每日订阅 > 投递记录”中的错误信息。
+
+### 提示订阅今天已经运行
+
+这是重复发送保护。同一订阅在其设置时区的同一自然日最多运行一次。需要再次测试时，可以新建一个临时订阅或等到下一自然日，不要反复点击。
+
+### 想更换或删除密钥
+
+在对应设置区域点击“清除已保存密钥”，再填写新 Key 并保存。密码框留空表示继续使用已保存值，不表示删除。
+
+## 常见问答
+
+**必须登录账号吗？**
+
+不需要 Literature Agent 账号。模型和邮箱服务商可能要求使用各自的账号来创建 API Key 或 SMTP 授权码。
+
+**关闭浏览器后还会运行吗？**
+
+会。浏览器只是操作界面；已注册的 Windows 计划任务负责后台检查。不要停用计划任务，也不要让电脑长期关机。
+
+**可以多人共用同一个安装吗？**
+
+当前版本是单用户本地产品。每个 Windows 用户应配置自己的数据目录和凭据，不要让多人同时打开同一个 SQLite 数据库。
+
+**支持 macOS、Linux 或手机吗？**
+
+当前面向 Windows。源码后端可以由开发者移植，但安装包和页面中的计划任务管理只支持 Windows。
+
+**会自动把论文导入 Zotero 吗？**
+
+当前不会。可以从结果中的 DOI 或原文链接手动导入 Zotero。
+
+**会替我阅读全文吗？**
+
+不会。多数来源只提供题目、作者、摘要和链接，生成结果不能替代阅读全文。
+
+## 当前测试状态
+
+截至 2026-09-24，0.3.0 候选版本已经完成：
+
+- 后端完整测试：`45 passed`。
+- SQLite 并发回归：100 组 StrictMode 双初始化，共 2,200 个读取与 400 个并发写入，没有 500 或虚假 404。
+- Edge 浏览器回归：连续 10 次桌面冷加载无错误；390 x 844、768 x 1024、1440 x 1000 三个视口均无横向溢出；四个导航入口均可见。
+- 打包版冒烟：使用独立数据目录和非默认 `8012` 端口启动成功，健康检查与内置页面均返回 HTTP 200。
+- 模型、五篇两来源、SMTP 测试邮件、手动日报和自动调度日报：已在源码运行环境完成验证并确认邮件到达。
+
+仍未完成的最终发布门槛是重启后的 Windows Sandbox 安装版隔离验收。它将覆盖全新安装、首次设置、五篇两来源、邮件、计划任务、备份恢复、重复启动和卸载。详细状态见 [P2 修复回归报告](test-results/p2-regression-20260924/TEST_REPORT.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
+
+## 开发者从源码运行
+
+普通用户不需要执行本节。
+
+后端要求 Python 3.12+：
 
 ```powershell
 cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-uvicorn literature_agent.api:app --reload --port 8001
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,release]"
+.\.venv\Scripts\python.exe -m uvicorn literature_agent.api:app --host 127.0.0.1 --port 8001
 ```
 
-Frontend:
+前端要求 Node.js 20.19+ 或 22.12+：
 
 ```powershell
 cd frontend
@@ -30,40 +510,33 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5175`. The checked-in development defaults use API port `8001` and GUI port `5175`; copy `frontend/.env.example` to `frontend/.env` only when you need to override the API URL.
+开发前端默认地址是 <http://127.0.0.1:5175>，后端地址是 <http://127.0.0.1:8001>。`.env` 仅作为源码开发和旧配置迁移的兼容回退，安装版用户应在页面配置。
 
-The default backend uses deterministic fixture records so the GUI can be evaluated without API keys. Set `LITERATURE_AGENT_LIVE=true` and configure provider keys to enable live retrieval.
-
-## MVP daily subscriptions
-
-V2 supports Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed subscriptions, Chinese digest rendering, SMTP delivery records, source caching and a global daily request budget. Configure `LLM_API_KEY`, `LLM_MODEL`, `LITERATURE_AGENT_LIVE=true`, and the `SMTP_*` variables in `backend/.env` before running a subscription.
-
-Start Jev in shadow mode:
-
-```env
-TYPESAFE_API_KEY=your-key
-JEV_ENABLED=true
-JEV_SHADOW_MODE=true
-JEV_MODEL=jev-1.13.0
-```
-
-After validating audit results, set `JEV_SHADOW_MODE=false` to allow high-confidence Jev decisions to take effect. See [`docs/V2_JEV.md`](docs/V2_JEV.md).
-
-Create or manage subscriptions in the GUI, then run one manually with:
+提交前运行完整自动化回归：
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m literature_agent.daily --run-subscription <subscription-id>
+.\.venv\Scripts\python.exe -m pytest -q
+
+cd ..\frontend
+npm run build
+npm run test:e2e
 ```
 
-Use `--run-enabled` for all enabled subscriptions or `--no-send` to validate retrieval without SMTP delivery. Windows Task Scheduler can invoke the same CLI after the first manual delivery is verified.
+浏览器测试使用独立的 `8011` 服务和测试数据目录，不会修改正在使用的 `8001` 产品数据库。
 
-For normal scheduled operation, register the included Windows task once from PowerShell:
+相关开发资料：
 
-```powershell
-.\scripts\register-windows-task.ps1
-```
+- [产品测试与验收手册](TEST_GUIDE.md)
+- [Windows 发布与维护](docs/WINDOWS_RELEASE.md)
+- [Windows Sandbox 安装版验收](docs/INSTALLER_SANDBOX_TEST.md)
+- [P2 修复回归报告](test-results/p2-regression-20260924/TEST_REPORT.md)
+- [系统架构](docs/ARCHITECTURE.md)
+- [本机源码发布](docs/LOCAL_RELEASE.md)
+- [Jev Shadow 测试](docs/V2_JEV.md)
+- [Prompt 系统](docs/PROMPT_SYSTEM.md)
+- [版本变化](CHANGELOG.md)
 
-The task calls `--run-due` every 15 minutes. Each enabled subscription runs only after its configured local time and at most once per local calendar day. Remove the task with `-Unregister`.
+## 许可证与源码
 
-Completed CLI and scheduled runs remain available in the GUI: choose the corresponding item under “最近任务” to reopen its events, source diagnostics, and selected papers.
+Literature Agent 使用 [GNU Affero General Public License v3](LICENSE)。程序按现状提供，不附带任何担保。对应源码位于本 GitHub 仓库，页面“设置 > 关于与开源许可”也提供许可证和源码入口。

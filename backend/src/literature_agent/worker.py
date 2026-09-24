@@ -12,7 +12,7 @@ from .runner import execute_run, run_subscription
 class LocalRunWorker:
     """Bounded single-process worker that recovers queued/interrupted runs on startup."""
 
-    def __init__(self, settings: Settings, database: Database, max_workers: int = 1) -> None:
+    def __init__(self, settings: Settings | Callable[[], Settings], database: Database, max_workers: int = 1) -> None:
         self.settings, self.database = settings, database
         self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="literature-run")
         self._futures: dict[str, Future[Any]] = {}; self._lock = Lock()
@@ -27,11 +27,14 @@ class LocalRunWorker:
     def _forget(self, run_id: str) -> None:
         with self._lock: self._futures.pop(run_id, None)
 
+    def _current_settings(self) -> Settings:
+        return self.settings() if callable(self.settings) else self.settings
+
     def submit_task(self, run_id: str, task: dict) -> None:
-        self._submit(run_id, execute_run, self.settings, self.database, run_id, task)
+        self._submit(run_id, execute_run, self._current_settings(), self.database, run_id, task)
 
     def submit_subscription(self, run_id: str, subscription: dict) -> None:
-        self._submit(run_id, run_subscription, self.settings, self.database, subscription, True, run_id)
+        self._submit(run_id, run_subscription, self._current_settings(), self.database, subscription, True, run_id)
 
     def recover(self) -> int:
         recovered = 0

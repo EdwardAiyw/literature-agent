@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 from .config import Settings
 from .db import Database
@@ -29,11 +30,17 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
     if not task:
         raise RuntimeError(f"Task {subscription['task_id']} not found for subscription")
     total_steps = 7 if task.get("evidence_review") else 6
-    run = database.get_run(run_id) if run_id else database.create_run(
-        subscription["task_id"], total_steps=total_steps, trigger_kind="subscription", subscription_id=subscription["id"]
-    )
+    if run_id:
+        run = database.get_run(run_id)
+    else:
+        local_now = datetime.now(timezone.utc).astimezone(ZoneInfo(subscription["timezone"]))
+        local_day_start = datetime.combine(local_now.date(), time.min, tzinfo=local_now.tzinfo).astimezone(timezone.utc).isoformat()
+        run = database.create_run_if_idle(
+            subscription["task_id"], total_steps=total_steps, trigger_kind="subscription",
+            subscription_id=subscription["id"], not_before=local_day_start,
+        )
     if not run:
-        raise RuntimeError(f"Run {run_id} not found")
+        raise RuntimeError("The subscription already has an active run")
     result = execute_run(settings, database, run["id"], task)
     if not send_email:
         return result

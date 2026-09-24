@@ -1,6 +1,30 @@
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from literature_agent.api import app, database
+from literature_agent.api import app, database, mount_frontend
+
+
+def test_built_frontend_mount_preserves_api_routes(tmp_path):
+    frontend = tmp_path / "dist"
+    frontend.mkdir()
+    (frontend / "index.html").write_text("<h1>Literature Agent</h1>", encoding="utf-8")
+
+    isolated = FastAPI()
+
+    @isolated.get("/api/probe")
+    def probe():
+        return {"status": "ok"}
+
+    assert mount_frontend(isolated, frontend) is True
+    with TestClient(isolated) as client:
+        assert client.get("/api/probe").json() == {"status": "ok"}
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Literature Agent" in response.text
+
+
+def test_frontend_mount_is_optional(tmp_path):
+    assert mount_frontend(FastAPI(), tmp_path / "missing") is False
 
 
 def test_create_task_and_run():

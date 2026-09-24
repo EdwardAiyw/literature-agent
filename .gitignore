@@ -3,8 +3,8 @@ backend/.env
 backend/__pycache__/
 backend/.pytest_cache/
 backend/src/*.egg-info/
-backend/data/*.db
-backend/data/*.db-*
+backend/data/
+backend/logs/
 frontend/node_modules/
 frontend/dist/
 frontend/.env
@@ -13,3 +13,9 @@ frontend/.env.*.local
 frontend/*.tsbuildinfo
 frontend/src/*.tsbuildinfo
 *.py[cod]
+release/
+test-results/**/artifacts/
+test-results/**/html-report/
+test-results/**/playwright-data/
+test-results/**/postfix-smoke-data/
+test-results/sandbox-feature-enable.txt

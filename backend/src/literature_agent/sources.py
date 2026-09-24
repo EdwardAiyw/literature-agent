@@ -5,9 +5,13 @@ import hashlib
 import json
 import math
 import re
+import shutil
+import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Any, Protocol
+from urllib.parse import quote, urlencode
 from xml.etree import ElementTree
 
 import httpx
@@ -89,6 +93,11 @@ class BaseSource:
         self.client = client
         self.api_key = api_key
         self.email = email
+        self.attempts = 0
+        self.retry_count = 0
+        self.final_http_status = 0
+        self.transport = "httpx"
+        self.errors: list[str] = []
 
     def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
         return len(queries)
@@ -97,6 +106,8 @@ class BaseSource:
 class SemanticScholarSource(BaseSource):
     name = "semantic_scholar"
     fields = "paperId,title,abstract,authors,year,publicationDate,citationCount,externalIds,url,openAccessPdf,venue,fieldsOfStudy,publicationTypes"
+    minimum_request_interval = 1.1
+    maximum_attempts = 4
 
     def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
         return len(queries) * max(1, math.ceil(limit / 100))
@@ -104,12 +115,37 @@ class SemanticScholarSource(BaseSource):
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
         records = []
         headers = {"x-api-key": self.api_key} if self.api_key else {}
+        last_request_at: float | None = None
         for query in queries:
             offset, remaining = 0, limit
             while remaining > 0:
                 page_size = min(100, remaining)
-                response = self.client.get("https://api.semanticscholar.org/graph/v1/paper/search",
-                    params={"query": query, "offset": offset, "limit": page_size, "fields": self.fields}, headers=headers)
+                response = None
+                for attempt in range(self.maximum_attempts):
+                    if last_request_at is not None:
+                        remaining_interval = self.minimum_request_interval - (time.monotonic() - last_request_at)
+                        if remaining_interval > 0:
+                            time.sleep(remaining_interval)
+                    response = self.client.get(
+                        "https://api.semanticscholar.org/graph/v1/paper/search",
+                        params={"query": query, "offset": offset, "limit": page_size, "fields": self.fields},
+                        headers=headers,
+                    )
+                    last_request_at = time.monotonic()
+                    self.attempts += 1
+                    self.final_http_status = response.status_code
+                    if response.status_code != 429:
+                        break
+                    if attempt + 1 >= self.maximum_attempts:
+                        break
+                    self.retry_count += 1
+                    retry_after = response.headers.get("Retry-After", "").strip()
+                    try:
+                        delay = max(0.0, float(retry_after))
+                    except ValueError:
+                        delay = float(2 ** (attempt + 1))
+                    time.sleep(delay)
+                assert response is not None
                 response.raise_for_status()
                 payload = response.json(); items = payload.get("data", [])
                 for item in items:
@@ -214,16 +250,78 @@ class ArxivSource(BaseSource):
     name = "arxiv"
     namespace = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 
+    @staticmethod
+    def _search_expression(query: str) -> str:
+        terms = list(dict.fromkeys(re.findall(r"[A-Za-z0-9][A-Za-z0-9._-]*", query)))
+        return " AND ".join(f'all:"{term}"' for term in terms[:8]) or 'all:"literature"'
+
+    def _system_curl(self, url: str, user_agent: str) -> str:
+        executable = shutil.which("curl.exe") or shutil.which("curl")
+        if not executable:
+            raise RuntimeError("arXiv request failed and system curl is unavailable")
+        result = subprocess.run(
+            [
+                executable,
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--location",
+                "--max-time",
+                "30",
+                "--header",
+                "Accept: application/atom+xml",
+                "--user-agent",
+                user_agent,
+                url,
+            ],
+            capture_output=True,
+            check=False,
+            timeout=35,
+        )
+        self.attempts += 1
+        if result.returncode != 0:
+            error = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"arXiv system curl failed ({result.returncode}): {error}")
+        self.final_http_status = 200
+        self.transport = "system_curl"
+        return result.stdout.decode("utf-8")
+
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
         records = []
+        last_error: Exception | None = None
         for query in queries:
-            response = self.client.get(
-                "https://export.arxiv.org/api/query",
-                params={"search_query": f"all:{query}", "start": 0, "max_results": min(limit, 100), "sortBy": "relevance", "sortOrder": "descending"},
-                headers={"Accept": "application/atom+xml", "User-Agent": "LiteratureAgent/0.3 (academic literature retrieval)"},
-            )
-            response.raise_for_status()
-            root = ElementTree.fromstring(response.text)
+            params = {
+                "search_query": self._search_expression(query),
+                "start": 0,
+                "max_results": min(limit, 100),
+                "sortBy": "relevance",
+                "sortOrder": "descending",
+            }
+            query_string = urlencode(params, quote_via=quote)
+            user_agent = "LiteratureAgent/0.3"
+            if self.email:
+                user_agent += f" (mailto:{self.email})"
+            url = f"https://export.arxiv.org/api/query?{query_string}"
+            try:
+                try:
+                    response = self.client.get(
+                        url,
+                        headers={"Accept": "application/atom+xml", "User-Agent": user_agent},
+                    )
+                    self.attempts += 1
+                    self.final_http_status = response.status_code
+                    if response.status_code == 406:
+                        feed_text = self._system_curl(url, user_agent)
+                    else:
+                        response.raise_for_status()
+                        feed_text = response.text
+                except httpx.TransportError:
+                    feed_text = self._system_curl(url, user_agent)
+                root = ElementTree.fromstring(feed_text)
+            except Exception as exc:
+                last_error = exc
+                self.errors.append(f"{type(exc).__name__}: {exc}")
+                continue
             for entry in root.findall("atom:entry", self.namespace):
                 entry_id = entry.findtext("atom:id", "", self.namespace)
                 arxiv_id = entry_id.rsplit("/", 1)[-1]
@@ -246,6 +344,8 @@ class ArxivSource(BaseSource):
                 filtered = _with_date_status(record, date_from, date_to)
                 if filtered:
                     records.append(filtered)
+        if not records and last_error is not None:
+            raise last_error
         return records
 
 
@@ -352,7 +452,7 @@ def build_sources(client: httpx.Client, settings: Any) -> dict[str, SourceAdapte
         "semantic_scholar": SemanticScholarSource(client, settings.semantic_scholar_api_key),
         "openalex": OpenAlexSource(client, settings.openalex_api_key),
         "crossref": CrossrefSource(client),
-        "arxiv": ArxivSource(client),
+        "arxiv": ArxivSource(client, email=settings.pubmed_email or settings.smtp_from),
         "pubmed": PubMedSource(client, settings.pubmed_api_key, settings.pubmed_email),
     }
 
@@ -385,7 +485,10 @@ def search_sources(
             raise RuntimeError(f"Daily request budget exhausted ({settings.source_daily_request_budget} requests)")
         source_records = adapter.search(queries, limit, date_from, date_to)
         if cache: cache.save_source_cache(cache_key, name, source_records, settings.source_cache_ttl_hours)
-        return source_records, {"status": "ok", "count": len(source_records), "error": "", "cache_hit": False, "requests_reserved": request_count}
+        status = "partial" if adapter.errors else "ok"
+        return source_records, {"status": status, "count": len(source_records), "error": "; ".join(adapter.errors), "cache_hit": False,
+            "requests_reserved": request_count, "attempts": adapter.attempts, "retry_count": adapter.retry_count,
+            "final_http_status": adapter.final_http_status, "transport": adapter.transport}
 
     with ThreadPoolExecutor(max_workers=max(1, len(requested))) as pool:
         futures = {pool.submit(retrieve, name): name for name in requested}
@@ -396,5 +499,9 @@ def search_sources(
                 records.extend(source_records)
                 diagnostics[name] = diagnostic
             except Exception as exc:
-                diagnostics[name] = {"status": "failed", "count": 0, "error": f"{type(exc).__name__}: {exc}", "cache_hit": False, "requests_reserved": 0}
+                adapter = adapters[name]
+                diagnostics[name] = {"status": "failed", "count": 0, "error": f"{type(exc).__name__}: {exc}",
+                    "cache_hit": False, "requests_reserved": 0, "attempts": adapter.attempts,
+                    "retry_count": adapter.retry_count, "final_http_status": adapter.final_http_status,
+                    "transport": adapter.transport}
     return records, diagnostics

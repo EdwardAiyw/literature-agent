@@ -22,16 +22,20 @@ if ($Unregister) {
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $backendRoot = Join-Path $projectRoot "backend"
 $python = Join-Path $backendRoot ".venv\Scripts\python.exe"
+$packagedApp = Join-Path $projectRoot "LiteratureAgent.exe"
 
-if (-not (Test-Path $python)) {
+if (-not (Test-Path $packagedApp) -and -not (Test-Path $python)) {
     throw "Backend virtual environment not found at $python. Create it and install the project first."
 }
 
-$action = New-ScheduledTaskAction `
-    -Execute $python `
-    -Argument "-m literature_agent.daily --run-due" `
-    -WorkingDirectory $backendRoot
-$firstRun = (Get-Date).AddMinutes(1)
+if (Test-Path $packagedApp) {
+    $action = New-ScheduledTaskAction -Execute $packagedApp -Argument "--run-due" -WorkingDirectory $projectRoot
+} else {
+    $action = New-ScheduledTaskAction -Execute $python -Argument "-m literature_agent.daily --run-due" -WorkingDirectory $backendRoot
+}
+$now = Get-Date
+$minutesUntilBoundary = $IntervalMinutes - ($now.Minute % $IntervalMinutes)
+$firstRun = $now.AddMinutes($minutesUntilBoundary).AddSeconds(-$now.Second).AddMilliseconds(-$now.Millisecond)
 $trigger = New-ScheduledTaskTrigger `
     -Once `
     -At $firstRun `

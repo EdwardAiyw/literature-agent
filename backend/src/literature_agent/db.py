@@ -1,21 +1,46 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
 from threading import RLock
+from typing import TypeVar
 from uuid import uuid4
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 
 def upgrade_database(path: Path) -> None:
-    backend_root = Path(__file__).resolve().parents[2]
+    backend_root = Path(getattr(sys, "_MEIPASS")) / "backend" if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "alembic"))
     config.set_main_option("sqlalchemy.url", f"sqlite:///{path.resolve().as_posix()}")
+    if path.is_file():
+        current = ""
+        connection = sqlite3.connect(path)
+        try:
+            table = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='alembic_version'").fetchone()
+            if table:
+                row = connection.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
+                current = row[0] if row else ""
+            head = ScriptDirectory.from_config(config).get_current_head() or ""
+            if current != head:
+                backup_dir = path.parent / "backups"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                backup_path = backup_dir / f"pre-migration-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+                backup = sqlite3.connect(backup_path)
+                try:
+                    connection.backup(backup)
+                finally:
+                    backup.close()
+        finally:
+            connection.close()
     command.upgrade(config, "head")
 
 
@@ -23,6 +48,25 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+DatabaseType = TypeVar("DatabaseType", bound=type)
+
+
+def serialize_connection_access(cls: DatabaseType) -> DatabaseType:
+    """Serialize every instance method that can reach the shared SQLite connection."""
+    for name, member in tuple(vars(cls).items()):
+        if name == "__init__" or isinstance(member, staticmethod) or not callable(member):
+            continue
+
+        @wraps(member)
+        def locked(self, *args, __method=member, **kwargs):
+            with self._lock:
+                return __method(self, *args, **kwargs)
+
+        setattr(cls, name, locked)
+    return cls
+
+
+@serialize_connection_access
 class Database:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,6 +207,35 @@ class Database:
         )
         self.connection.commit()
         return self.get_run(run_id)
+
+    def create_run_if_idle(self, task_id: str, total_steps: int, trigger_kind: str = "manual", subscription_id: str | None = None, not_before: str | None = None) -> dict | None:
+        """Atomically enqueue a run across API and scheduler processes."""
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                active = self.connection.execute(
+                    "SELECT id FROM runs WHERE task_id = ? AND status IN ('queued', 'running', 'paused') LIMIT 1",
+                    (task_id,),
+                ).fetchone()
+                already_ran = None
+                if not_before:
+                    already_ran = self.connection.execute(
+                        "SELECT id FROM runs WHERE task_id = ? AND trigger_kind = 'subscription' AND started_at >= ? LIMIT 1",
+                        (task_id, not_before),
+                    ).fetchone()
+                if active or already_ran:
+                    self.connection.rollback()
+                    return None
+                run_id = str(uuid4())
+                self.connection.execute(
+                    "INSERT INTO runs(id, task_id, status, total_steps, trigger_kind, subscription_id, started_at) VALUES (?, ?, 'queued', ?, ?, ?, ?)",
+                    (run_id, task_id, total_steps, trigger_kind, subscription_id, now()),
+                )
+                self.connection.commit()
+                return self.get_run(run_id)
+            except Exception:
+                self.connection.rollback()
+                raise
 
     def get_run(self, run_id: str) -> dict | None:
         row = self.connection.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
@@ -383,6 +456,40 @@ class Database:
 
     def source_usage_total(self) -> int:
         return sum(self.source_usage_snapshot().values())
+
+    def health(self) -> dict:
+        with self._lock:
+            self.connection.execute("SELECT 1").fetchone()
+            return {
+                "ok": True,
+                "path": str(self.path),
+                "writable": self.path.parent.exists() and os.access(self.path.parent, os.W_OK),
+            }
+
+    def backup(self, destination: Path) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            target = sqlite3.connect(destination)
+            try:
+                self.connection.backup(target)
+            finally:
+                target.close()
+        return destination
+
+    @staticmethod
+    def validate_backup(path: Path) -> None:
+        if not path.is_file():
+            raise ValueError("Backup file does not exist")
+        connection = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        try:
+            result = connection.execute("PRAGMA integrity_check").fetchone()
+            if not result or result[0] != "ok":
+                raise ValueError("Backup database failed integrity_check")
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if not {"tasks", "runs", "subscriptions"}.issubset(tables):
+                raise ValueError("Backup is not a Literature Agent database")
+        finally:
+            connection.close()
 
     def cleanup_test_tasks(self) -> int:
         """Remove only explicitly marked or known fixture tasks during app startup."""

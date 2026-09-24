@@ -17,7 +17,9 @@ Jev is a typed decision plane for relevance screening and evidence checks. Shado
 
 ## Configure Shadow mode
 
-From the repository root, copy `backend/.env.example` to `backend/.env` if it does not exist. Edit `backend/.env` locally and set `TYPESAFE_API_KEY` to the key issued by Jev. Do not paste the key into chat, commit it, or put it in a task prompt. Keep these flags as shown:
+For the installed product, open `设置 > Jev 决策层`, enable Jev, keep `影子模式` enabled, enter the TypeSafe API Key and model, then click `验证配置` and `保存`. Do not paste the key into chat, commit it, or put it in a task prompt.
+
+Source developers may instead copy `backend/.env.example` to `backend/.env` and keep these flags as shown:
 
 ```env
 JEV_ENABLED=true

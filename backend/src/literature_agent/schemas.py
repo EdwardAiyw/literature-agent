@@ -441,3 +441,56 @@ class PaperRead(BaseModel):
 
 class ReviewRequest(BaseModel):
     review: Literal["unreviewed", "read", "save", "background", "ignore"]
+
+
+class SettingsUpdate(BaseModel):
+    live: bool | None = None
+    llm_base_url: str | None = Field(default=None, min_length=8, max_length=500)
+    llm_model: str | None = Field(default=None, min_length=1, max_length=200)
+    llm_api_key: str | None = Field(default=None, max_length=4000)
+    smtp_host: str | None = Field(default=None, max_length=253)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_username: str | None = Field(default=None, max_length=320)
+    smtp_password: str | None = Field(default=None, max_length=4000)
+    smtp_from: str | None = Field(default=None, max_length=320)
+    smtp_starttls: bool | None = None
+    smtp_ssl: bool | None = None
+    openalex_api_key: str | None = Field(default=None, max_length=4000)
+    semantic_scholar_api_key: str | None = Field(default=None, max_length=4000)
+    pubmed_api_key: str | None = Field(default=None, max_length=4000)
+    pubmed_email: str | None = Field(default=None, max_length=320)
+    jev_enabled: bool | None = None
+    jev_shadow_mode: bool | None = None
+    jev_api_key: str | None = Field(default=None, max_length=4000)
+    jev_model: str | None = Field(default=None, min_length=1, max_length=200)
+    jev_timeout_seconds: float | None = Field(default=None, ge=1, le=120)
+    jev_auto_threshold: float | None = Field(default=None, ge=0, le=1)
+    jev_review_threshold: float | None = Field(default=None, ge=0, le=1)
+    source_cache_ttl_hours: int | None = Field(default=None, ge=1, le=720)
+    source_daily_request_budget: int | None = Field(default=None, ge=1, le=100000)
+
+    @model_validator(mode="after")
+    def validate_transport(self):
+        if self.smtp_ssl and self.smtp_starttls:
+            raise ValueError("SMTP SSL and STARTTLS cannot both be enabled")
+        if self.jev_auto_threshold is not None and self.jev_review_threshold is not None:
+            if self.jev_auto_threshold < self.jev_review_threshold:
+                raise ValueError("Jev auto threshold must be greater than or equal to review threshold")
+        return self
+
+
+class SettingsTestRequest(SettingsUpdate):
+    recipient: str | None = Field(default=None, max_length=320)
+
+    @field_validator("recipient")
+    @classmethod
+    def validate_test_recipient(cls, value: str | None) -> str | None:
+        return _validate_email(value) if value else value
+
+
+class BackupRestoreRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=2000)
+
+
+class DataDirectoryRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=2000)

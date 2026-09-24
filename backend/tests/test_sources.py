@@ -96,3 +96,104 @@ def test_semantic_scholar_cache_and_global_budget(tmp_path):
     assert diagnostics["semantic_scholar"]["status"] == "cached"
     assert database.source_usage_total() == 1
     database.close()
+
+
+def test_arxiv_uses_percent_encoded_field_query(tmp_path):
+    seen_url = ""
+    def handler(request):
+        nonlocal seen_url
+        seen_url = str(request.url)
+        return httpx.Response(200, text='<feed xmlns="http://www.w3.org/2005/Atom" />')
+
+    _, diagnostics = search_sources(
+        ["arxiv"], ("agentic retrieval augmented generation",), 5, "", "",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+        Settings(root=tmp_path, live=True, smtp_from="researcher@example.org"),
+    )
+    assert diagnostics["arxiv"]["status"] == "ok"
+    assert "%20" in seen_url
+    assert "+" not in seen_url.split("?", 1)[1]
+    assert "all%3A%22agentic%22" in seen_url
+
+
+def test_arxiv_uses_system_curl_after_transport_failure(monkeypatch, tmp_path):
+    calls = []
+    xml = b'<feed xmlns="http://www.w3.org/2005/Atom" />'
+    monkeypatch.setattr("literature_agent.sources.shutil.which", lambda name: "curl.exe")
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return type("Result", (), {"returncode": 0, "stdout": xml, "stderr": b""})()
+    monkeypatch.setattr("literature_agent.sources.subprocess.run", run)
+    def handler(request):
+        raise httpx.ConnectError("certificate mismatch", request=request)
+
+    _, diagnostics = search_sources(
+        ["arxiv"], ("agentic RAG",), 2, "", "",
+        httpx.Client(transport=httpx.MockTransport(handler)), Settings(root=tmp_path, live=True),
+    )
+    assert diagnostics["arxiv"]["status"] == "ok"
+    assert diagnostics["arxiv"]["transport"] == "system_curl"
+    assert diagnostics["arxiv"]["attempts"] == 1
+    assert calls[0][1]["timeout"] == 35
+    assert "%20" in calls[0][0][-1]
+
+
+def test_arxiv_keeps_successful_results_when_a_later_query_fails(tmp_path):
+    xml = """
+    <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+      <entry><id>http://arxiv.org/abs/2501.00001</id><title>Agentic RAG</title>
+        <published>2025-01-03T00:00:00Z</published><summary>An abstract.</summary>
+      </entry>
+    </feed>
+    """
+    calls = 0
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(200, text=xml)
+        return httpx.Response(406)
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    from literature_agent.sources import ArxivSource
+    source = ArxivSource(client)
+    source._system_curl = lambda url, user_agent: (_ for _ in ()).throw(RuntimeError("timeout"))
+    records = source.search(("agentic RAG", "RAG evaluation"), 2, "", "")
+    assert len(records) == 1
+    assert source.errors == ["RuntimeError: timeout"]
+
+
+def test_semantic_scholar_retries_429(monkeypatch, tmp_path):
+    calls = 0
+    sleeps = []
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(200, json={"data": [], "next": None})
+    monkeypatch.setattr("literature_agent.sources.time.sleep", sleeps.append)
+
+    _, diagnostics = search_sources(
+        ["semantic_scholar"], ("agents",), 1, "", "",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+        Settings(root=tmp_path, live=True),
+    )
+    diagnostic = diagnostics["semantic_scholar"]
+    assert calls == 2
+    assert diagnostic["status"] == "ok"
+    assert diagnostic["attempts"] == 2
+    assert diagnostic["retry_count"] == 1
+    assert diagnostic["final_http_status"] == 200
+
+
+def test_semantic_scholar_retry_exhaustion_is_reported(monkeypatch, tmp_path):
+    monkeypatch.setattr("literature_agent.sources.time.sleep", lambda _: None)
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(429)))
+    _, diagnostics = search_sources(
+        ["semantic_scholar"], ("agents",), 1, "", "", client, Settings(root=tmp_path, live=True)
+    )
+    diagnostic = diagnostics["semantic_scholar"]
+    assert diagnostic["status"] == "failed"
+    assert diagnostic["attempts"] == 4
+    assert diagnostic["retry_count"] == 3
+    assert diagnostic["final_http_status"] == 429

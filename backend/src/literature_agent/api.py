@@ -1,20 +1,34 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from pathlib import Path
+from dataclasses import replace
+import os
+import shutil
+import subprocess
+import sys
+from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Query
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from .config import Settings
+from .config import ConfigManager, SECRET_FIELDS, SETTING_FIELDS, Settings, save_bootstrap_data_dir
+from . import __version__
 from .db import Database
 from .email import send_test_message
+from .llm import ModelProvider
 from .prompts import BUILTIN_PROMPTS
-from .schemas import DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskUpdate, TestSendRequest
-from .sources import SOURCE_METADATA
+from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SettingsTestRequest, SettingsUpdate, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskUpdate, TestSendRequest
+from .sources import SOURCE_METADATA, build_sources
+from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
 
-settings = Settings.from_env()
+config_manager = ConfigManager(Settings.from_env())
+settings = config_manager.get()
 database = Database(settings.db_path)
 database.seed_builtin_prompts(BUILTIN_PROMPTS)
 run_worker: LocalRunWorker | None = None
@@ -24,7 +38,7 @@ run_worker: LocalRunWorker | None = None
 async def lifespan(_: FastAPI):
     global run_worker
     database.cleanup_test_tasks()
-    run_worker = LocalRunWorker(settings, database)
+    run_worker = LocalRunWorker(lambda: settings, database)
     run_worker.recover()
     try:
         yield
@@ -33,13 +47,33 @@ async def lifespan(_: FastAPI):
         run_worker = None
 
 
-app = FastAPI(title="Literature Agent", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Literature Agent", version="0.3.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5175", "http://127.0.0.1:5175"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def protect_local_writes(request: Request, call_next):
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = request.headers.get("origin", "")
+        allowed = {f"http://127.0.0.1:{request.url.port or 80}", f"http://localhost:{request.url.port or 80}",
+                   "http://127.0.0.1:5175", "http://localhost:5175"}
+        if origin and origin not in allowed:
+            return JSONResponse({"detail": "Cross-origin writes are not allowed"}, status_code=403)
+    return await call_next(request)
+
+
+def mount_frontend(target: FastAPI, directory: Path) -> bool:
+    """Serve a built frontend when present without making it a backend-test dependency."""
+    index = directory / "index.html"
+    if not index.is_file():
+        return False
+    target.mount("/", StaticFiles(directory=directory, html=True), name="frontend")
+    return True
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.2.0", "live": settings.live, "jev_enabled": settings.jev_enabled, "jev_configured": bool(settings.jev_enabled and settings.jev_api_key)}
+    return {"status": "ok", "version": __version__, "live": settings.live, "database": database.health(), "worker": run_worker is not None, "jev_enabled": settings.jev_enabled, "jev_configured": bool(settings.jev_enabled and settings.jev_api_key)}
 
 
 @app.post("/api/tasks", response_model=TaskRead)
@@ -112,7 +146,9 @@ def start_run(task_id: str):
     if not task:
         raise HTTPException(404, "Task not found")
     total_steps = 7 if task.get("evidence_review") else 6
-    run = database.create_run(task_id, total_steps=total_steps)
+    run = database.create_run_if_idle(task_id, total_steps=total_steps)
+    if not run:
+        raise HTTPException(409, "This task already has an active run")
     if run_worker is None:
         raise HTTPException(503, "Run worker is not available")
     run_worker.submit_task(run["id"], task)
@@ -193,7 +229,11 @@ def run_subscription_now(subscription_id: str):
     if not settings.live or not settings.llm_api_key or not settings.llm_model:
         raise HTTPException(409, "Configure LITERATURE_AGENT_LIVE, LLM_API_KEY, and LLM_MODEL before a subscription run")
     total_steps = 7 if task.get("evidence_review") else 6
-    run = database.create_run(task["id"], total_steps=total_steps, trigger_kind="subscription", subscription_id=subscription_id)
+    local_now = datetime.now(timezone.utc).astimezone(ZoneInfo(subscription["timezone"]))
+    local_day_start = datetime.combine(local_now.date(), time.min, tzinfo=local_now.tzinfo).astimezone(timezone.utc).isoformat()
+    run = database.create_run_if_idle(task["id"], total_steps=total_steps, trigger_kind="subscription", subscription_id=subscription_id, not_before=local_day_start)
+    if not run:
+        raise HTTPException(409, "This subscription is already active or has run today")
     if run_worker is None:
         raise HTTPException(503, "Run worker is not available")
     run_worker.submit_subscription(run["id"], subscription)
@@ -291,21 +331,287 @@ def delete_prompt(prompt_id: str):
     return {"status": "deleted", "prompt_id": prompt_id}
 
 
-@app.get("/api/settings")
-def get_settings():
+SETTING_SECTIONS = {
+    "llm": {"live", "llm_base_url", "llm_model", "llm_api_key"},
+    "smtp": {"smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "smtp_starttls", "smtp_ssl"},
+    "sources": {"openalex_api_key", "semantic_scholar_api_key", "pubmed_api_key", "pubmed_email"},
+    "jev": {"jev_enabled", "jev_shadow_mode", "jev_api_key", "jev_model", "jev_timeout_seconds", "jev_auto_threshold", "jev_review_threshold"},
+    "runtime": {"source_cache_ttl_hours", "source_daily_request_budget"},
+}
+
+
+def _public_settings() -> dict:
     return {
+        "version": __version__,
+        "license": "AGPL-3.0-only",
+        "source_url": "https://github.com/EdwardAiyw/literature-agent",
         "live": settings.live,
+        "data_dir": str(settings.data_dir),
+        "llm_base_url": settings.llm_base_url,
+        "llm_model": settings.llm_model,
         "llm_configured": bool(settings.llm_api_key and settings.llm_model),
+        "smtp_host": settings.smtp_host,
+        "smtp_port": settings.smtp_port,
+        "smtp_username": settings.smtp_username,
+        "smtp_from": settings.smtp_from,
+        "smtp_starttls": settings.smtp_starttls,
+        "smtp_ssl": settings.smtp_ssl,
         "smtp_configured": bool(settings.smtp_host and settings.smtp_from),
+        "openalex_configured": bool(settings.openalex_api_key),
+        "semantic_scholar_configured": bool(settings.semantic_scholar_api_key),
+        "pubmed_configured": bool(settings.pubmed_api_key),
+        "pubmed_email": settings.pubmed_email,
         "jev_enabled": settings.jev_enabled,
         "jev_configured": bool(settings.jev_enabled and settings.jev_api_key),
         "jev_shadow_mode": settings.jev_shadow_mode,
         "jev_model": settings.jev_model,
+        "jev_timeout_seconds": settings.jev_timeout_seconds,
         "jev_auto_threshold": settings.jev_auto_threshold,
         "jev_review_threshold": settings.jev_review_threshold,
+        "source_cache_ttl_hours": settings.source_cache_ttl_hours,
         "source_daily_request_budget": settings.source_daily_request_budget,
         "source_usage": database.source_usage_snapshot(),
         "famou_enabled": settings.famou_enabled,
         "sources": [{"id": name, **metadata} for name, metadata in SOURCE_METADATA.items()],
         "runtime_nodes": ["query_planner", "retrieval", "dedupe", "relevance_screener", "literature_summarizer", "evidence_reviewer"],
     }
+
+
+@app.get("/api/settings")
+def get_settings():
+    return _public_settings()
+
+
+def _section_values(section: str, payload: SettingsUpdate) -> tuple[dict, dict]:
+    allowed = SETTING_SECTIONS.get(section)
+    if not allowed:
+        raise HTTPException(404, "Unknown settings section")
+    supplied = payload.model_dump(exclude_none=True)
+    invalid = set(supplied) - allowed
+    if invalid:
+        raise HTTPException(422, f"Setting(s) do not belong to {section}: {', '.join(sorted(invalid))}")
+    secrets = {key: supplied.pop(key) for key in list(supplied) if key in SECRET_FIELDS}
+    return supplied, secrets
+
+
+@app.put("/api/settings/{section}")
+def update_settings(section: str, payload: SettingsUpdate):
+    global settings
+    values, secrets = _section_values(section, payload)
+    candidate = replace(settings, **values, **{key: value for key, value in secrets.items() if value})
+    if candidate.smtp_ssl and candidate.smtp_starttls:
+        raise HTTPException(422, "SMTP SSL and STARTTLS cannot both be enabled")
+    if candidate.jev_auto_threshold < candidate.jev_review_threshold:
+        raise HTTPException(422, "Jev auto threshold must be greater than or equal to review threshold")
+    try:
+        settings = config_manager.update(values, secrets)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _public_settings()
+
+
+@app.delete("/api/settings/secrets/{secret_name}")
+def clear_setting_secret(secret_name: str):
+    global settings
+    if secret_name not in SECRET_FIELDS:
+        raise HTTPException(404, "Unknown secret")
+    try:
+        settings = config_manager.update({}, {secret_name: ""})
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _public_settings()
+
+
+@app.post("/api/settings/{section}/test")
+def test_settings(section: str, payload: SettingsTestRequest):
+    values, secrets = _section_values(section, SettingsUpdate.model_validate(payload.model_dump(exclude={"recipient"})))
+    candidate_values = {**values, **{key: value for key, value in secrets.items() if value != ""}}
+    candidate = replace(settings, **candidate_values)
+    try:
+        if section == "llm":
+            if not candidate.llm_api_key or not candidate.llm_model:
+                raise ValueError("API Key and model are required")
+            result = ModelProvider(candidate.llm_base_url, candidate.llm_api_key, candidate.llm_model)._complete_json(
+                "Return only this JSON object: {\"status\":\"ok\"}", {"test": "Literature Agent connection"}
+            )
+            if result.get("status") != "ok":
+                raise ValueError("The model returned an unexpected response")
+        elif section == "smtp":
+            recipient = payload.recipient or candidate.smtp_from
+            if not recipient:
+                raise ValueError("A test recipient or sender address is required")
+            send_test_message(candidate, recipient)
+        elif section == "sources":
+            diagnostics = {}
+            with httpx.Client(timeout=20, follow_redirects=True) as client:
+                for name, source in build_sources(client, candidate).items():
+                    try:
+                        records = source.search(("retrieval augmented generation",), 1, "", "")
+                        diagnostics[name] = {"ok": True, "count": len(records)}
+                    except Exception as exc:
+                        diagnostics[name] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            if not any(item["ok"] for item in diagnostics.values()):
+                raise RuntimeError("All literature source checks failed")
+            return {"status": "ok", "section": section, "diagnostics": diagnostics}
+        elif section == "jev":
+            if candidate.jev_enabled and not candidate.jev_api_key:
+                raise ValueError("Jev API Key is required when Jev is enabled")
+        elif section != "runtime":
+            raise HTTPException(404, "Unknown settings section")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"{type(exc).__name__}: {exc}") from exc
+    return {"status": "ok", "section": section}
+
+
+@app.get("/api/onboarding")
+def onboarding_status():
+    schedule = scheduler_status()
+    tasks = {item.get("name") for item in schedule.get("tasks", [])}
+    steps = {
+        "data": settings.data_dir.exists() and database.health()["writable"],
+        "llm": bool(settings.live and settings.llm_api_key and settings.llm_model),
+        "smtp": bool(settings.smtp_host and settings.smtp_from),
+        "sources": True,
+        "scheduler": set(schedule.get("tasks") and ("Literature Agent Local", "Literature Agent Daily") or ()).issubset(tasks),
+    }
+    return {"complete": all(steps.values()), "steps": steps, "data_dir": str(settings.data_dir)}
+
+
+@app.post("/api/system/select-data-directory")
+def select_data_directory():
+    if os.name != "nt":
+        raise HTTPException(400, "The native directory picker is only available on Windows")
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(title="选择 Literature Agent 数据目录", initialdir=str(settings.data_dir))
+        root.destroy()
+    except Exception as exc:
+        raise HTTPException(400, f"Could not open directory picker: {exc}") from exc
+    return {"path": selected}
+
+
+@app.post("/api/system/select-backup")
+def select_backup_file():
+    if os.name != "nt":
+        raise HTTPException(400, "The native file picker is only available on Windows")
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askopenfilename(
+            title="选择 Literature Agent 备份",
+            initialdir=str(settings.data_dir / "backups"),
+            filetypes=[("SQLite backup", "*.db"), ("All files", "*.*")],
+        )
+        root.destroy()
+    except Exception as exc:
+        raise HTTPException(400, f"Could not open backup picker: {exc}") from exc
+    return {"path": selected}
+
+
+@app.put("/api/system/data-directory")
+def change_data_directory(payload: DataDirectoryRequest):
+    global config_manager, settings, database, run_worker
+    target = Path(payload.path).expanduser().resolve()
+    if target == settings.data_dir.resolve():
+        return {"status": "ok", "path": str(target)}
+    if database.list_recoverable_runs():
+        raise HTTPException(409, "Cannot move data while a run is active")
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        probe = target / ".literature-agent-write-test"
+        probe.write_text("ok", encoding="ascii")
+        probe.unlink()
+        target_db = target / "literature_agent_v2.db"
+        if target_db.exists():
+            Database.validate_backup(target_db)
+        else:
+            database.backup(target_db)
+        old_values = {key: getattr(settings, key) for key in SETTING_FIELDS}
+        base = replace(settings, data_dir=target, db_path=target_db)
+        new_manager = ConfigManager(base, config_manager.secret_store)
+        new_manager.update(old_values)
+        new_settings = new_manager.get()
+        new_database = Database(new_settings.db_path)
+        new_database.seed_builtin_prompts(BUILTIN_PROMPTS)
+        if run_worker:
+            run_worker.close()
+        database.close()
+        save_bootstrap_data_dir(target)
+        config_manager, settings, database = new_manager, new_settings, new_database
+        run_worker = LocalRunWorker(lambda: settings, database)
+    except Exception as exc:
+        raise HTTPException(400, f"Could not use the selected data directory: {exc}") from exc
+    return {"status": "ok", "path": str(target)}
+
+
+@app.get("/api/scheduler")
+def get_scheduler_status():
+    return scheduler_status()
+
+
+@app.get("/api/update")
+def check_update():
+    try:
+        response = httpx.get("https://api.github.com/repos/EdwardAiyw/literature-agent/releases/latest", timeout=10,
+                             headers={"Accept": "application/vnd.github+json", "User-Agent": "Literature-Agent"})
+        if response.status_code == 404:
+            return {"current": __version__, "available": False, "latest": "", "url": ""}
+        response.raise_for_status()
+        release = response.json()
+        latest = str(release.get("tag_name", "")).lstrip("v")
+        return {"current": __version__, "available": bool(latest and latest != __version__),
+                "latest": latest, "url": release.get("html_url", "")}
+    except Exception as exc:
+        raise HTTPException(503, f"Could not check GitHub Releases: {type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/api/scheduler/{action}")
+def manage_scheduler(action: str):
+    try:
+        runtime_root = Path(sys.executable).parent if getattr(sys, "frozen", False) else settings.root.parent
+        return run_scheduler_action(runtime_root, action)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/backups")
+def create_backup():
+    target = settings.data_dir / "backups" / f"literature-agent-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+    database.backup(target)
+    return {"status": "ok", "path": str(target)}
+
+
+@app.post("/api/backups/restore")
+def restore_backup(payload: BackupRestoreRequest):
+    global database, run_worker
+    source = Path(payload.path).expanduser().resolve()
+    try:
+        Database.validate_backup(source)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if database.list_recoverable_runs():
+        raise HTTPException(409, "Cannot restore while a run is active")
+    safety = settings.data_dir / "backups" / f"before-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+    database.backup(safety)
+    if run_worker:
+        run_worker.close()
+    database.close()
+    shutil.copy2(source, settings.db_path)
+    database = Database(settings.db_path)
+    database.seed_builtin_prompts(BUILTIN_PROMPTS)
+    run_worker = LocalRunWorker(lambda: settings, database)
+    return {"status": "ok", "safety_backup": str(safety)}
+
+
+# Keep this mount last so /api routes always win. The backend remains testable in
+# clean checkouts where the ignored frontend/dist directory has not been built.
+mount_frontend(app, settings.root.parent / "frontend" / "dist")

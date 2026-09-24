@@ -4,7 +4,7 @@ import argparse
 from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
-from .config import Settings
+from .config import ConfigManager, Settings
 from .db import Database
 from .runner import run_subscription
 
@@ -38,7 +38,7 @@ def main() -> int:
     parser.add_argument("--no-send", action="store_true", help="run retrieval without sending email")
     args = parser.parse_args()
 
-    settings = Settings.from_env()
+    settings = ConfigManager(Settings.from_env()).get()
     database = Database(settings.db_path)
     try:
         subscriptions = [database.get_subscription(args.run_subscription)] if args.run_subscription else database.list_subscriptions(enabled_only=True)
