@@ -10,6 +10,12 @@
 >
 > [`v0.3.0-rc.3`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3) 已作为 GitHub prerelease 发布。后端 51 项测试、Edge 浏览器 5 项回归、GitHub CI 和 Windows Release 工作流均通过；从 Release 重新下载的安装包 SHA-256 为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`，与校验文件一致。RC3 仍需完成安装版人工验收，因此可用于受控测试，不应视为稳定版。
 
+> **下载与反馈**
+>
+> - [下载 Windows 测试版](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)
+> - [发送反馈邮件](mailto:aiyuing.usm@gmail.com?subject=%5BLiterature%20Agent%20RC3%5D%20Feedback)：`aiyuing.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
+> - [提交 GitHub Bug Report](https://github.com/EdwardAiyw/literature-agent/issues/new?template=bug_report.yml)
+
 ## 目录
 
 - [先看结论](#先看结论)

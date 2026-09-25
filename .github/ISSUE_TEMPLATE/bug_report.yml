@@ -5,7 +5,7 @@ labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: "Remove API keys, SMTP passwords, private paper content, and personal information from screenshots and logs. Security issues belong in a private report."
+      value: "如需发送多张截图或较完整的相关信息，建议邮件联系 [aiyuing.usm@gmail.com](mailto:aiyuing.usm@gmail.com?subject=%5BLiterature%20Agent%20RC3%5D%20Feedback)。提交前请删除 API keys、SMTP passwords、private paper content 和个人信息；安全问题请勿公开提交。"
   - type: input
     id: version
     attributes:
