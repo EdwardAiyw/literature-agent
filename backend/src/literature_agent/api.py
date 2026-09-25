@@ -564,7 +564,7 @@ def check_update():
         response = httpx.get("https://api.github.com/repos/EdwardAiyw/literature-agent/releases/latest", timeout=10,
                              headers={"Accept": "application/vnd.github+json", "User-Agent": "Literature-Agent"})
         if response.status_code == 404:
-            return {"current": __version__, "available": False, "latest": "", "url": ""}
+            raise HTTPException(503, "GitHub Release is unavailable. This repository may be private; check with the distributor for updates.")
         response.raise_for_status()
         release = response.json()
         latest = str(release.get("tag_name", "")).lstrip("v")
