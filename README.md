@@ -24,6 +24,7 @@
 - [备份、恢复、更新和卸载](#备份恢复更新和卸载)
 - [常见问题和排查方法](#常见问题和排查方法)
 - [常见问答](#常见问答)
+- [反馈与问题报告](#反馈与问题报告)
 - [当前测试状态](#当前测试状态)
 - [开发者从源码运行](#开发者从源码运行)
 
@@ -90,7 +91,7 @@ Literature Agent 当前支持：
 
 ### 第 1 步：下载正确文件
 
-当前仓库是 Private。受邀测试者需要先登录有访问权限的 GitHub 账号，再打开 [`v0.3.0-rc.3` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)。没有仓库权限时，应由维护者同时提供安装包和校验文件。
+本仓库已经公开。打开 [`v0.3.0-rc.3` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3) 即可直接下载，无需 GitHub 账号或仓库权限。
 
 下载同一 Release 中的两个文件：
 
@@ -386,7 +387,7 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 数据目录和凭据不会被覆盖。不要通过删除数据目录来“更新”。
 
-仓库保持 Private 时，未登录或未获授权的程序无法读取 GitHub Releases，“检查更新”会提示 Release 不可访问。这是预期行为，不影响本地功能；请直接使用维护者提供的 Release 链接和校验文件更新。
+“检查更新”需要访问 GitHub Releases。网络暂时不可用时不影响本地功能，可以稍后重试，或直接打开本仓库的 Release 页面检查新版本。
 
 ### 卸载
 
@@ -480,6 +481,21 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 **会替我阅读全文吗？**
 
 不会。多数来源只提供题目、作者、摘要和链接，生成结果不能替代阅读全文。
+
+## 反馈与问题报告
+
+测试过程中遇到问题或有改进建议，请优先发送邮件至 [aiyuing.usm@gmail.com](mailto:aiyuing.usm@gmail.com)。邮件便于附上截图和完整的相关信息，也方便进一步确认问题。
+
+建议邮件主题使用 `[Literature Agent RC3] 问题简述`，正文尽量包含：
+
+- Literature Agent 版本，例如 `0.3.0-rc.3`。
+- Windows 版本。
+- 问题发生前执行的操作和可重复的步骤。
+- 预期结果与实际结果。
+- 错误提示、发生时间和相关截图。
+- 如有必要，可附上检查并脱敏后的相关日志片段。
+
+发送前请遮挡或删除 API Key、SMTP 授权码、邮箱密码、Windows 凭据以及其他个人或研究敏感信息。不要通过邮件或公开 Issue 发送任何真实密钥。
 
 ## 当前测试状态
 
