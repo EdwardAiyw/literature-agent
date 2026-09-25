@@ -22,7 +22,9 @@ class LocalRunWorker:
             existing = self._futures.get(run_id)
             if existing and not existing.done(): return
             future = self.executor.submit(function, *args); self._futures[run_id] = future
-            future.add_done_callback(lambda _: self._forget(run_id))
+        # A future may already be done here, in which case add_done_callback runs
+        # synchronously. Register outside the lock so _forget cannot deadlock.
+        future.add_done_callback(lambda _: self._forget(run_id))
 
     def _forget(self, run_id: str) -> None:
         with self._lock: self._futures.pop(run_id, None)
