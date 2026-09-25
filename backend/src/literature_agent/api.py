@@ -47,7 +47,7 @@ async def lifespan(_: FastAPI):
         run_worker = None
 
 
-app = FastAPI(title="Literature Agent", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Literature Agent", version=__version__, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5175", "http://127.0.0.1:5175"], allow_methods=["*"], allow_headers=["*"])
 
 

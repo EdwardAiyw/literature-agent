@@ -2,9 +2,15 @@
 
 ## Unreleased
 
-- Make Windows scheduler status checks degrade cleanly on timeout and keep Jev decision audit ordering deterministic.
+## 0.3.0-rc.3 - 2026-09-25
 
-## 0.3.0 - 2026-09-24
+- Make Windows scheduler status checks degrade cleanly on timeout and keep Jev decision audit ordering deterministic.
+- Prevent startup deadlocks when a recovered run completes before its callback is registered.
+- Report private GitHub Releases as unavailable instead of incorrectly claiming the app is current.
+- Run the frontend build and Edge Playwright regression before publishing Windows Release assets.
+- Add external Beta feedback templates, security guidance, and RC3 version identification.
+
+## 0.3.0-rc.2 - 2026-09-24
 
 - 增加页面化首次配置、LLM、SMTP、来源、Jev 和运行参数设置。
 - 使用 Windows Credential Manager 保存 API Key 和 SMTP 密码。

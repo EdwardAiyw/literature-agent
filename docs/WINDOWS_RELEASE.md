@@ -47,7 +47,7 @@ npm run build
 npm run test:e2e
 
 cd ..
-.\scripts\build-windows-release.ps1 -Version 0.3.0
+.\scripts\build-windows-release.ps1 -Version 0.3.0-rc.3
 ```
 
 构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，并把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。

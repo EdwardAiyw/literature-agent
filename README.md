@@ -6,9 +6,9 @@
 
 这份 README 面向第一次接触本项目的普通用户。日常使用不需要会编程，不需要安装 Python 或 Node.js，也不需要编辑 `.env` 文件。
 
-> **当前发布状态（2026-09-24）**
+> **当前发布状态（2026-09-25）**
 >
-> 0.3.0 候选安装包已经重建。桌面首次加载竞态和窄屏横向溢出两个 P2 已修复；后端 45 项测试、Edge 浏览器 5 项回归以及独立端口打包版冒烟均通过。下载后请以同一 GitHub Release 附带的 `SHA256SUMS.txt` 为准。Windows Sandbox 功能已启用，但测试电脑需要重启后才能完成最终安装、备份恢复和卸载验收，因此目前仍属于候选版本，不应标记为正式发布完成。
+> 0.3.0-rc.3 候选版已完成恢复任务死锁和外部 Beta 发布检查加固；后端 51 项测试、Edge 浏览器 5 项回归以及 GitHub CI 均通过。Windows Sandbox 的校验、安装、首次启动、重复启动和内置页面自动检查已经通过，但首次设置、真实邮件、五篇双来源、计划任务、备份恢复和卸载仍需人工确认，因此当前只能作为预发布候选版使用。
 
 ## 目录
 
@@ -95,7 +95,7 @@ Literature Agent 当前支持：
 - `Literature-Agent-<版本号>-Windows-x64.exe`
 - `SHA256SUMS.txt`
 
-例如，版本 0.3.0 的安装包名称是 `Literature-Agent-0.3.0-Windows-x64.exe`。
+例如，版本 0.3.0-rc.3 的安装包名称是 `Literature-Agent-0.3.0-rc.3-Windows-x64.exe`。
 
 不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包。源代码压缩包面向开发者，双击不能直接安装。如果 Releases 页面暂时没有安装包，表示维护者还没有发布该版本。
 
@@ -108,7 +108,7 @@ Literature Agent 当前支持：
 3. 在打开的蓝色窗口中输入下面的命令，把文件名换成你下载的版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 屏幕会显示一串 64 位字符。
@@ -479,15 +479,16 @@ Get-FileHash .\Literature-Agent-0.3.0-Windows-x64.exe -Algorithm SHA256
 
 ## 当前测试状态
 
-截至 2026-09-24，0.3.0 候选版本已经完成：
+截至 2026-09-25，0.3.0-rc.3 候选版本已经完成：
 
-- 后端完整测试：`45 passed`。
+- 后端完整测试：`51 passed`。
 - SQLite 并发回归：100 组 StrictMode 双初始化，共 2,200 个读取与 400 个并发写入，没有 500 或虚假 404。
 - Edge 浏览器回归：连续 10 次桌面冷加载无错误；390 x 844、768 x 1024、1440 x 1000 三个视口均无横向溢出；四个导航入口均可见。
 - 打包版冒烟：使用独立数据目录和非默认 `8012` 端口启动成功，健康检查与内置页面均返回 HTTP 200。
+- Windows Sandbox 自动阶段：SHA-256、安装、首次启动、重复启动和内置页面检查均通过。
 - 模型、五篇两来源、SMTP 测试邮件、手动日报和自动调度日报：已在源码运行环境完成验证并确认邮件到达。
 
-仍未完成的最终发布门槛是重启后的 Windows Sandbox 安装版隔离验收。它将覆盖全新安装、首次设置、五篇两来源、邮件、计划任务、备份恢复、重复启动和卸载。详细状态见 [P2 修复回归报告](test-results/p2-regression-20260924/TEST_REPORT.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
+仍未完成的正式版发布门槛是 Windows Sandbox 安装版人工验收。它将覆盖首次设置、五篇双来源、真实邮件、计划任务、备份恢复和卸载。详细状态见 [P2 修复回归报告](test-results/p2-regression-20260924/TEST_REPORT.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
 
 ## 开发者从源码运行
 
