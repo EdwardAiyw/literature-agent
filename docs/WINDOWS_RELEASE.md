@@ -2,6 +2,8 @@
 
 面向非技术用户的逐步说明、字段解释和故障排查见根目录 [`README.md`](../README.md)。本页保留为发布与维护速查。
 
+当前私有预发布版是 [`v0.3.0-rc.3`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)。安装包大小为 28,611,752 字节，SHA-256 为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`。
+
 ## 安装
 
 1. 在 GitHub Releases 下载 `Literature-Agent-<version>-Windows-x64.exe` 和 `SHA256SUMS.txt`。
@@ -52,7 +54,7 @@ cd ..
 
 构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，并把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
 
-稳定版发布前还要在重启后的 Windows Sandbox 中运行：
+稳定版发布前还要使用 RC3 安装包在 Windows Sandbox 中运行：
 
 ```powershell
 .\scripts\run-installer-sandbox.ps1

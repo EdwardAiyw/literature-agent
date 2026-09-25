@@ -26,7 +26,7 @@
 | --- | --- |
 | 测试日期 | YYYY-MM-DD |
 | 测试人员 |  |
-| Literature Agent 版本 | 例如 `0.3.0` |
+| Literature Agent 版本 | 当前候选版 `0.3.0-rc.3` |
 | Windows 版本 | 例如 Windows 11 23H2 |
 | 测试方式 | Windows 安装包 / 源码开发模式 |
 | 浏览器 | Edge / Chrome / 其他 |
@@ -127,12 +127,12 @@ D:\LiteratureAgentTestData
 3. 执行以下命令，文件名换成本轮版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 将输出与 `SHA256SUMS.txt` 对照。
 
-预期结果：两串 SHA-256 完全一致。
+预期结果：两串 SHA-256 完全一致；RC3 应为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`。
 
 - [ ] T-01 通过
 

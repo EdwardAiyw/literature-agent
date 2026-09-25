@@ -8,7 +8,7 @@
 
 > **当前发布状态（2026-09-25）**
 >
-> 0.3.0-rc.3 候选版已完成恢复任务死锁和外部 Beta 发布检查加固；后端 51 项测试、Edge 浏览器 5 项回归以及 GitHub CI 均通过。Windows Sandbox 的校验、安装、首次启动、重复启动和内置页面自动检查已经通过，但首次设置、真实邮件、五篇双来源、计划任务、备份恢复和卸载仍需人工确认，因此当前只能作为预发布候选版使用。
+> [`v0.3.0-rc.3`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3) 已作为 GitHub prerelease 发布。后端 51 项测试、Edge 浏览器 5 项回归、GitHub CI 和 Windows Release 工作流均通过；从 Release 重新下载的安装包 SHA-256 为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`，与校验文件一致。RC3 仍需完成安装版人工验收，因此可用于受控测试，不应视为稳定版。
 
 ## 目录
 
@@ -90,14 +90,16 @@ Literature Agent 当前支持：
 
 ### 第 1 步：下载正确文件
 
-打开项目的 [GitHub Releases](https://github.com/EdwardAiyw/literature-agent/releases) 页面，下载同一版本的两个文件：
+当前仓库是 Private。受邀测试者需要先登录有访问权限的 GitHub 账号，再打开 [`v0.3.0-rc.3` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)。没有仓库权限时，应由维护者同时提供安装包和校验文件。
 
-- `Literature-Agent-<版本号>-Windows-x64.exe`
+下载同一 Release 中的两个文件：
+
+- `Literature-Agent-0.3.0-rc.3-Windows-x64.exe`
 - `SHA256SUMS.txt`
 
-例如，版本 0.3.0-rc.3 的安装包名称是 `Literature-Agent-0.3.0-rc.3-Windows-x64.exe`。
+安装包大小为 `28,611,752` 字节。不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。
 
-不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包。源代码压缩包面向开发者，双击不能直接安装。如果 Releases 页面暂时没有安装包，表示维护者还没有发布该版本。
+如果 Release 页面没有上述两个资产，或文件名不一致，不要继续安装。
 
 ### 第 2 步：校验下载文件
 
@@ -112,7 +114,7 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 屏幕会显示一串 64 位字符。
-5. 用记事本打开 `SHA256SUMS.txt`，确认两串字符完全相同。英文字母大小写不同没有关系。
+5. 用记事本打开 `SHA256SUMS.txt`，确认结果为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`。英文字母大小写不同没有关系。
 
 不相同就不要运行安装包，应删除文件并从 GitHub Releases 重新下载。
 
@@ -376,13 +378,15 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 ### 更新
 
-1. 在“设置”中点击“检查更新”。
-2. 有新版本时打开对应 GitHub Release。
-3. 先创建备份。
-4. 下载并校验新版安装包。
-5. 关闭正在运行的任务，再运行新版安装包覆盖安装。
+1. 确认没有任务处于“排队中”或“运行中”。
+2. 在“设置”中点击“立即备份”，记录备份路径。
+3. 打开对应 GitHub Release，下载同一版本的安装包和 `SHA256SUMS.txt`。
+4. 校验 SHA-256 后运行新版安装包覆盖安装。
+5. 启动程序，在“设置 > 关于与开源许可”确认版本已经更新；再检查原有任务、订阅和历史结果。
 
 数据目录和凭据不会被覆盖。不要通过删除数据目录来“更新”。
+
+仓库保持 Private 时，未登录或未获授权的程序无法读取 GitHub Releases，“检查更新”会提示 Release 不可访问。这是预期行为，不影响本地功能；请直接使用维护者提供的 Release 链接和校验文件更新。
 
 ### 卸载
 
@@ -481,14 +485,14 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 截至 2026-09-25，0.3.0-rc.3 候选版本已经完成：
 
-- 后端完整测试：`51 passed`。
+- 后端完整测试：本机与 GitHub Actions 均为 `51 passed`。
 - SQLite 并发回归：100 组 StrictMode 双初始化，共 2,200 个读取与 400 个并发写入，没有 500 或虚假 404。
-- Edge 浏览器回归：连续 10 次桌面冷加载无错误；390 x 844、768 x 1024、1440 x 1000 三个视口均无横向溢出；四个导航入口均可见。
-- 打包版冒烟：使用独立数据目录和非默认 `8012` 端口启动成功，健康检查与内置页面均返回 HTTP 200。
-- Windows Sandbox 自动阶段：SHA-256、安装、首次启动、重复启动和内置页面检查均通过。
+- Edge 浏览器回归：本机和 Windows Release runner 均为 `5 passed`；覆盖连续 10 次桌面冷加载、三个视口、全部导航入口、横向溢出与快速任务切换。
+- RC3 安装包：由干净的 GitHub Windows runner 构建并作为 prerelease 发布；重新下载后的 SHA-256 与 `SHA256SUMS.txt` 一致。
+- 先前候选安装包的 Windows Sandbox 自动阶段已通过 SHA-256、安装、首次启动、重复启动和内置页面检查；这不能替代 RC3 安装包验收。
 - 模型、五篇两来源、SMTP 测试邮件、手动日报和自动调度日报：已在源码运行环境完成验证并确认邮件到达。
 
-仍未完成的正式版发布门槛是 Windows Sandbox 安装版人工验收。它将覆盖首次设置、五篇双来源、真实邮件、计划任务、备份恢复和卸载。详细状态见 [P2 修复回归报告](test-results/p2-regression-20260924/TEST_REPORT.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
+仍未完成的正式版发布门槛是 RC3 安装版验收。验收范围包括覆盖安装、版本确认、数据与凭据保留、首次设置、五篇双来源、真实邮件、计划任务、备份恢复、重复启动和卸载。详细流程见 [产品测试与验收手册](TEST_GUIDE.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
 
 ## 开发者从源码运行
 
@@ -520,6 +524,7 @@ cd backend
 .\.venv\Scripts\python.exe -m pytest -q
 
 cd ..\frontend
+npm ci
 npm run build
 npm run test:e2e
 ```

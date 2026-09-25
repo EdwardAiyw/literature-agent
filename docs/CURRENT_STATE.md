@@ -43,11 +43,12 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 
 ## Verified release-candidate state
 
-- Backend: 45 tests pass, including 100 StrictMode-style double-initialization cycles with concurrent database writes.
-- Frontend: production build passes; five Edge Playwright regressions cover ten cold loads, three viewports, all navigation entries, overflow, controls, and rapid task switching.
-- Packaged executable: starts with an isolated data directory on a non-default port, returns a healthy API response, and serves the bundled frontend.
-- Live source and delivery UAT: five final papers from at least two sources, SMTP test mail, manual digest, and scheduled digest were confirmed.
-- Remaining release gate: restart Windows after enabling Sandbox, then complete the isolated installer checklist before promoting the candidate to a stable release.
+- `v0.3.0-rc.3` is published as a private GitHub prerelease from commit `9614050`.
+- Backend: 51 tests pass locally and in GitHub Actions, including immediate-completion recovery deadlock coverage and 100 StrictMode-style double-initialization cycles with concurrent database writes.
+- Frontend: production build and five Edge Playwright regressions pass locally and on the Windows Release runner; coverage includes ten cold loads, three viewports, all navigation entries, overflow, controls, and rapid task switching.
+- Release asset: `Literature-Agent-0.3.0-rc.3-Windows-x64.exe`, 28,611,752 bytes, SHA-256 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`.
+- Live source and delivery UAT in the source runtime confirmed five final papers from at least two sources, SMTP test mail, manual digest, and scheduled digest.
+- Earlier candidate installers passed the automated Sandbox bootstrap checks. RC3 still requires install/update, real delivery, scheduling, backup/restore, and uninstall acceptance before stable promotion.
 
 ## Not yet implemented
 
