@@ -31,6 +31,16 @@ jobs:
       - name: Test backend
         working-directory: backend
         run: .venv/Scripts/python.exe -m pytest -q
+      - name: Install frontend dependencies and Edge browser
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install msedge
+      - name: Build frontend and run browser regression
+        working-directory: frontend
+        run: |
+          npm run build
+          npm run test:e2e
       - name: Build installer
         shell: pwsh
         run: |

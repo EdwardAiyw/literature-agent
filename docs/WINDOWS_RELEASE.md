@@ -30,7 +30,7 @@
 
 ## 更新与卸载
 
-设置页可以检查 GitHub Releases。下载新版安装包并覆盖安装即可，数据目录和 Windows 凭据不会被覆盖。
+公开仓库的设置页可以检查 GitHub Releases。仓库保持 Private 时，普通测试者无法使用内置更新检查，也无法直接下载 Release；需邀请其访问仓库或单独分发安装包与校验文件。此时更新检查会提示无法访问，而不会显示“已是最新版本”。下载新版安装包并覆盖安装即可，数据目录和 Windows 凭据不会被覆盖。
 
 从 Windows“已安装的应用”卸载时会移除程序文件和计划任务，但保留用户数据和凭据。确认不再需要后，可由用户手动删除数据目录和 Windows 凭据管理器中以 `LiteratureAgent/` 开头的条目。
 
@@ -50,7 +50,7 @@ cd ..
 .\scripts\build-windows-release.ps1 -Version 0.3.0
 ```
 
-构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上重新测试、构建，并把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
+构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，并把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
 
 稳定版发布前还要在重启后的 Windows Sandbox 中运行：
 

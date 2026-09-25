@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible problem in the Windows beta
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Remove API keys, SMTP passwords, private paper content, and personal information from screenshots and logs. Security issues belong in a private report."
+  - type: input
+    id: version
+    attributes:
+      label: Literature Agent version
+      placeholder: "0.3.0-rc.3"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows and browser versions
+      placeholder: "Windows 11 24H2; Edge 140"
+    validations:
+      required: true
+  - type: input
+    id: run
+    attributes:
+      label: Run ID (if relevant)
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: "Start from a fresh launch and list each action."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted screenshot or log excerpt
+      description: "Attach only sanitized evidence."
