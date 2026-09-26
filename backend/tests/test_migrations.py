@@ -13,7 +13,9 @@ def test_empty_database_upgrade_is_repeatable_and_has_v2_schema(tmp_path):
     database = Database(path)
     columns = {row["name"] for row in database.connection.execute("PRAGMA table_info(decision_calls)")}
     assert "fallback_reason" in columns
-    assert database.connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "20260922_0001"
+    assert {"provider", "probability_kind", "routing", "baseline_outcome", "final_outcome",
+            "probabilities", "attempt_count", "validation_error"} <= columns
+    assert database.connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "20260925_0002"
     database.close()
 
 

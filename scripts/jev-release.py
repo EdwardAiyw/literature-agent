@@ -16,7 +16,11 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND / "src"))
 
 from literature_agent.config import Settings  # noqa: E402
-from typesafe_sdk import TypeSafeClient  # noqa: E402
+
+
+LOCALJEV_DEFAULT_URL = "http://127.0.0.1:8080"
+LOCALJEV_MODEL = "jev-latest"
+LOCALJEV_MODEL_ALIASES = {"localjev-0.2", "localjev-latest", "jev-latest", "jev-preview"}
 
 
 SHADOW_CASES = (
@@ -44,16 +48,25 @@ SHADOW_CASES = (
 )
 
 
-def request_json(base_url: str, path: str, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
+def request_json(
+    base_url: str,
+    path: str,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: float = 60,
+) -> Any:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}{path}",
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
@@ -78,32 +91,64 @@ def update_env(values: dict[str, str]) -> None:
     env_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
 
-def available_models(settings: Settings) -> list[dict[str, str]]:
-    if not settings.jev_api_key:
-        raise RuntimeError("TYPESAFE_API_KEY is empty in backend/.env")
-    with TypeSafeClient(api_key=settings.jev_api_key, timeout=settings.jev_timeout_seconds) as client:
-        response = client.models.list()
-    return [model.model_dump(mode="json") for model in response.models]
+def normalize_localjev_url(base_url: str) -> str:
+    value = base_url.strip().rstrip("/")
+    if value.endswith("/v1"):
+        value = value[:-3]
+    if not value.startswith(("http://", "https://")):
+        raise RuntimeError("LocalJev base URL must start with http:// or https://")
+    return value
 
 
-def choose_model(models: list[dict[str, str]]) -> str:
-    names = {model["name"] for model in models}
-    if "jev-1.13.0" in names:
-        return "jev-1.13.0"
-    concrete = [model for model in models if model["name"] != "jev-latest"]
-    candidates = concrete or models
-    if not candidates:
-        raise RuntimeError("The TypeSafe account returned no available models")
-    return max(candidates, key=lambda model: (model.get("release_date", ""), model["name"]))["name"]
+def inspect_localjev(base_url: str, api_key: str = "", timeout: float = 10) -> dict[str, Any]:
+    base_url = normalize_localjev_url(base_url)
+    health = request_json(base_url, "/health", timeout=timeout)
+    if not isinstance(health, dict) or health.get("status") != "ok":
+        raise RuntimeError("LocalJev /health did not return status=ok")
+
+    ready = request_json(base_url, "/ready", timeout=timeout)
+    if not isinstance(ready, dict) or ready.get("status") != "ready":
+        detail = ready.get("detail") if isinstance(ready, dict) else None
+        raise RuntimeError(str(detail or "LocalJev upstream model is unavailable"))
+
+    auth_headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
+    response = request_json(base_url, "/v1/models", headers=auth_headers, timeout=timeout)
+    models = response.get("models") if isinstance(response, dict) else None
+    if not isinstance(models, list):
+        raise RuntimeError("LocalJev /v1/models did not return a models array")
+    names = {
+        model.get("name")
+        for model in models
+        if isinstance(model, dict) and isinstance(model.get("name"), str)
+    }
+    if not names.intersection(LOCALJEV_MODEL_ALIASES):
+        raise RuntimeError("LocalJev returned no supported Jev model")
+    return {
+        "base_url": base_url,
+        "model": LOCALJEV_MODEL,
+        "upstream_model": ready.get("upstream_model", ""),
+        "available_models": sorted(names),
+    }
 
 
-def prepare(_: argparse.Namespace) -> int:
+def prepare(args: argparse.Namespace) -> int:
     settings = Settings.from_env(BACKEND)
-    models = available_models(settings)
-    model = choose_model(models)
-    update_env({"JEV_ENABLED": "true", "JEV_SHADOW_MODE": "true", "JEV_MODEL": model})
-    print(json.dumps({"selected_model": model, "available_models": models}, ensure_ascii=False, indent=2))
-    print("Prepared backend/.env for Jev Shadow. Restart the local service before validation.")
+    configured_url = settings.jev_base_url if settings.jev_provider.strip().lower() in {"local", "localjev"} else ""
+    base_url = args.base_url or configured_url or LOCALJEV_DEFAULT_URL
+    status = inspect_localjev(base_url, settings.jev_api_key)
+    update_env(
+        {
+            "JEV_PROVIDER": "localjev",
+            "JEV_BASE_URL": status["base_url"],
+            "JEV_MODEL": LOCALJEV_MODEL,
+            "JEV_TIMEOUT_SECONDS": "180",
+            "JEV_MAX_INFLIGHT": "2",
+            "JEV_ENABLED": "true",
+            "JEV_SHADOW_MODE": "true",
+        }
+    )
+    print(json.dumps(status, ensure_ascii=False, indent=2))
+    print("Prepared backend/.env for LocalJev Shadow. Restart Literature Agent before validation.")
     return 0
 
 
@@ -241,7 +286,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Prepare and validate the Jev local release gate")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    prepare_parser = subparsers.add_parser("prepare", help="validate the API key, select a model, and enable Shadow")
+    prepare_parser = subparsers.add_parser("prepare", help="verify LocalJev readiness and enable Shadow")
+    prepare_parser.add_argument("--base-url", help=f"LocalJev URL (default: {LOCALJEV_DEFAULT_URL})")
     prepare_parser.set_defaults(handler=prepare)
 
     shadow_parser = subparsers.add_parser("shadow", help="run the three-case Shadow validation")

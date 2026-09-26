@@ -92,24 +92,20 @@ Get-ScheduledTask -TaskName "Literature Agent Local","Literature Agent Daily" |
 .\scripts\register-windows-task.ps1 -Unregister
 ```
 
-## 5. 可选：以后启用 Jev
+## 5. 可选：以后启用 LocalJev
 
-Jev 不是正式订阅的前置条件。取得 TypeSafe API Key 后，再按本节独立完成 Shadow、人工审核和 Active canary，不影响现有 LLM/规则路径运行。
+Jev 不是正式订阅的前置条件。先按照 [`LOCALJEV.md`](LOCALJEV.md) 启动 `githubnext/localjev` 及其上游模型，再独立完成 Shadow、人工审核和 Active canary，不影响现有 LLM/规则路径运行。
 
-登录 TypeSafe 控制台，在 API Keys 页面创建 Key。优先在页面“设置 > Jev 决策层”中填写并保存，Key 会进入当前 Windows 用户的凭据管理器。自动化脚本或页面不可用时，源码用户也可以把 Key 写入 `backend/.env` 作为兼容回退：
-
-```env
-TYPESAFE_API_KEY=你的Key
-```
-
-不要把 Key 发到聊天、写进 Prompt 或提交 Git。通过 `.env` 修改后先重启本地服务；通过页面保存通常无需重启。随后运行：
+确认 LocalJev 的 `/ready` 返回 `status=ready`。如果 LocalJev 配置了 `LOCALJEV_API_KEY`，使用本节的命令行脚本时，把同一个值写入 `backend/.env` 的 `JEV_API_KEY`；发布脚本不读取页面凭据管理器。不要提交或发送密钥。随后运行：
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe ..\scripts\jev-release.py prepare
 ```
 
-该命令会读取账户可用模型：优先选择 `jev-1.13.0`，不可用时选择发布日期最新的具体模型；同时把 Jev 设置为 Shadow。重启本地服务后运行三组真实验证：
+该命令会依次检查 LocalJev 的 `/health`、`/ready` 和 `/v1/models`。全部通过后，它会写入 `localjev` Provider、`http://127.0.0.1:8080`、`jev-latest`、180 秒超时、并发数 2，并启用 Shadow。LocalJev 未运行或上游模型未就绪时不会启用 Jev。非默认地址可通过 `prepare --base-url http://127.0.0.1:端口` 指定。
+
+重启 Literature Agent 后运行三组真实验证：
 
 ```powershell
 .\.venv\Scripts\python.exe ..\scripts\jev-release.py shadow

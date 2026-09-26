@@ -64,9 +64,12 @@ class Settings:
     source_daily_request_budget: int = 200
     jev_enabled: bool = False
     jev_shadow_mode: bool = True
+    jev_provider: str = "localjev"
+    jev_base_url: str = "http://127.0.0.1:8080"
     jev_api_key: str = ""
-    jev_model: str = "jev-1.13.0"
-    jev_timeout_seconds: float = 15.0
+    jev_model: str = "jev-latest"
+    jev_timeout_seconds: float = 180.0
+    jev_max_inflight: int = 2
     jev_auto_threshold: float = 0.82
     jev_review_threshold: float = 0.55
     jev_cache_ttl_hours: int = 168
@@ -108,9 +111,12 @@ class Settings:
             source_daily_request_budget=max(1, int(os.getenv("SOURCE_DAILY_REQUEST_BUDGET", "200"))),
             jev_enabled=os.getenv("JEV_ENABLED", "false").lower() in {"1", "true", "yes"},
             jev_shadow_mode=os.getenv("JEV_SHADOW_MODE", "true").lower() in {"1", "true", "yes"},
-            jev_api_key=os.getenv("TYPESAFE_API_KEY", ""),
-            jev_model=os.getenv("JEV_MODEL", "jev-1.13.0"),
-            jev_timeout_seconds=max(1.0, float(os.getenv("JEV_TIMEOUT_SECONDS", "15"))),
+            jev_provider=os.getenv("JEV_PROVIDER", "localjev"),
+            jev_base_url=os.getenv("JEV_BASE_URL", "http://127.0.0.1:8080").rstrip("/"),
+            jev_api_key=os.getenv("JEV_API_KEY") or os.getenv("TYPESAFE_API_KEY", ""),
+            jev_model=os.getenv("JEV_MODEL", "jev-latest"),
+            jev_timeout_seconds=max(1.0, float(os.getenv("JEV_TIMEOUT_SECONDS", "180"))),
+            jev_max_inflight=max(1, min(16, int(os.getenv("JEV_MAX_INFLIGHT", "2")))),
             jev_auto_threshold=min(1.0, max(0.0, float(os.getenv("JEV_AUTO_THRESHOLD", "0.82")))),
             jev_review_threshold=min(1.0, max(0.0, float(os.getenv("JEV_REVIEW_THRESHOLD", "0.55")))),
             jev_cache_ttl_hours=max(1, int(os.getenv("JEV_CACHE_TTL_HOURS", "168"))),
@@ -130,7 +136,7 @@ SECRET_FIELDS = {
     "openalex_api_key": "OPENALEX_API_KEY",
     "semantic_scholar_api_key": "SEMANTIC_SCHOLAR_API_KEY",
     "pubmed_api_key": "PUBMED_API_KEY",
-    "jev_api_key": "TYPESAFE_API_KEY",
+    "jev_api_key": "JEV_API_KEY",
     "smtp_password": "SMTP_PASSWORD",
 }
 
@@ -138,7 +144,8 @@ SETTING_FIELDS = {
     "live", "llm_base_url", "llm_model", "pubmed_email",
     "source_cache_ttl_hours", "source_daily_request_budget",
     "jev_enabled", "jev_shadow_mode", "jev_model", "jev_timeout_seconds",
-    "jev_auto_threshold", "jev_review_threshold", "jev_cache_ttl_hours",
+    "jev_provider", "jev_base_url", "jev_auto_threshold", "jev_review_threshold", "jev_cache_ttl_hours",
+    "jev_max_inflight",
     "smtp_host", "smtp_port", "smtp_username", "smtp_from",
     "smtp_starttls", "smtp_ssl", "famou_enabled",
 }

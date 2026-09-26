@@ -27,6 +27,29 @@ def test_frontend_mount_is_optional(tmp_path):
     assert mount_frontend(FastAPI(), tmp_path / "missing") is False
 
 
+def test_jev_decision_summary_counts_routes_and_failures():
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"name": "Decision audit", "topic": "audit", "target_count": 1}).json()
+        run = database.create_run(task["id"], total_steps=6)
+        base = {"run_id": run["id"], "stage": "relevance_screener", "subject_id": "paper-1",
+                "mode": "active", "requested_model": "jev-1.13.0", "schema_version": "paper-screen.v2"}
+        database.add_decision_call({**base, "status": "applied", "routing": "auto_apply",
+                                    "provider": "typesafe_cloud", "cached": True})
+        database.add_decision_call({**base, "status": "fallback", "routing": "needs_review",
+                                    "provider": "localjev"})
+        database.add_decision_call({**base, "status": "failed", "routing": "fallback",
+                                    "provider": "localjev"})
+        response = client.get(f"/api/runs/{run['id']}/decisions/summary")
+        assert response.status_code == 200
+        assert response.json() == {
+            "total": 3, "auto_applied": 1, "needs_review": 1, "fallback": 1,
+            "failed": 1, "cached": 1, "shadow": 0,
+            "providers": {"typesafe_cloud": 1, "localjev": 2},
+            "stages": {"relevance_screener": 3},
+        }
+        assert client.get("/api/runs/nonexistent/decisions/summary").status_code == 404
+
+
 def test_create_task_and_run():
     with TestClient(app) as client:
         task = client.post("/api/tasks", json={"name": "RAG test", "topic": "agentic retrieval", "target_count": 2}).json()

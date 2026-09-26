@@ -47,11 +47,14 @@ LITERATURE_AGENT_DB=data/literature_agent_v2.db
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=
 LLM_MODEL=
-TYPESAFE_API_KEY=
+JEV_PROVIDER=localjev
+JEV_BASE_URL=http://127.0.0.1:8080
+JEV_API_KEY=
 JEV_ENABLED=false
 JEV_SHADOW_MODE=true
-JEV_MODEL=jev-1.13.0
-JEV_TIMEOUT_SECONDS=15
+JEV_MODEL=jev-latest
+JEV_TIMEOUT_SECONDS=180
+JEV_MAX_INFLIGHT=2
 JEV_AUTO_THRESHOLD=0.82
 JEV_REVIEW_THRESHOLD=0.55
 JEV_CACHE_TTL_HOURS=168
@@ -69,10 +72,11 @@ LLM_MODEL=你的模型名
 
 ## 4. 启用 Jev Shadow
 
-拿到 Jev Key 后，只修改：
+先按 [LocalJev 接入说明](LOCALJEV.md) 启动服务，再修改：
 
 ```env
-TYPESAFE_API_KEY=你的Jev密钥
+JEV_PROVIDER=localjev
+JEV_BASE_URL=http://127.0.0.1:8080
 JEV_ENABLED=true
 JEV_SHADOW_MODE=true
 ```
@@ -175,7 +179,7 @@ Active 下低置信度或调用异常仍会回到原有 LLM/规则路径。
 
 ## 9. 常见问题
 
-- `jev_configured=False`：检查 `TYPESAFE_API_KEY` 是否为空，并重启后端。Key 不要放前端 `.env`。
+- `jev_configured=False`：检查 LocalJev 的 `/ready` 是否返回 `status=ready`，并确认 `JEV_BASE_URL` 指向 LocalJev 的 `8080` 端口，而不是上游模型的 `8000` 端口。
 - `live=False` 或 `llm_configured=False`：补齐 `LITERATURE_AGENT_LIVE=true`、`LLM_API_KEY`、`LLM_MODEL`，再重启后端。
 - 迁移失败：停止后端，执行 `alembic current` 查看状态；不要手动删除 `alembic_version`。
 - 前端显示旧数据：开发服务器默认通过 Vite 将同源 `/api` 代理到 `http://127.0.0.1:8001`；确认后端端口和数据库为 `data/literature_agent_v2.db`。V2 不读取旧库任务。

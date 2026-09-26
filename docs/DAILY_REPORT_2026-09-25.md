@@ -6,7 +6,7 @@
 
 后端测试、前端构建、Edge 浏览器回归、GitHub CI 和 Windows Release 工作流均已通过；安装包下载与 SHA-256 校验也已确认。RC3 仍需完成安装版人工验收，因此当前适合公开测试，但暂不应升级为稳定版。
 
-公开反馈邮箱为 [aiyuing.usm@gmail.com](mailto:aiyuing.usm@gmail.com)。建议测试者通过邮件附上版本、复现步骤、错误信息和截图，发送前必须删除或遮挡密钥、密码及其他敏感信息。
+公开反馈邮箱为 [aiyuling.usm@gmail.com](mailto:aiyuling.usm@gmail.com)。建议测试者通过邮件附上版本、复现步骤、错误信息和截图，发送前必须删除或遮挡密钥、密码及其他敏感信息。
 
 ## 今日完成
 
@@ -63,5 +63,5 @@
 1. 从公开 RC3 Release 下载安装包和 `SHA256SUMS.txt`，先核对 SHA-256。
 2. 按 [Windows Sandbox 安装版验收说明](INSTALLER_SANDBOX_TEST.md) 和 [产品测试与验收手册](../TEST_GUIDE.md) 完成 RC3 人工验收。
 3. 重点确认覆盖安装后版本、数据和凭据保留，以及真实邮件、计划任务、备份恢复和卸载行为。
-4. 将问题和建议发送至 [aiyuing.usm@gmail.com](mailto:aiyuing.usm@gmail.com)，附上脱敏后的截图与复现信息。
+4. 将问题和建议发送至 [aiyuling.usm@gmail.com](mailto:aiyuling.usm@gmail.com)，附上脱敏后的截图与复现信息。
 5. 汇总外部测试结果；只有在 RC3 安装版验收通过且无阻断问题后，才准备稳定版发布。

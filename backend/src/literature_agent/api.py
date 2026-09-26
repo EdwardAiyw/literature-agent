@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import ConfigManager, SECRET_FIELDS, SETTING_FIELDS, Settings, save_bootstrap_data_dir
 from . import __version__
 from .db import Database
+from .decisions import JevDecisionProvider
 from .email import send_test_message
 from .llm import ModelProvider
 from .prompts import BUILTIN_PROMPTS
@@ -73,7 +74,7 @@ def mount_frontend(target: FastAPI, directory: Path) -> bool:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "version": __version__, "live": settings.live, "database": database.health(), "worker": run_worker is not None, "jev_enabled": settings.jev_enabled, "jev_configured": bool(settings.jev_enabled and settings.jev_api_key)}
+    return {"status": "ok", "version": __version__, "live": settings.live, "database": database.health(), "worker": run_worker is not None, "jev_enabled": settings.jev_enabled, "jev_configured": JevDecisionProvider(settings, database).configured}
 
 
 @app.post("/api/tasks", response_model=TaskRead)
@@ -291,6 +292,28 @@ def list_run_decisions(run_id: str):
     return database.list_decision_calls(run_id)
 
 
+@app.get("/api/runs/{run_id}/decisions/summary")
+def summarize_run_decisions(run_id: str):
+    if not database.get_run(run_id):
+        raise HTTPException(404, "Run not found")
+    rows = database.list_decision_calls(run_id)
+    counts = {key: 0 for key in ("total", "auto_applied", "needs_review", "fallback", "failed", "cached", "shadow")}
+    providers: dict[str, int] = {}
+    stages: dict[str, int] = {}
+    for row in rows:
+        counts["total"] += 1
+        if row.get("routing") == "auto_apply": counts["auto_applied"] += 1
+        if row.get("routing") == "needs_review": counts["needs_review"] += 1
+        if row.get("routing") == "fallback": counts["fallback"] += 1
+        if row.get("status") == "failed": counts["failed"] += 1
+        if row.get("cached"): counts["cached"] += 1
+        if row.get("routing") == "shadow_only": counts["shadow"] += 1
+        provider = row.get("provider", "unknown")
+        providers[provider] = providers.get(provider, 0) + 1
+        stages[row.get("stage", "unknown")] = stages.get(row.get("stage", "unknown"), 0) + 1
+    return {**counts, "providers": providers, "stages": stages}
+
+
 @app.post("/api/papers/{paper_id}/review")
 def review_paper(paper_id: str, payload: ReviewRequest):
     if not database.review_paper(paper_id, payload.review):
@@ -335,7 +358,7 @@ SETTING_SECTIONS = {
     "llm": {"live", "llm_base_url", "llm_model", "llm_api_key"},
     "smtp": {"smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "smtp_starttls", "smtp_ssl"},
     "sources": {"openalex_api_key", "semantic_scholar_api_key", "pubmed_api_key", "pubmed_email"},
-    "jev": {"jev_enabled", "jev_shadow_mode", "jev_api_key", "jev_model", "jev_timeout_seconds", "jev_auto_threshold", "jev_review_threshold"},
+    "jev": {"jev_enabled", "jev_shadow_mode", "jev_provider", "jev_base_url", "jev_api_key", "jev_model", "jev_timeout_seconds", "jev_max_inflight", "jev_auto_threshold", "jev_review_threshold"},
     "runtime": {"source_cache_ttl_hours", "source_daily_request_budget"},
 }
 
@@ -362,10 +385,16 @@ def _public_settings() -> dict:
         "pubmed_configured": bool(settings.pubmed_api_key),
         "pubmed_email": settings.pubmed_email,
         "jev_enabled": settings.jev_enabled,
-        "jev_configured": bool(settings.jev_enabled and settings.jev_api_key),
+        "jev_configured": JevDecisionProvider(settings, database).configured,
+        "jev_api_key_configured": bool(settings.jev_api_key),
         "jev_shadow_mode": settings.jev_shadow_mode,
+        "jev_provider": settings.jev_provider,
+        "jev_base_url": settings.jev_base_url,
         "jev_model": settings.jev_model,
         "jev_timeout_seconds": settings.jev_timeout_seconds,
+        "jev_max_inflight": settings.jev_max_inflight,
+        "jev_probability_kind": {"typesafe_cloud": "native", "kev": "calibrated", "localjev": "self_reported"}.get(settings.jev_provider, "unknown"),
+        "jev_source_url": "https://github.com/githubnext/localjev",
         "jev_auto_threshold": settings.jev_auto_threshold,
         "jev_review_threshold": settings.jev_review_threshold,
         "source_cache_ttl_hours": settings.source_cache_ttl_hours,
@@ -380,6 +409,11 @@ def _public_settings() -> dict:
 @app.get("/api/settings")
 def get_settings():
     return _public_settings()
+
+
+@app.get("/api/jev/status")
+def get_jev_status():
+    return JevDecisionProvider(settings, database).connection_status()
 
 
 def _section_values(section: str, payload: SettingsUpdate) -> tuple[dict, dict]:
@@ -403,6 +437,17 @@ def update_settings(section: str, payload: SettingsUpdate):
         raise HTTPException(422, "SMTP SSL and STARTTLS cannot both be enabled")
     if candidate.jev_auto_threshold < candidate.jev_review_threshold:
         raise HTTPException(422, "Jev auto threshold must be greater than or equal to review threshold")
+    provider = candidate.jev_provider.lower().strip()
+    if section == "jev" and candidate.jev_enabled:
+        if provider in {"typesafe_cloud", "typesafe"} and not candidate.jev_api_key and not candidate.jev_base_url:
+            raise HTTPException(422, "TypeSafe API Key or Jev base URL is required when Jev is enabled")
+        if provider not in {"typesafe_cloud", "typesafe"} and not candidate.jev_base_url:
+            raise HTTPException(422, "Jev base URL is required for this provider")
+    if section == "jev" and candidate.jev_base_url:
+        try:
+            JevDecisionProvider(candidate, database).base_url
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     try:
         settings = config_manager.update(values, secrets)
     except (OSError, ValueError, RuntimeError) as exc:
@@ -454,8 +499,19 @@ def test_settings(section: str, payload: SettingsTestRequest):
                 raise RuntimeError("All literature source checks failed")
             return {"status": "ok", "section": section, "diagnostics": diagnostics}
         elif section == "jev":
-            if candidate.jev_enabled and not candidate.jev_api_key:
-                raise ValueError("Jev API Key is required when Jev is enabled")
+            provider = candidate.jev_provider.lower().strip()
+            if provider not in {"typesafe_cloud", "typesafe", "kev", "localjev", "local", "custom"}:
+                raise ValueError("Unsupported Jev provider")
+            if candidate.jev_enabled and not candidate.jev_model:
+                raise ValueError("Jev model is required when Jev is enabled")
+            if candidate.jev_enabled and provider in {"typesafe_cloud", "typesafe"} and not candidate.jev_api_key and not candidate.jev_base_url:
+                raise ValueError("TypeSafe API Key or Jev base URL is required when Jev is enabled")
+            if candidate.jev_enabled and provider not in {"typesafe_cloud", "typesafe"} and not candidate.jev_base_url:
+                raise ValueError("Jev base URL is required for this provider")
+            diagnostics = JevDecisionProvider(candidate, database).connection_status()
+            if provider == "localjev" and diagnostics["status"] != "ready":
+                raise RuntimeError(diagnostics.get("detail") or "LocalJev is not ready")
+            return {"status": "ok", "section": section, "diagnostics": diagnostics}
         elif section != "runtime":
             raise HTTPException(404, "Unknown settings section")
     except HTTPException:

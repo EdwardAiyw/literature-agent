@@ -11,5 +11,13 @@ def offline_runtime(monkeypatch):
     monkeypatch.setattr(
         api,
         "settings",
-        replace(api.settings, live=False, llm_api_key="", llm_model="", smtp_host="", smtp_from=""),
+        replace(
+            api.settings,
+            live=False,
+            llm_api_key="",
+            llm_model="",
+            smtp_host="",
+            smtp_from="",
+            jev_enabled=False,
+        ),
     )

@@ -394,6 +394,14 @@ class DecisionCallRead(BaseModel):
     cached: bool = False
     fallback_used: bool = False
     fallback_reason: Literal["", "low_confidence", "jev_error"] = ""
+    provider: str = "typesafe_cloud"
+    probability_kind: Literal["native", "calibrated", "self_reported", "unknown"] = "unknown"
+    routing: Literal["shadow_only", "auto_apply", "needs_review", "fallback"] = "fallback"
+    baseline_outcome: dict = Field(default_factory=dict)
+    final_outcome: dict = Field(default_factory=dict)
+    probabilities: dict = Field(default_factory=dict)
+    attempt_count: int = 1
+    validation_error: str = ""
     error: str = ""
     created_at: datetime
 
@@ -461,9 +469,12 @@ class SettingsUpdate(BaseModel):
     pubmed_email: str | None = Field(default=None, max_length=320)
     jev_enabled: bool | None = None
     jev_shadow_mode: bool | None = None
+    jev_provider: Literal["typesafe_cloud", "kev", "localjev", "custom"] | None = None
+    jev_base_url: str | None = Field(default=None, max_length=500)
     jev_api_key: str | None = Field(default=None, max_length=4000)
     jev_model: str | None = Field(default=None, min_length=1, max_length=200)
-    jev_timeout_seconds: float | None = Field(default=None, ge=1, le=120)
+    jev_timeout_seconds: float | None = Field(default=None, ge=1, le=600)
+    jev_max_inflight: int | None = Field(default=None, ge=1, le=16)
     jev_auto_threshold: float | None = Field(default=None, ge=0, le=1)
     jev_review_threshold: float | None = Field(default=None, ge=0, le=1)
     source_cache_ttl_hours: int | None = Field(default=None, ge=1, le=720)

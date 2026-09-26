@@ -13,7 +13,7 @@
 > **下载与反馈**
 >
 > - [下载 Windows 测试版](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)
-> - [发送反馈邮件](mailto:aiyuing.usm@gmail.com?subject=%5BLiterature%20Agent%20RC3%5D%20Feedback)：`aiyuing.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
+> - [发送反馈邮件](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC3%5D%20Feedback)：`aiyuling.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
 > - [提交 GitHub Bug Report](https://github.com/EdwardAiyw/literature-agent/issues/new?template=bug_report.yml)
 
 ## 目录
@@ -227,9 +227,16 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 ### 5. Jev 决策层
 
-普通用户保持“启用 Jev”关闭即可。关闭时，检索、筛选、摘要和邮件仍能正常工作。
+项目已经接入 [LocalJev](https://github.com/githubnext/localjev)，默认连接 `http://127.0.0.1:8080`，模型别名为 `jev-latest`。Windows 本地上游使用 `node-llama-cpp`、Vulkan 和 Qwen2.5 3B，监听 `http://127.0.0.1:8000`。完整链路可从项目根目录一键启动：
 
-只有已经获得 TypeSafe API Key，并且理解 Shadow/Active 模式时才需要配置：
+```powershell
+.\scripts\start-jev-stack.ps1
+.\scripts\start-jev-stack.ps1 -Stop
+```
+
+安装位置、单独启动方式和验证命令见 [LocalJev 接入说明](docs/LOCALJEV.md)。
+
+LocalJev 未运行时保持“启用 Jev”关闭即可，检索、筛选、摘要和邮件仍能正常工作。服务启动后在这里点击“测试 LocalJev”，状态链应显示 Literature Agent、LocalJev 和上游模型均已就绪，然后再保存并启用：
 
 - 第一次测试应打开“影子模式”。
 - 影子模式只记录 Jev 判断，不让它直接改变最终选择。
@@ -490,7 +497,7 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 ## 反馈与问题报告
 
-测试过程中遇到问题或有改进建议，请优先发送邮件至 [aiyuing.usm@gmail.com](mailto:aiyuing.usm@gmail.com)。邮件便于附上截图和完整的相关信息，也方便进一步确认问题。
+测试过程中遇到问题或有改进建议，请优先发送邮件至 [aiyuling.usm@gmail.com](mailto:aiyuling.usm@gmail.com)。邮件便于附上截图和完整的相关信息，也方便进一步确认问题。
 
 建议邮件主题使用 `[Literature Agent RC3] 问题简述`，正文尽量包含：
 

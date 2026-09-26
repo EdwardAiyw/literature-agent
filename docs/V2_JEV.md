@@ -1,6 +1,6 @@
 # Jev V2 Shadow Test
 
-Jev is a typed decision plane for relevance screening and evidence checks. Shadow mode records Jev's observations but leaves the existing LLM/rule decisions in control. The audit interface is currently API-only; there is no Jev audit panel in the GUI.
+Jev is a typed decision plane for relevance screening and evidence checks. Literature Agent uses LocalJev by default. Shadow mode records LocalJev's observations but leaves the existing LLM/rule decisions in control. Audit data is available in the workspace panel and through the API.
 
 ## Audit contract
 
@@ -17,14 +17,18 @@ Jev is a typed decision plane for relevance screening and evidence checks. Shado
 
 ## Configure Shadow mode
 
-For the installed product, open `设置 > Jev 决策层`, enable Jev, keep `影子模式` enabled, enter the TypeSafe API Key and model, then click `验证配置` and `保存`. Do not paste the key into chat, commit it, or put it in a task prompt.
+Start LocalJev first by following [LocalJev 接入](LOCALJEV.md). For the installed product, open `设置 > LocalJev 决策层`, keep `影子模式` enabled, click `测试 LocalJev`, then enable Jev and save. An API key is optional unless the LocalJev service has configured `LOCALJEV_API_KEY`.
 
 Source developers may instead copy `backend/.env.example` to `backend/.env` and keep these flags as shown:
 
 ```env
 JEV_ENABLED=true
 JEV_SHADOW_MODE=true
-JEV_MODEL=jev-1.13.0
+JEV_PROVIDER=localjev
+JEV_BASE_URL=http://127.0.0.1:8080
+JEV_MODEL=jev-latest
+JEV_TIMEOUT_SECONDS=180
+JEV_MAX_INFLIGHT=2
 JEV_AUTO_THRESHOLD=0.82
 ```
 

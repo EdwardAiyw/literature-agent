@@ -354,17 +354,24 @@ class Database:
             "confidence": float(value.get("confidence", 0)), "latency_ms": float(value.get("latency_ms", 0)),
             "input_tokens": int(value.get("input_tokens", 0)), "cached": int(bool(value.get("cached"))),
             "fallback_used": int(bool(value.get("fallback_used"))), "fallback_reason": value.get("fallback_reason", ""),
-            "error": value.get("error", ""),
+            "error": value.get("error", ""), "provider": value.get("provider", "typesafe_cloud"),
+            "probability_kind": value.get("probability_kind", "unknown"), "routing": value.get("routing", "fallback"),
+            "baseline_outcome": json.dumps(value.get("baseline_outcome", {}), ensure_ascii=False),
+            "final_outcome": json.dumps(value.get("final_outcome", {}), ensure_ascii=False),
+            "probabilities": json.dumps(value.get("probabilities", {}), ensure_ascii=False),
+            "attempt_count": int(value.get("attempt_count", 1)), "validation_error": value.get("validation_error", ""),
             "created_at": value.get("created_at") or now(),
         }
         with self._lock:
             self.connection.execute(
                 """INSERT INTO decision_calls (
                 id,run_id,stage,subject_id,mode,status,requested_model,resolved_model,schema_version,state_hash,
-                answers,outcome,confidence,latency_ms,input_tokens,cached,fallback_used,fallback_reason,error,created_at
+                answers,outcome,confidence,latency_ms,input_tokens,cached,fallback_used,fallback_reason,error,
+                provider,probability_kind,routing,baseline_outcome,final_outcome,probabilities,attempt_count,validation_error,created_at
                 ) VALUES (
                 :id,:run_id,:stage,:subject_id,:mode,:status,:requested_model,:resolved_model,:schema_version,:state_hash,
-                :answers,:outcome,:confidence,:latency_ms,:input_tokens,:cached,:fallback_used,:fallback_reason,:error,:created_at
+                :answers,:outcome,:confidence,:latency_ms,:input_tokens,:cached,:fallback_used,:fallback_reason,:error,
+                :provider,:probability_kind,:routing,:baseline_outcome,:final_outcome,:probabilities,:attempt_count,:validation_error,:created_at
                 )""", row)
             self.connection.commit()
         return self.get_decision_call(call_id)
@@ -372,6 +379,25 @@ class Database:
     def get_decision_call(self, call_id: str) -> dict | None:
         row = self.connection.execute("SELECT * FROM decision_calls WHERE id = ?", (call_id,)).fetchone()
         return self._decision(row)
+
+    def update_decision_call(self, call_id: str, **values) -> dict | None:
+        allowed = {"status", "routing", "fallback_used", "fallback_reason", "baseline_outcome", "final_outcome", "outcome", "error"}
+        unknown = set(values) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported decision fields: {', '.join(sorted(unknown))}")
+        assignments = []
+        params = {"id": call_id}
+        for key, value in values.items():
+            if key in {"baseline_outcome", "final_outcome", "outcome"}:
+                value = json.dumps(value or {}, ensure_ascii=False)
+            elif key == "fallback_used":
+                value = int(bool(value))
+            assignments.append(f"{key} = :{key}")
+            params[key] = value
+        if assignments:
+            self.connection.execute(f"UPDATE decision_calls SET {', '.join(assignments)} WHERE id = :id", params)
+            self.connection.commit()
+        return self.get_decision_call(call_id)
 
     @staticmethod
     def _decision(row) -> dict | None:
@@ -382,6 +408,8 @@ class Database:
         value["outcome"] = json.loads(value["outcome"])
         value["cached"] = bool(value["cached"])
         value["fallback_used"] = bool(value["fallback_used"])
+        for key in ("baseline_outcome", "final_outcome", "probabilities"):
+            value[key] = json.loads(value.get(key) or "{}")
         return value
 
     def list_decision_calls(self, run_id: str) -> list[dict]:
@@ -389,6 +417,13 @@ class Database:
             "SELECT * FROM decision_calls WHERE run_id = ? ORDER BY rowid", (run_id,)
         ).fetchall()
         return [self._decision(row) for row in rows]
+
+    def latest_decision_call(self, run_id: str, stage: str, subject_id: str) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM decision_calls WHERE run_id = ? AND stage = ? AND subject_id = ? ORDER BY rowid DESC LIMIT 1",
+            (run_id, stage, subject_id),
+        ).fetchone()
+        return self._decision(row)
 
     def _get_cache(self, table: str, cache_key: str):
         with self._lock:

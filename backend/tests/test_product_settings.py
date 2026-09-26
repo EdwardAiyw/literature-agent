@@ -72,6 +72,33 @@ def test_cross_origin_write_is_rejected():
     assert response.status_code == 403
 
 
+def test_jev_http_provider_requires_base_url_before_save(tmp_path, monkeypatch):
+    manager = ConfigManager(Settings(root=tmp_path, data_dir=tmp_path / "data"), MemorySecretStore())
+    monkeypatch.setattr(api, "config_manager", manager)
+    monkeypatch.setattr(api, "settings", manager.get())
+
+    with TestClient(api.app) as client:
+        response = client.put("/api/settings/jev", json={
+            "jev_enabled": True,
+            "jev_provider": "localjev",
+            "jev_base_url": "",
+        })
+
+    assert response.status_code == 422
+    assert manager.get().jev_enabled is False
+
+
+def test_localjev_status_endpoint_returns_provider_diagnostics(monkeypatch):
+    expected = {"provider": "localjev", "status": "ready", "upstream_model": "local-model"}
+    monkeypatch.setattr(api.JevDecisionProvider, "connection_status", lambda self: expected)
+
+    with TestClient(api.app) as client:
+        response = client.get("/api/jev/status")
+
+    assert response.status_code == 200
+    assert response.json() == expected
+
+
 def test_second_run_for_same_task_is_rejected():
     with TestClient(api.app) as client:
         task = client.post("/api/tasks", json={"name": "Run lock", "topic": "locking"}).json()

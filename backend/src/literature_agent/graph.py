@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from typing import TypedDict
 
@@ -142,7 +143,9 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             "target_count": task["target_count"],
             "evidence_review": task["evidence_review"],
             "decision_policy": {"jev_enabled": decisions.configured, "mode": decisions.mode,
-                                "model": settings.jev_model, "auto_threshold": settings.jev_auto_threshold,
+                                "provider": decisions.provider, "model": settings.jev_model,
+                                "probability_kind": decisions.probability_kind,
+                                "max_inflight": settings.jev_max_inflight, "auto_threshold": settings.jev_auto_threshold,
                                 "review_threshold": settings.jev_review_threshold},
             "query_plan": query_plan,
             "prompt_snapshot": {
@@ -210,32 +213,59 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         jev_evaluated = 0
         jev_auto = 0
         prompt = prompt_for(prompts, "relevance_screener")["body"]
-        for record in state.get("records", []):
-            jev_decision = None
-            if decisions.configured:
-                try:
-                    jev_decision = decisions.screen_paper(state["run_id"], record, task)
-                    jev_evaluated += 1
-                    jev_auto += int(jev_decision["auto_eligible"])
-                except Exception as exc:
-                    errors = errors_for({"errors": errors}, "jev_relevance_screener", exc)
-            if jev_decision and not settings.jev_shadow_mode and jev_decision["auto_eligible"]:
-                decision = jev_decision
-            else:
-                try:
-                    decision = provider.screen(record, task, prompt)
-                except Exception as exc:
-                    decision = fallback_screen(record, task["topic"])
-                    errors = errors_for({"errors": errors}, "relevance_screener", exc)
+        jev_results: dict[int, tuple[dict | None, Exception | None]] = {}
+        if decisions.configured and state.get("records"):
+            with ThreadPoolExecutor(max_workers=max(1, settings.jev_max_inflight)) as pool:
+                futures = {pool.submit(decisions.screen_paper, state["run_id"], record, task): index
+                           for index, record in enumerate(state.get("records", []))}
+                for future in as_completed(futures):
+                    index = futures[future]
+                    try:
+                        jev_results[index] = (future.result(), None)
+                    except Exception as exc:
+                        jev_results[index] = (None, exc)
+        for index, record in enumerate(state.get("records", [])):
+            jev_decision, jev_error = jev_results.get(index, (None, None))
             if jev_decision:
-                decision["jev"] = {"mode": decisions.mode, "engine": jev_decision["engine"],
+                jev_evaluated += 1
+                jev_auto += int(jev_decision["auto_eligible"])
+            if jev_error:
+                errors = errors_for({"errors": errors}, "jev_relevance_screener", jev_error)
+            try:
+                decision = provider.screen(record, task, prompt)
+            except Exception as exc:
+                decision = fallback_screen(record, task["topic"])
+                errors = errors_for({"errors": errors}, "relevance_screener", exc)
+            baseline_decision = dict(decision)
+            route = jev_decision.get("route") if jev_decision else "fallback"
+            if jev_decision and not settings.jev_shadow_mode and route == "auto_apply":
+                final_decision = dict(jev_decision)
+            else:
+                final_decision = dict(decision)
+            if jev_decision:
+                final_decision["jev"] = {"mode": decisions.mode, "engine": jev_decision["engine"],
                     "relevance_score": jev_decision["relevance_score"],
                     "decision_confidence": jev_decision["decision_confidence"],
-                    "auto_eligible": jev_decision["auto_eligible"]}
-                decision["requires_human_review"] = jev_decision["decision_confidence"] < settings.jev_review_threshold
-            record["screening"] = decision
-            record["relevance_score"] = decision["relevance_score"]
-            record["priority"] = decision["priority"]
+                    "auto_eligible": jev_decision["auto_eligible"], "route": route,
+                    "provider": decisions.provider, "probability_kind": decisions.probability_kind}
+                final_decision["requires_human_review"] = route == "needs_review"
+                audit = database.latest_decision_call(state["run_id"], "relevance_screener", record.get("canonical_id", ""))
+                if audit:
+                    database.update_decision_call(audit["id"], baseline_outcome=baseline_decision,
+                                                 final_outcome=final_decision, outcome=final_decision,
+                                                 routing="shadow_only" if settings.jev_shadow_mode else route,
+                                                 fallback_used=not settings.jev_shadow_mode and route != "auto_apply",
+                                                 fallback_reason="low_confidence" if route in {"needs_review", "fallback"} else "")
+            elif jev_error:
+                audit = database.latest_decision_call(state["run_id"], "relevance_screener", record.get("canonical_id", ""))
+                if audit:
+                    database.update_decision_call(audit["id"], baseline_outcome=baseline_decision, final_outcome=final_decision,
+                                                 outcome=final_decision, routing="shadow_only" if settings.jev_shadow_mode else "fallback",
+                                                 fallback_used=not settings.jev_shadow_mode,
+                                                 fallback_reason="jev_error")
+            record["screening"] = final_decision
+            record["relevance_score"] = final_decision["relevance_score"]
+            record["priority"] = final_decision["priority"]
             screened.append(record)
         screened, diversity = select_diverse_records(screened, task["target_count"])
         completed(
@@ -269,21 +299,28 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         started(state, "evidence_reviewer", "Checking summary claims against supplied evidence")
         errors = list(state.get("errors", []))
         prompt = prompt_for(prompts, "evidence_reviewer")["body"]
-        for record in state.get("records", []):
-            jev_review = None
-            if decisions.configured:
-                try:
-                    jev_review = decisions.review_evidence(state["run_id"], record, record["summary"])
-                except Exception as exc:
-                    errors = errors_for({"errors": errors}, "jev_evidence_reviewer", exc)
-            if jev_review and not settings.jev_shadow_mode and jev_review["auto_eligible"]:
-                review = jev_review
-            else:
-                try:
-                    review = provider.review_evidence(record, record["summary"], prompt)
-                except Exception as exc:
-                    review = fallback_evidence_review(record, record["summary"])
-                    errors = errors_for({"errors": errors}, "evidence_reviewer", exc)
+        jev_results: dict[int, tuple[dict | None, Exception | None]] = {}
+        if decisions.configured and state.get("records"):
+            with ThreadPoolExecutor(max_workers=max(1, settings.jev_max_inflight)) as pool:
+                futures = {pool.submit(decisions.review_evidence, state["run_id"], record, record["summary"]): index
+                           for index, record in enumerate(state.get("records", []))}
+                for future in as_completed(futures):
+                    index = futures[future]
+                    try:
+                        jev_results[index] = (future.result(), None)
+                    except Exception as exc:
+                        jev_results[index] = (None, exc)
+        for index, record in enumerate(state.get("records", [])):
+            jev_review, jev_error = jev_results.get(index, (None, None))
+            if jev_error:
+                errors = errors_for({"errors": errors}, "jev_evidence_reviewer", jev_error)
+            try:
+                baseline_review = provider.review_evidence(record, record["summary"], prompt)
+            except Exception as exc:
+                baseline_review = fallback_evidence_review(record, record["summary"])
+                errors = errors_for({"errors": errors}, "evidence_reviewer", exc)
+            route = jev_review.get("route") if jev_review else "fallback"
+            review = jev_review if jev_review and not settings.jev_shadow_mode and route == "auto_apply" else baseline_review
             summary = record["summary"]
             summary["evidence_warnings"] = list(dict.fromkeys([*summary.get("evidence_warnings", []), *review["evidence_warnings"]]))
             summary["confidence"] = min(float(summary.get("confidence", 0.35)), float(review["confidence"]))
@@ -291,7 +328,22 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             if jev_review:
                 summary["jev_evidence_review"] = {"mode": decisions.mode, "engine": jev_review["engine"],
                     "confidence": jev_review["decision_confidence"], "auto_eligible": jev_review["auto_eligible"],
+                    "route": route, "provider": decisions.provider, "probability_kind": decisions.probability_kind,
                     "warnings": jev_review["evidence_warnings"]}
+                audit = database.latest_decision_call(state["run_id"], "evidence_reviewer", record.get("canonical_id", ""))
+                if audit:
+                    database.update_decision_call(audit["id"], baseline_outcome=baseline_review,
+                                                 final_outcome=review, outcome=review,
+                                                 routing="shadow_only" if settings.jev_shadow_mode else route,
+                                                 fallback_used=not settings.jev_shadow_mode and route != "auto_apply",
+                                                 fallback_reason="low_confidence" if route in {"needs_review", "fallback"} else "")
+            elif jev_error:
+                audit = database.latest_decision_call(state["run_id"], "evidence_reviewer", record.get("canonical_id", ""))
+                if audit:
+                    database.update_decision_call(audit["id"], baseline_outcome=baseline_review,
+                                                 final_outcome=baseline_review, outcome=baseline_review,
+                                                 routing="shadow_only" if settings.jev_shadow_mode else "fallback",
+                                                 fallback_used=not settings.jev_shadow_mode, fallback_reason="jev_error")
         completed(state, "evidence_reviewer", "Completed evidence review", 6, {"reviewed_count": len(state.get("records", []))})
         return {"node": "evidence_reviewer", "records": state.get("records", []), "errors": errors}
 

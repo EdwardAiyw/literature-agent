@@ -17,6 +17,12 @@ async function useCompletedOnboarding(page: Page) {
       }),
     });
   });
+  await page.route("**/api/jev/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ provider: "localjev", base_url: "http://127.0.0.1:8080", model: "jev-latest", configured: true, status: "ready", probability_kind: "self_reported", service: "LocalJev", upstream_model: "diffusiongemma-26B-A4B-it-4bit", available_models: ["localjev-0.2", "localjev-latest"] }),
+    });
+  });
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -95,3 +101,45 @@ test("rapid task switching keeps only the final task data", async ({ page, reque
   await page.waitForTimeout(600);
   await expect(page.locator(".run-task strong")).toHaveText(finalName);
 });
+
+test("Jev provider settings use one coherent form", async ({ page }) => {
+  await useCompletedOnboarding(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+
+  await expect(page.getByText("LocalJev 决策层", { exact: true })).toBeVisible();
+  const provider = page.getByRole("combobox", { name: "Provider", exact: true });
+  await expect(provider).toHaveCount(1);
+  await provider.selectOption("localjev");
+  await expect(page.getByRole("textbox", { name: "LocalJev API 地址", exact: true })).toHaveValue("http://127.0.0.1:8080");
+  await expect(page.getByRole("spinbutton", { name: "最大并发请求", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("spinbutton", { name: "超时（秒）", exact: true })).toHaveCount(1);
+  await expect(page.locator(".localjev-chain")).toContainText("diffusiongemma-26B-A4B-it-4bit");
+  await expectNoHorizontalOverflow(page);
+});
+
+for (const viewport of [
+  { name: "mobile", width: 390, height: 844 },
+  { name: "desktop", width: 1440, height: 1000 },
+]) {
+  test(`Jev audit stays readable without ${viewport.name} overflow`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await useCompletedOnboarding(page);
+    await page.route("**/api/tasks", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "task-jev", name: "Jev audit run", topic: "decision routing", research_questions: [], target_count: 1, language: "bilingual", output_language: "zh", date_from: "", date_to: "", sources: ["openalex"], evidence_review: false, prompt_overrides: {}, origin: "user", created_at: "2026-09-25T00:00:00Z" }]) }));
+    await page.route("**/api/tasks/task-jev/runs*", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "run-jev", task_id: "task-jev", status: "completed", current_node: "complete", paper_count: 1, error: "", progress: 6, total_steps: 6 }]) }));
+    await page.route("**/api/runs/run-jev/events", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
+    await page.route("**/api/runs/run-jev/artifacts", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
+    await page.route("**/api/runs/run-jev/papers", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
+    await page.route("**/api/runs/run-jev/decisions", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "decision-1", stage: "relevance_screener", subject_id: "doi:10.0000/example-with-a-long-identifier", status: "fallback", provider: "localjev", probability_kind: "self_reported", routing: "needs_review", confidence: 0.68, cached: false, baseline_outcome: { recommended_action: "read", relevance_score: 0.62 }, final_outcome: { recommended_action: "read", relevance_score: 0.62 }, error: "", created_at: "2026-09-25T00:00:00Z" }]) }));
+    await page.route("**/api/runs/run-jev/decisions/summary", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 1, auto_applied: 0, needs_review: 1, fallback: 0, failed: 0, cached: 0, shadow: 0, providers: { localjev: 1 }, stages: { relevance_screener: 1 } }) }));
+
+    await page.goto("/");
+    await page.locator(".recent-task-main", { hasText: "Jev audit run" }).click();
+    await expect(page.getByText("决策路由审计", { exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.locator(".jev-row summary").click();
+    await expect(page.getByText("基线结果", { exact: true })).toBeVisible();
+    await expect(page.getByText("最终结果", { exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+}
