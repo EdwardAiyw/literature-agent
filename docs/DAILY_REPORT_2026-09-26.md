@@ -21,7 +21,7 @@ LocalJev 已接入 Literature Agent，Windows 本地完整链路已经建立：`
 - Literature Agent、LocalJev 和本地 Vulkan 模型服务均可按脚本启动和检查。
 - PhD 主题真实检索任务已完成，Run ID：`7c1a4077-fd93-4a7f-9026-dd9dc592336b`，Task ID：`db8cf51c-92a7-45cb-b37d-3c9bbedebe04`。
 - Jev Shadow 审计数据能够记录模式、状态、置信度、延迟、模型和回退原因。
-- 项目文本中已不存在错误邮箱 `aiyuing.usm@gmail.com`；`git diff --check` 通过。
+- 项目文本中已不存在旧的错误反馈邮箱拼写；`git diff --check` 通过。
 
 ## 当前边界与风险
 
