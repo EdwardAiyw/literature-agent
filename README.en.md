@@ -8,25 +8,28 @@ The application runs locally on your computer. It does not require a Literature 
 
 > **Release status (October 15, 2026)**
 >
-> [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4) is published as a GitHub prerelease with generic default Prompt v2, Zotero integration and reliability fixes. The 105 backend tests, 18 Edge regressions, frontend build, GitHub CI, Windows Release and packaged runtime smoke checks passed. The re-downloaded installer SHA-256 is `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f`, matching `SHA256SUMS.txt`. Manual installer acceptance remains required before stable promotion.
+> The current candidate is [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5), packaging task-to-daily conversion, relevance filtering and source rate-limit repairs alongside default Prompt v2, Zotero and LocalJev. Release build and packaged verification results are recorded on the Release page and under Testing below. Full manual installer acceptance remains required before stable promotion.
 
 > **Download and feedback**
 >
-> - [Download the Windows prerelease](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4)
-> - [Email feedback](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC4%5D%20Feedback)
+> - [Download the Windows prerelease](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5)
+> - [Email feedback](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC5%5D%20Feedback)
 > - [Open a GitHub bug report](https://github.com/EdwardAiyw/literature-agent/issues/new?template=bug_report.yml)
 
 For the original Chinese user guide, see [README.md](README.md).
 
 ## Contents
 
+- [Changes in RC5](#changes-in-rc5)
 - [What it does](#what-it-does)
 - [Requirements](#requirements)
 - [Install the Windows release](#install-the-windows-release)
 - [First-time setup](#first-time-setup)
 - [Run a literature search](#run-a-literature-search)
 - [Create a daily subscription](#create-a-daily-subscription)
+- [Runtime Prompts and task input](#runtime-prompts-and-task-input)
 - [Understand results](#understand-results)
+- [Zotero citation import](#zotero-citation-import)
 - [Data, credentials, and privacy](#data-credentials-and-privacy)
 - [Backup, restore, update, and uninstall](#backup-restore-update-and-uninstall)
 - [Troubleshooting](#troubleshooting)
@@ -35,6 +38,18 @@ For the original Chinese user guide, see [README.md](README.md).
 - [Contributing and security](#contributing-and-security)
 - [License](#license)
 
+## Changes in RC5
+
+| Change | Result |
+| --- | --- |
+| Task-to-daily conversion | Reuse a current or historical task with its ID, research settings and history; add recipient, time and time zone |
+| Relevance gate | Exclude scores below 0.40, ignore recommendations and unverified keyword fallbacks from live results |
+| Search transparency | Inspect executed queries, date bounds and screening totals; validate bilingual query plans |
+| Source resilience | Pace/retry Crossref and Semantic Scholar, respect cooldowns, preserve partial results and explain limits |
+| Retained capabilities | Prompt v2 with v1/custom/task overrides, Zotero import, backups and optional Jev |
+
+RC4 assets and tags remain available, but do not contain these conversion, relevance or rate-limit changes. Rerun searches after upgrading to apply the new rules; history is preserved.
+
 ## What it does
 
 - Searches Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed.
@@ -42,9 +57,11 @@ For the original Chinese user guide, see [README.md](README.md).
 - Restricts publication date ranges and target result counts.
 - Plans searches, queries sources, normalizes and deduplicates records, filters for relevance, and writes research briefs.
 - Optionally performs an evidence review that flags claims not supported by the available source material.
-- Shows per-source success, failure, and result counts.
+- Shows per-source success, cache, partial, rate-limit and failure states with result counts.
+- Provides four generic default v2 Prompts with retained v1/custom versions and task overrides.
+- Imports individual citations to Zotero with DOI/title deduplication and destination-specific status.
 - Lets you mark papers for deep reading, saving, background, or ignoring.
-- Sends daily HTML and plain-text email digests.
+- Converts existing tasks to daily subscriptions and sends HTML and plain-text digests.
 - Keeps task history, run details, paper records, and delivery records locally.
 - Provides browser controls for model, SMTP, source keys, Jev, request budgets, backups, and Windows scheduled tasks.
 
@@ -76,15 +93,15 @@ API keys, SMTP authorization codes, and mailbox passwords are not the same as or
 
 ## Install the Windows release
 
-1. Open the [`v0.3.0-rc.4` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4).
-2. Download both `Literature-Agent-0.3.0-rc.4-Windows-x64.exe` and `SHA256SUMS.txt`. Do not use GitHub's `Source code (zip)` as an installer.
+1. Open the [`v0.3.0-rc.5` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5).
+2. Download both `Literature-Agent-0.3.0-rc.5-Windows-x64.exe` and `SHA256SUMS.txt`. Do not use GitHub's `Source code (zip)` as an installer.
 3. In the download folder, open PowerShell and verify the installer:
 
    ```powershell
-   Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
+   Get-FileHash .\Literature-Agent-0.3.0-rc.5-Windows-x64.exe -Algorithm SHA256
    ```
 
-   Compare the hash with the RC4 `SHA256SUMS.txt` from the same Release. If they differ, delete the downloaded file and download it again.
+   Compare the hash with the RC5 `SHA256SUMS.txt` from the same Release. If they differ, delete the downloaded file and download it again.
 
 4. Run the installer. The prerelease is not commercially code-signed, so Windows SmartScreen may require **More info > Run anyway** after you have verified the checksum.
 5. Start the application from the installer or the Windows Start menu. It opens a browser at <http://127.0.0.1:8001>.
@@ -161,7 +178,7 @@ Leave the global prompt version unchanged on your first run. Select **Start**. T
 
 ## Create a daily subscription
 
-In the current source runtime, select **Convert to daily task** on the current-task card or the envelope action in workspace history. Review the inherited research configuration, enter the recipient, daily time and time zone, then save. Conversion retains the task ID, history, research questions, language/output settings, target count, sources, fixed date bounds, evidence review and Prompt overrides. Saving does not start a search or send mail. Converted tasks reopen their existing subscription; duplicate conversions are rejected. Deleting the subscription also deletes the original task/history and is blocked while a run is active. This feature is not in the published RC4 installer.
+In the RC5 installer or source runtime, select **Convert to daily task** on the current-task card or the envelope action in workspace history. Review the inherited research configuration, enter the recipient, daily time and time zone, then save. Conversion retains the task ID, history, research questions, language/output settings, target count, sources, fixed date bounds, evidence review and Prompt overrides. Saving does not start a search or send mail. Converted tasks reopen their existing subscription; duplicate conversions are rejected. Deleting the subscription also deletes the original task/history and is blocked while a run is active. The dialog defaults to 08:00 and Asia/Hong_Kong; review them before saving.
 
 On **Daily Subscriptions**, enter a name, topic, recipients, target count, local execution time, time zone, optional date range, and one or more sources. Common time zones include `Asia/Shanghai`, `Asia/Hong_Kong`, and `Asia/Kuala_Lumpur`.
 
@@ -173,7 +190,13 @@ Before relying on automation:
 4. Confirm that the research digest arrives and the delivery record is `sent`.
 5. Confirm that both Windows scheduled tasks are registered.
 
-The browser does not need to stay open, but the computer must be powered on, connected, and allowed to run the scheduled tasks. Checks occur every 15 minutes rather than exactly at the configured minute. A subscription runs at most once per calendar day in its configured time zone.
+The browser does not need to stay open, but the computer must be powered on, connected, and allowed to run the scheduled tasks. Checks occur every 15 minutes rather than exactly at the configured minute. A subscription runs at most once per calendar day in its configured time zone. A same-day one-off run before conversion does not consume that daily slot; active runs still prevent overlap.
+
+## Runtime Prompts and task input
+
+The four generic default v2 Prompts cover planning, relevance screening, summarization and evidence review. They use the current task's saved topic, research questions, language, dates and output requirements. When research questions are absent, screening follows the topic without inventing extra requirements. No fixed personal research topic is needed.
+
+Keep the global default for the first run. Manage versions on the Runtime Prompt page or choose a task override under advanced settings. v1 and custom versions remain available. Runs retain Prompt snapshots and actual model paths; changing a default does not rewrite history. Jev has independent decision questions, so inspect its routing audit when enabled. See the [Prompt system](docs/PROMPT_SYSTEM.md) and [v2 validation scope](docs/PROMPT_V2_VALIDATION.md).
 
 ## Understand results
 
@@ -184,7 +207,7 @@ The browser does not need to stay open, but the computer must be powered on, con
 
 Source diagnostics show each provider's status and returned record count. One failed provider does not necessarily invalidate results from other providers. Relevance is an ordering aid, not a quality score. Papers without abstracts may have weaker screening signals, so inspect the original source.
 
-The current source runtime excludes scores below 0.40, `ignore` recommendations and unverified keyword fallbacks. Scores of 0.40–0.69 may still represent background reading. Expand the executed search conditions to check queries/date bounds and inspect evaluated/rejected/selected counts. A date mentioned in topic text does not override the date fields. Existing results are preserved; the fix applies to new runs and is not yet included in the published RC4 installer.
+RC5 excludes scores below 0.40, `ignore` recommendations and unverified keyword fallbacks. Scores of 0.40–0.69 may still represent background reading. Expand the executed search conditions to check queries/date bounds and inspect evaluated/rejected/selected counts. A date mentioned in topic text does not override the date fields. Existing results are preserved; the fix applies to new runs in both the RC5 installer and source runtime.
 
 Workspace history can be searched, filtered, edited, or deleted. Deleting a task permanently deletes its run records and paper results.
 
@@ -207,7 +230,9 @@ Use **Settings > Backup now** before upgrades or other maintenance. Keep the res
 
 To restore, stop active runs, choose **Restore backup**, and confirm. The application creates a `before-restore-*.db` safety copy. Restore replaces database content but does not replace Windows Credential Manager entries.
 
-To update, back up first, download the matching installer and checksum file from the Release page, verify the checksum, and install over the existing version. The data directory, credentials, subscriptions, and history are preserved.
+To update, finish active runs, back up and exit the running Literature Agent process, then download the matching installer and checksum file from the Release page, verify the checksum, and install over the existing version. The data directory, credentials, subscriptions, and history are preserved.
+
+The in-app update check uses GitHub's stable-release endpoint and may not discover prereleases. Use the direct RC5 download link on this page.
 
 Uninstall from **Windows Settings > Apps**. The program files and scheduled tasks are removed, while the data directory and credentials are retained by default. Delete those manually only after confirming that you no longer need them.
 
@@ -235,9 +260,9 @@ Broaden the topic, remove a restrictive date range, choose multiple sources, and
 
 ### Crossref or Semantic Scholar returns 429
 
-This is provider rate limiting. Unreleased source changes add shared pacing, bounded retries and Retry-After cooldowns (at least 60 seconds after exhaustion), preserving earlier successful queries/pages. Only completed queries are cached, and every actual retry counts against the local budget. The workbench explains both current and historical HTTP 429 diagnostics; source connection checks show individual results.
+This is provider rate limiting. RC5 adds shared pacing, bounded retries and Retry-After cooldowns (at least 60 seconds after exhaustion), preserving earlier successful queries/pages. Only completed queries are cached, and every actual retry counts against the local budget. The workbench explains both current and historical HTTP 429 diagnostics; source connection checks show individual results.
 
-Crossref uses the configured PubMed contact email or SMTP sender for mailto/User-Agent identification. Anonymous Semantic Scholar access can remain limited; save an API key under Settings > Literature sources and retry later. Raising the local daily budget cannot remove a provider limit. A read-only check on 2026-10-15 returned four Crossref records in two HTTP 200 requests, while four anonymous Semantic Scholar requests still returned HTTP 429. These changes require a backend restart after active runs finish and are not in the published RC4 installer.
+Crossref uses the configured PubMed contact email or SMTP sender for mailto/User-Agent identification. Anonymous Semantic Scholar access can remain limited; save an API key under Settings > Literature sources and retry later. Raising the local daily budget cannot remove a provider limit. A read-only check on 2026-10-15 returned four Crossref records in two HTTP 200 requests, while four anonymous Semantic Scholar requests still returned HTTP 429. These repairs are included in RC5, but anonymous Semantic Scholar availability remains provider-controlled. Source updates require a backend restart after active runs finish; refreshing the browser is insufficient.
 
 ### The daily email is missing
 
@@ -268,11 +293,13 @@ The development frontend runs at <http://127.0.0.1:5175>; the backend runs at <h
 
 ## Zotero citation import
 
-RC4 source and installer include explicit per-paper citation import from the workbench; the older RC3 installer does not include it. In Settings, enter a user/group Library ID, a read/write API key, and a collection name or existing Collection Key, then test and save the connection. Keys are stored in Windows Credential Manager.
+RC5 retains RC4's explicit per-paper Zotero import and deduplication repairs; the older RC3 installer does not include them. In Settings, enter a user/group Library ID, a read/write API key, and a collection name or existing Collection Key, then test and save the connection. Keys are stored in Windows Credential Manager.
 
 DOI matching scans paginated top-level library items because Zotero quick search does not search DOI metadata. DOI-less papers use exact title matching. Existing items keep their metadata; only collection membership is added. Large libraries may take longer to check. Saved destination changes refresh statuses even for completed runs, and switching back restores that destination's records. Import and database replacement are mutually exclusive (HTTP 409 on conflict). Imports contain citation metadata only; the desktop client receives them through Zotero sync. See [Zotero configuration and troubleshooting](docs/ZOTERO.md).
 
 ## Testing
+
+Local validation passed 150 backend tests, 27 Edge regressions and the frontend production build. RC5 CI, Windows Release, downloaded checksum and packaged smoke results will be recorded here after publishing. Packaged checks cover version, isolated database, Prompt v2 catalog, Zotero settings, frontend and task conversion without search or email side effects. Full manual install/upgrade, real Zotero sync, scheduling, restore and uninstall acceptance remain open. See the [public validation report](docs/VALIDATION_2026-10-15.md).
 
 Run the backend tests, build the frontend, and execute browser regression tests:
 
@@ -286,7 +313,7 @@ npm run build
 npm run test:e2e
 ```
 
-Browser tests use an isolated port (`8011`) and test data directory. They do not modify the product database running on port `8001`.
+Browser tests run sequentially against an isolated port (`8011`) and test data directory with real model/mail endpoints disabled. They do not modify the product database on port `8001`. Preserve existing screenshots and exclude generated results from commits.
 
 Additional test and release documentation:
 

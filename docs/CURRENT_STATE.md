@@ -64,25 +64,25 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Four generic v2 defaults are released; v1, custom versions, task overrides, and explicit rollback are retained.
 - Fixed-case model quality results and the earlier 91-test acceptance baseline are recorded in [Prompt v2 validation](PROMPT_V2_VALIDATION.md). Zotero repair regression results are recorded in [Zotero integration](ZOTERO.md).
 
-## Unreleased relevance repair (2026-10-15)
+## RC5 relevance repair (2026-10-15)
 
 - Formal local testing exposed a result-selection defect: seven unrelated candidates scored 0.02-0.05 still entered results because selection only ranked and filled the target count.
 - Source now gates final ordinary/Jev decisions at relevance >=0.40, respects `ignore`, excludes keyword fallback screening from live results, and records rejected candidates/counts. Empty live retrieval no longer creates fixtures.
 - Query planning adds recorded runtime execution requirements and one bounded repair for invalid language/shape/length; published Prompt bodies, explicit selections and historical snapshots stay intact. arXiv no longer replaces unsupported Chinese-only queries with generic `literature` searches.
 - Workbench exposes executed queries/date bounds and screening totals. Empty digests explain that no qualifying papers were found.
 - Historical replay excludes all seven low-score results. A separate OpenAlex/DeepSeek probe, using the intended 2023-01-01 to 2026-10-15 date range, screened eight of ten retrieved candidates: five ignored, one directly relevant and two background references. It did not alter the saved subscription or send mail/Zotero writes; this limited probe is not full five-source quality acceptance.
-- Initial relevance validation passed 129 backend tests, the frontend build and 20 Edge regressions, including two new relevance cases; final combined validation passed 150 backend tests and 27 Edge regressions. The published RC4 installer and tag do not include these changes. See the [public validation report](VALIDATION_2026-10-15.md).
+- Initial relevance validation passed 129 backend tests, the frontend build and 20 Edge regressions, including two new relevance cases; final combined validation passed 150 backend tests and 27 Edge regressions. RC5 packages these changes; the immutable RC4 installer and tag do not include them. See the [public validation report](VALIDATION_2026-10-15.md).
 
-## Unreleased source rate-limit repair (2026-10-15)
+## RC5 source rate-limit repair (2026-10-15)
 
 - Crossref now identifies the client with the configured PubMed contact email or SMTP sender. Crossref/Semantic Scholar share process-local per-provider/key pacing, bounded retries and Retry-After cooldowns; exhausted sources cool down for at least 60 seconds. This cannot guarantee anonymous API availability.
 - Later query/page failures retain previous records. Completed queries are cached independently, incomplete aggregate searches are not cached as complete, and every actual request/retry reserves budget. Diagnostics retain attempt/retry/cooldown counts.
 - Workbench labels HTTP 429 as rate-limited, including historical diagnostics without rewriting history; partially retrieved records stay available. Settings source checks report individual failures/limits instead of falsely marking them successful.
 - Read-only integration check at 2026-10-15 12:00 UTC: Crossref returned 4 records from two HTTP 200 requests; anonymous Semantic Scholar exhausted four attempts with HTTP 429. No user task, email or Zotero write was initiated. See the [public validation report](VALIDATION_2026-10-15.md).
 - Validation: 138 backend tests, production frontend build and 24 Edge regressions passed; the final source diagnostic adjustment also passed all four focused browser cases. Three preexisting modified screenshots were restored byte-for-byte after regression.
-- Deployed to the local source service on port 8001 at 2026-10-15 13:00 UTC after the manual run finished. The idle restart also loaded task conversion below; database table hashes and persisted settings were unchanged. The published RC4 installer/tag are unchanged.
+- Deployed to the local source service on port 8001 at 2026-10-15 13:00 UTC after the manual run finished. The idle restart also loaded task conversion below; database table hashes and persisted settings were unchanged. The RC5 release packages these repairs; the published RC4 installer/tag remain unchanged.
 
-## Unreleased task-to-daily conversion (2026-10-15)
+## RC5 task-to-daily conversion (2026-10-15)
 
 - Current-task card and history row expose conversion to an existing daily-subscription workflow. The dialog reviews inherited research settings and fixed date bounds, accepts recipient/time/timezone, and supports required-field validation, pending state, cancellation and error retry on desktop/mobile.
 - `POST /api/tasks/{task_id}/subscription` atomically attaches one subscription to the same task ID and changes ownership. Topic/questions, language/output, count, sources, dates, evidence review, explicit Prompt overrides and historical runs/results stay intact. Duplicate/stale conversions are rejected; saving does not run retrieval, send mail or register Windows tasks.

@@ -2,7 +2,7 @@
 
 面向非技术用户的逐步说明、字段解释和故障排查见根目录 [`README.md`](../README.md)。本页保留为发布与维护速查。
 
-当前公开预发布版为 [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4)，包含 Prompt v2、LocalJev 和 Zotero 联动修复。GitHub CI、Windows Release 和打包运行时检查均通过。安装包为 29,018,832 字节，重新下载后 SHA-256 为 `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f`，与 Release 的 `SHA256SUMS.txt` 一致。RC3 历史资产信息保留在 [项目状态](CURRENT_STATE.md)。
+当前发布候选版本为 [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5)，在 Prompt v2、LocalJev 和 Zotero 之外，纳入任务转每日订阅、相关性门槛、检索条件展示和来源限流处理。RC5 的发布工作流、安装包下载校验和打包验证结果将在发布完成后补入本页；RC4/RC3 历史资产信息保留在 [项目状态](CURRENT_STATE.md)。
 
 ## 安装
 
@@ -32,7 +32,7 @@
 
 ## 更新与卸载
 
-公开仓库的设置页可以检查 GitHub Releases。仓库保持 Private 时，普通测试者无法使用内置更新检查，也无法直接下载 Release；需邀请其访问仓库或单独分发安装包与校验文件。此时更新检查会提示无法访问，而不会显示“已是最新版本”。下载新版安装包并覆盖安装即可，数据目录和 Windows 凭据不会被覆盖。
+本仓库已公开，可直接从 RC5 Release 下载。设置页“检查更新”当前使用 GitHub 稳定版入口，候选版可能无法被发现，请使用 README 的直接下载链接。先完成活动运行、备份并退出正在运行的程序，再校验新版安装包并覆盖安装；数据目录和 Windows 凭据会保留。
 
 从 Windows“已安装的应用”卸载时会移除程序文件和计划任务，但保留用户数据和凭据。确认不再需要后，可由用户手动删除数据目录和 Windows 凭据管理器中以 `LiteratureAgent/` 开头的条目。
 
@@ -49,15 +49,15 @@ npm run build
 npm run test:e2e
 
 cd ..
-.\scripts\build-windows-release.ps1 -Version 0.3.0-rc.4
+.\scripts\build-windows-release.ps1 -Version 0.3.0-rc.5
 ```
 
-构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，并把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
+构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，启动打包后的程序检查版本、数据库隔离、Prompt v2、Zotero、前端及任务转换无检索/投递副作用，再把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
 
-稳定版发布前还要使用 RC4 安装包在 Windows Sandbox 中运行：
+稳定版发布前还要使用 RC5 安装包在 Windows Sandbox 中运行：
 
 ```powershell
-.\scripts\run-installer-sandbox.ps1 -Version 0.3.0-rc.4
+.\scripts\run-installer-sandbox.ps1 -Version 0.3.0-rc.5
 ```
 
 按 [`INSTALLER_SANDBOX_TEST.md`](INSTALLER_SANDBOX_TEST.md) 完成首次设置、五篇两来源、邮件、计划任务、备份恢复、重复启动和卸载。Sandbox 未完成时只能发布为 prerelease 候选版。

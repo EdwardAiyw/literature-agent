@@ -49,7 +49,7 @@ def test_runtime_and_current_release_versions_match(monkeypatch):
         settings = client.get("/api/settings")
         update = client.get("/api/update")
 
-    assert __version__ == "0.3.0-rc.4"
+    assert __version__ == "0.3.0-rc.5"
     assert health.json()["version"] == __version__
     assert settings.json()["version"] == __version__
     assert update.json() == {

@@ -59,9 +59,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ inputs.release_tag || github.ref_name }}".TrimStart('v')
-          $env:LITERATURE_AGENT_DATA_DIR = Join-Path $env:RUNNER_TEMP "rc4-packaged-smoke"
-          $env:LITERATURE_AGENT_BOOTSTRAP = Join-Path $env:RUNNER_TEMP "rc4-packaged-bootstrap.json"
+          $env:LITERATURE_AGENT_DATA_DIR = Join-Path $env:RUNNER_TEMP "packaged-smoke-$version"
+          $env:LITERATURE_AGENT_BOOTSTRAP = Join-Path $env:RUNNER_TEMP "packaged-bootstrap-$version.json"
           $env:LITERATURE_AGENT_LIVE = "false"
+          $env:LLM_MODEL = ""
+          $env:SMTP_HOST = ""
+          $env:JEV_ENABLED = "false"
           if (Get-NetTCPConnection -LocalPort 8012 -State Listen -ErrorAction SilentlyContinue) { throw "Smoke test port is occupied" }
           $appPath = (Resolve-Path "release/stage/LiteratureAgent/LiteratureAgent.exe").Path
           $app = Start-Process -FilePath $appPath -ArgumentList @("--port", "8012", "--no-browser") -WindowStyle Hidden -PassThru
@@ -79,6 +82,15 @@ jobs:
             if ($settings.version -ne $version -or $settings.zotero_collection_name -ne "Literature Agent") { throw "Packaged Zotero settings check failed" }
             $page = Invoke-WebRequest "http://127.0.0.1:8012/"
             if ($page.StatusCode -ne 200 -or $page.Content -notmatch 'src="/assets/') { throw "Packaged frontend check failed" }
+            $taskBody = @{ name = "Packaged conversion smoke"; topic = "retrieval augmented generation"; sources = @("openalex"); date_from = "2023-01-01"; date_to = "2026-10-15"; target_count = 5; origin = "test" } | ConvertTo-Json
+            $task = Invoke-RestMethod "http://127.0.0.1:8012/api/tasks" -Method Post -ContentType "application/json" -Body $taskBody
+            $schedule = @{ recipient = "smoke@example.org"; schedule_time = "08:00"; timezone = "Asia/Hong_Kong" } | ConvertTo-Json
+            $subscription = Invoke-RestMethod "http://127.0.0.1:8012/api/tasks/$($task.id)/subscription" -Method Post -ContentType "application/json" -Body $schedule
+            if ($subscription.task_id -ne $task.id -or $subscription.date_from -ne "2023-01-01" -or $subscription.date_to -ne "2026-10-15" -or $subscription.target_count -ne 5) { throw "Packaged task conversion did not preserve research settings" }
+            $runs = Invoke-RestMethod "http://127.0.0.1:8012/api/tasks/$($task.id)/runs"
+            $deliveries = Invoke-RestMethod "http://127.0.0.1:8012/api/deliveries"
+            if (@($runs).Count -ne 0 -or @($deliveries).Count -ne 0) { throw "Packaged conversion unexpectedly started a run or delivery" }
+            Invoke-RestMethod "http://127.0.0.1:8012/api/subscriptions/$($subscription.id)" -Method Delete | Out-Null
           } finally {
             Get-NetTCPConnection -LocalPort 8012 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -ErrorAction SilentlyContinue }
             Stop-Process -Id $app.Id -ErrorAction SilentlyContinue

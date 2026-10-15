@@ -1,6 +1,6 @@
 # Source validation — 2026-10-15
 
-This report covers the unreleased relevance, source rate-limit and task-to-daily subscription changes. The published `v0.3.0-rc.4` tag and installer do not contain them. Raw local logs, database snapshots and generated test results are excluded from Git under the contribution policy.
+This report covers the relevance, source rate-limit and task-to-daily subscription changes packaged in RC5. The published `v0.3.0-rc.4` tag and installer do not contain them. Raw local logs, database snapshots and generated test results are excluded from Git under the contribution policy.
 
 ## Final automated validation
 

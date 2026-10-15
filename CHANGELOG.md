@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0-rc.5 - 2026-10-15
+
 - Convert an existing task to a daily subscription from the current task or history, preserving identity, research settings, Prompt overrides and run history; guard duplicate/stale requests atomically.
 - Keep same-day manual runs from suppressing a newly converted subscription's daily schedule, and reject subscription deletion while its task is active.
 - Add desktop/mobile conversion regressions and isolate browser fixture runs from real model/mail endpoints.

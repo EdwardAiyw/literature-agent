@@ -6,9 +6,9 @@
 
 日常使用方法见 [README.md](README.md)。开发者自动化测试不能替代本手册中的人工验收。
 
-源码版的相关性回归检查：以目标 50 篇检索时，低于 40% 或建议忽略的候选不应为了凑数进入结果；没有合格候选应显示空结果，并能核对筛除数量、实际检索式与日期。真实来源全部为空时不得出现 Fixture 文献。中英文检索必须有独立英文查询。这些检查用于当前源码修复，已发布 RC4 安装包仍是修复前版本。
+RC5 安装版与源码版的相关性回归检查：以目标 50 篇检索时，低于 40% 或建议忽略的候选不应为了凑数进入结果；没有合格候选应显示空结果，并能核对筛除数量、实际检索式与日期。真实来源全部为空时不得出现 Fixture 文献。中英文检索必须有独立英文查询。这些修复自 RC5 起纳入安装包；RC4 保留修复前行为。
 
-源码版的来源限流回归检查：Crossref 应携带已配置联系邮箱；429 应显示“暂时限流”，有先前结果时显示“部分可用（限流）”且结果保留。重试和冷却应遵守 Retry-After，按真实请求次数扣减预算，不缓存不完整的整次检索；设置页不得把被限流来源标为测试通过。使用隔离数据目录运行 `backend/tests/test_sources.py`、`backend/tests/test_product_settings.py` 和 `frontend/tests/source-diagnostics.spec.ts`。匿名 Semantic Scholar 的真实 429 不算连接修复成功；真实来源复测结果见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，应与模拟回归结果分别判断。
+RC5 安装版与源码版的来源限流回归检查：Crossref 应携带已配置联系邮箱；429 应显示“暂时限流”，有先前结果时显示“部分可用（限流）”且结果保留。重试和冷却应遵守 Retry-After，按真实请求次数扣减预算，不缓存不完整的整次检索；设置页不得把被限流来源标为测试通过。使用隔离数据目录运行 `backend/tests/test_sources.py`、`backend/tests/test_product_settings.py` 和 `frontend/tests/source-diagnostics.spec.ts`。匿名 Semantic Scholar 的真实 429 不算连接修复成功；真实来源复测结果见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，应与模拟回归结果分别判断。
 
 ## 1. 测试结果怎么填写
 
@@ -30,7 +30,7 @@
 | --- | --- |
 | 测试日期 | YYYY-MM-DD |
 | 测试人员 |  |
-| Literature Agent 版本 | 当前候选版 `0.3.0-rc.4` |
+| Literature Agent 版本 | 当前候选版 `0.3.0-rc.5` |
 | Windows 版本 | 例如 Windows 11 23H2 |
 | 测试方式 | Windows 安装包 / 源码开发模式 |
 | 浏览器 | Edge / Chrome / 其他 |
@@ -131,12 +131,12 @@ D:\LiteratureAgentTestData
 3. 执行以下命令，文件名换成本轮版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.5-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 将输出与 `SHA256SUMS.txt` 对照。
 
-预期结果：两串 SHA-256 完全一致；使用本轮 RC4 Release 的校验文件，不沿用旧安装包哈希。
+预期结果：两串 SHA-256 完全一致；使用本轮 RC5 Release 的校验文件，不沿用旧安装包哈希。
 
 - [ ] T-01 通过
 
@@ -399,7 +399,7 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
 
 - [ ] T-20 通过
 
-### T-20a 将当前任务转为每日任务（当前源码版）
+### T-20a 将当前任务转为每日任务（RC5 起）
 
 1. 选择有历史结果、研究问题、证据审查和 Prompt 覆盖的任务，点击当前任务卡片“转为每日任务”；再验证最近任务行的信封入口。
 2. 核对日期范围、检索/输出语言、目标篇数、来源和高级配置，只填写收件人、每日时间及时区后保存。

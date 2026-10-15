@@ -15,6 +15,8 @@
 - Page-based onboarding, Windows Credential Manager, data directory selection, backup/restore, update checks, and runtime settings.
 - PyInstaller application bundle, Inno Setup installer, and tag-triggered GitHub Release workflow.
 
+- RC5 (2026-10-15): task-to-daily conversion, enforced relevance gates, validated query plans and source rate-limit/partial-result handling.
+
 ## Post-Beta
 
 - Released in RC4 (2026-10-15): explicit Zotero Web API citation import with paginated DOI metadata deduplication, per-destination status and database replacement locking.
