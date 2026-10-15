@@ -17,6 +17,8 @@
 
 - RC5 (2026-10-15): task-to-daily conversion, enforced relevance gates, validated query plans and source rate-limit/partial-result handling.
 
+- Post-RC5 source: single-user Linux Docker runtime, internal scheduling, persistent file secrets, SSH web management and subscription editing; see [server deployment](SERVER_DEPLOYMENT.md).
+
 ## Post-Beta
 
 - Released in RC4 (2026-10-15): explicit Zotero Web API citation import with paginated DOI metadata deduplication, per-destination status and database replacement locking.

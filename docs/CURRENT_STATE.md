@@ -111,6 +111,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Source supports single-user Linux Docker operation, persistent file secrets, internal daily dispatch and SSH-only web management. Desktop scheduling and credential storage remain unchanged.
 - Web subscription editing includes timing and enabled state, retains research settings and history, and supports manual server execution.
 - Deployment, migration, environment variables, data ownership and rollback are documented in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md). These changes are not in the immutable RC5 Windows installer.
+- Validation: 156 tests passed on Windows and in the Ubuntu runtime container, 29 Edge regressions passed, and GitHub CI passed. Staging verified restart persistence, model/SMTP connectivity without mail, and actual remote desktop/mobile subscription editing. See [server validation](SERVER_VALIDATION_2026-10-15.md).
 
 ## Not yet implemented
 
