@@ -10,6 +10,8 @@ test("server settings describe persistent secrets and internal scheduling", asyn
   await page.goto("/");
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(page.getByRole("heading", { name: "服务器连接设置" })).toBeVisible();
+  await expect(page.getByText("服务器已连接", { exact: true })).toBeVisible();
+  await expect(page.getByText("服务器运行 · SSH 管理", { exact: true })).toBeVisible();
   await expect(page.getByText("密钥保存在服务器受限文件中")).toBeVisible();
   await expect(page.getByText("后台运行中", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "注册自动任务", exact: true })).toHaveCount(0);
