@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Literature Agent version
-      placeholder: "0.3.0-rc.3"
+      placeholder: "0.3.0-rc.4"
     validations:
       required: true
   - type: input

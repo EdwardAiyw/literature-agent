@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-rc.4 - 2026-10-15
+
+- Bundle the LocalJev decision layer and controls added after RC3, and gate Windows publishing on packaged runtime, Prompt catalog, Zotero settings and frontend smoke checks.
+- Add Zotero user/group library settings, secure API key storage, read-only permission tests, and validated legacy configuration migration.
+- Add explicit per-paper citation import, DOI/title deduplication, collection membership, persistent import status and retry in the workbench.
+- Back up and migrate existing databases to preserve destination-specific Zotero import results.
+- Fix Zotero DOI-only metadata deduplication with a paginated library scan, and use attempt-scoped creation tokens so deletion and re-import do not reuse a consumed token.
+- Hold the import lock throughout data-directory changes and backup restoration to prevent saving remote import results into a replaced database.
+- Refresh completed-run Zotero statuses after destination changes and reject late responses from the old destination.
+- Release generic default Prompt v2 with retained v1/custom/task versions and fixed-case validation; see `docs/PROMPT_V2_VALIDATION.md`.
 
 ## 0.3.0-rc.3 - 2026-09-25
 

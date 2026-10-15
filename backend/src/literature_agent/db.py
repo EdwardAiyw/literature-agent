@@ -15,6 +15,8 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from .prompts import default_prompt_id
+
 
 def upgrade_database(path: Path) -> None:
     backend_root = Path(getattr(sys, "_MEIPASS")) / "backend" if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
@@ -157,6 +159,7 @@ class Database:
             self.connection.execute("DELETE FROM deliveries WHERE subscription_id = ?", (subscription_id,))
             if run_ids and not shared_task:
                 placeholders = ",".join("?" for _ in run_ids)
+                self.connection.execute(f"DELETE FROM zotero_imports WHERE paper_id IN (SELECT id FROM papers WHERE run_id IN ({placeholders}))", run_ids)
                 self.connection.execute(f"DELETE FROM papers WHERE run_id IN ({placeholders})", run_ids)
                 self.connection.execute(f"DELETE FROM run_events WHERE run_id IN ({placeholders})", run_ids)
                 self.connection.execute(f"DELETE FROM run_artifacts WHERE run_id IN ({placeholders})", run_ids)
@@ -319,24 +322,55 @@ class Database:
         self.connection.commit()
         return result.rowcount > 0
 
+    def get_paper(self, paper_id: str) -> dict | None:
+        row = self.connection.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        return {**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]} if row else None
+
+    def get_zotero_import(self, paper_id: str, destination: str) -> dict | None:
+        row = self.connection.execute("SELECT payload, updated_at FROM zotero_imports WHERE paper_id = ? AND destination = ?", (paper_id, destination)).fetchone()
+        return {**json.loads(row["payload"]), "updated_at": row["updated_at"]} if row else None
+
+    def save_zotero_import(self, paper_id: str, destination: str, payload: dict) -> dict:
+        if not self.get_paper(paper_id):
+            raise ValueError("论文在导入期间已被删除。")
+        self.connection.execute(
+            """INSERT INTO zotero_imports VALUES (?, ?, ?, ?)
+            ON CONFLICT(paper_id, destination) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at""",
+            (paper_id, destination, json.dumps(payload, ensure_ascii=False), now()),
+        )
+        self.connection.commit()
+        return self.get_zotero_import(paper_id, destination)
+
     def seed_builtin_prompts(self, prompts: list[dict]) -> None:
         timestamp = now()
-        for prompt in prompts:
-            self.connection.execute(
-                """
-                INSERT INTO prompts(id, role, version, body, builtin) VALUES (?, ?, ?, ?, 1)
-                ON CONFLICT(id) DO UPDATE SET role=excluded.role, version=excluded.version, body=excluded.body, builtin=1
-                """,
-                (prompt["id"], prompt["role"], prompt["version"], prompt["body"]),
-            )
-            self.connection.execute(
-                "UPDATE prompts SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END, updated_at = ? WHERE id = ?",
-                (timestamp, timestamp, prompt["id"]),
-            )
-            active = self.connection.execute("SELECT 1 FROM prompts WHERE role = ? AND active = 1", (prompt["role"],)).fetchone()
-            if not active:
-                self.connection.execute("UPDATE prompts SET active = 1 WHERE id = ?", (prompt["id"],))
-        self.connection.commit()
+        by_role: dict[str, list[dict]] = {}
+        inserted: set[str] = set()
+        with self.connection:
+            for prompt in prompts:
+                by_role.setdefault(prompt["role"], []).append(prompt)
+                result = self.connection.execute(
+                    """INSERT INTO prompts(id, role, version, body, builtin, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 1, ?, ?) ON CONFLICT(id) DO NOTHING""",
+                    (prompt["id"], prompt["role"], prompt["version"], prompt["body"], timestamp, timestamp),
+                )
+                if result.rowcount:
+                    inserted.add(prompt["id"])
+            for role, versions in by_role.items():
+                preferred = next((prompt for prompt in versions if prompt.get("default")), versions[0])
+                active = self.connection.execute(
+                    "SELECT id, builtin FROM prompts WHERE role = ? AND active = 1", (role,),
+                ).fetchone()
+                # Insertion is the one-time release marker. A later explicit rollback
+                # to v1 must survive every restart; custom and task choices stay intact.
+                upgrade_v1 = (
+                    preferred["version"] == "v2" and preferred["id"] in inserted
+                    and active is not None and active["builtin"] and active["id"] == f"{role}.v1"
+                )
+                if active is None or upgrade_v1:
+                    self.connection.execute("UPDATE prompts SET active = 0 WHERE role = ?", (role,))
+                    self.connection.execute(
+                        "UPDATE prompts SET active = 1, updated_at = ? WHERE id = ?", (timestamp, preferred["id"]),
+                    )
 
     def list_prompts(self) -> list[dict]:
         rows = self.connection.execute("SELECT * FROM prompts ORDER BY role, version").fetchall()
@@ -573,6 +607,7 @@ class Database:
         run_ids = [row["id"] for row in run_rows]
         if run_ids:
             placeholders = ",".join("?" for _ in run_ids)
+            self.connection.execute(f"DELETE FROM zotero_imports WHERE paper_id IN (SELECT id FROM papers WHERE run_id IN ({placeholders}))", run_ids)
             self.connection.execute(f"DELETE FROM papers WHERE run_id IN ({placeholders})", run_ids)
             self.connection.execute(f"DELETE FROM run_events WHERE run_id IN ({placeholders})", run_ids)
             self.connection.execute(f"DELETE FROM run_artifacts WHERE run_id IN ({placeholders})", run_ids)
@@ -665,7 +700,11 @@ class Database:
             return None
         self.connection.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
         if prompt["active"]:
-            builtin = self.connection.execute("SELECT id FROM prompts WHERE role = ? AND builtin = 1 ORDER BY version LIMIT 1", (prompt["role"],)).fetchone()
+            builtin = self.connection.execute(
+                """SELECT id FROM prompts WHERE role = ? AND builtin = 1
+                ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, version LIMIT 1""",
+                (prompt["role"], default_prompt_id(prompt["role"])),
+            ).fetchone()
             if builtin:
                 self.connection.execute("UPDATE prompts SET active = 1, updated_at = ? WHERE id = ?", (now(), builtin["id"]))
         self.connection.commit()

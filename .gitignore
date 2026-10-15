@@ -19,3 +19,8 @@ test-results/**/html-report/
 test-results/**/playwright-data/
 test-results/**/postfix-smoke-data/
 test-results/sandbox-feature-enable.txt
+test-results/installer-sandbox-*/
+test-results/zotero-*.png
+output/pdf/
+output/**/test-runtime*/
+output/**/release-test-runtime*/

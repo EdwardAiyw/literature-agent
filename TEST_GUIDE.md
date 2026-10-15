@@ -26,7 +26,7 @@
 | --- | --- |
 | 测试日期 | YYYY-MM-DD |
 | 测试人员 |  |
-| Literature Agent 版本 | 当前候选版 `0.3.0-rc.3` |
+| Literature Agent 版本 | 当前候选版 `0.3.0-rc.4` |
 | Windows 版本 | 例如 Windows 11 23H2 |
 | 测试方式 | Windows 安装包 / 源码开发模式 |
 | 浏览器 | Edge / Chrome / 其他 |
@@ -127,12 +127,12 @@ D:\LiteratureAgentTestData
 3. 执行以下命令，文件名换成本轮版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 将输出与 `SHA256SUMS.txt` 对照。
 
-预期结果：两串 SHA-256 完全一致；RC3 应为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`。
+预期结果：两串 SHA-256 完全一致；使用本轮 RC4 Release 的校验文件，不沿用旧安装包哈希。
 
 - [ ] T-01 通过
 
@@ -665,6 +665,9 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
 
 ```powershell
 cd backend
+$env:LITERATURE_AGENT_DATA_DIR = Join-Path $env:TEMP ("literature-agent-tests-" + [guid]::NewGuid().ToString("N"))
+$env:LITERATURE_AGENT_DB = Join-Path $env:LITERATURE_AGENT_DATA_DIR "literature_agent_v2.db"
+$env:LITERATURE_AGENT_BOOTSTRAP = Join-Path $env:LITERATURE_AGENT_DATA_DIR "bootstrap.json"
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -673,6 +676,7 @@ cd backend
 ```powershell
 cd frontend
 npm run build
+npm run test:e2e
 ```
 
 仅执行到期订阅检查：
@@ -683,3 +687,24 @@ cd backend
 ```
 
 自动化测试通过只能说明已覆盖的代码行为没有回归。安装体验、真实外部来源、邮件实际到达和 Windows 计划任务仍必须人工验证。
+
+### Zotero 源码回归
+
+后端测试使用临时数据库及 MockTransport；浏览器测试使用端口 `8011` 的隔离服务及模拟 Zotero 设置、导入响应，不写入真实文献库。单独运行：
+
+```powershell
+# 先按上面的命令设置隔离环境变量
+cd backend
+.\.venv\Scripts\python.exe -m pytest tests/test_zotero.py -q
+cd ..\frontend
+npm run build
+npm run test:e2e -- zotero.spec.ts
+```
+
+- DOI 仅存在于元数据、匹配在第二页、DOI URL/大小写规范化、精确匹配和无 DOI 标题匹配。
+- 查重分页失败时禁止创建；重复导入保留用户字段；条目删除后重新导入以及写入成功但响应丢失后的重试。
+- 线程事件控制导入与目录切换/恢复备份的两种执行顺序；检查远端成功后记录仍保存到原数据库，维护期间禁止导入，异常及提前返回后释放锁。
+- 已完成运行切换个人/群组、Library ID、分类名称或 Key，并切回原目标；检查 Key 优先、仅更新 API Key、未保存/失败编辑及清除密钥。
+- 延迟返回的旧目标论文加载和导入响应不得恢复旧链接或提示。
+
+自动化覆盖的是导入协议和本地状态行为。真实 Zotero 权限、桌面同步及大型文献库的耗时仍需在专用测试库中验证；这不属于自动化测试中的外部写入。

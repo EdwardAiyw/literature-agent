@@ -139,6 +139,8 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             "research_questions": task.get("research_questions", []),
             "language": task["language"],
             "output_language": task["output_language"],
+            "date_from": task.get("date_from", ""),
+            "date_to": task.get("date_to", ""),
             "sources": task.get("sources", []),
             "target_count": task["target_count"],
             "evidence_review": task["evidence_review"],
@@ -285,7 +287,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         prompt = prompt_for(prompts, "literature_summarizer")["body"]
         for record in state.get("records", []):
             try:
-                summary = provider.summarize(record, state["task"]["topic"], prompt)
+                summary = provider.summarize(record, state["task"]["topic"], prompt, task=state["task"])
             except Exception as exc:
                 summary = fallback(record, state["task"]["topic"])
                 errors = errors_for({"errors": errors}, "literature_summarizer", exc)
@@ -315,7 +317,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             if jev_error:
                 errors = errors_for({"errors": errors}, "jev_evidence_reviewer", jev_error)
             try:
-                baseline_review = provider.review_evidence(record, record["summary"], prompt)
+                baseline_review = provider.review_evidence(record, record["summary"], prompt, task=state["task"])
             except Exception as exc:
                 baseline_review = fallback_evidence_review(record, record["summary"])
                 errors = errors_for({"errors": errors}, "evidence_reviewer", exc)

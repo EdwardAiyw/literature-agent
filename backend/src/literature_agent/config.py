@@ -52,6 +52,11 @@ class Settings:
     root: Path
     data_dir: Path = Path("data")
     live: bool = False
+    zotero_library_id: str = ""
+    zotero_library_type: str = "user"
+    zotero_api_key: str = ""
+    zotero_collection_key: str = ""
+    zotero_collection_name: str = "Literature Agent"
     db_path: Path = Path("data/literature_agent_v2.db")
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
@@ -97,6 +102,11 @@ class Settings:
             db = (project_root / db) if configured_data_dir else data_dir / db.name
         return cls(
             root=project_root,
+            zotero_library_id=os.getenv("ZOTERO_LIBRARY_ID", ""),
+            zotero_library_type=os.getenv("ZOTERO_LIBRARY_TYPE", "user"),
+            zotero_api_key=os.getenv("ZOTERO_API_KEY", ""),
+            zotero_collection_key=os.getenv("ZOTERO_COLLECTION_KEY", ""),
+            zotero_collection_name=os.getenv("ZOTERO_COLLECTION_NAME", "Literature Agent"),
             data_dir=data_dir,
             live=os.getenv("LITERATURE_AGENT_LIVE", "false").lower() in {"1", "true", "yes"},
             db_path=db,
@@ -132,6 +142,7 @@ class Settings:
 
 
 SECRET_FIELDS = {
+    "zotero_api_key": "ZOTERO_API_KEY",
     "llm_api_key": "LLM_API_KEY",
     "openalex_api_key": "OPENALEX_API_KEY",
     "semantic_scholar_api_key": "SEMANTIC_SCHOLAR_API_KEY",
@@ -141,6 +152,7 @@ SECRET_FIELDS = {
 }
 
 SETTING_FIELDS = {
+    "zotero_library_id", "zotero_library_type", "zotero_collection_key", "zotero_collection_name",
     "live", "llm_base_url", "llm_model", "pubmed_email",
     "source_cache_ttl_hours", "source_daily_request_budget",
     "jev_enabled", "jev_shadow_mode", "jev_model", "jev_timeout_seconds",

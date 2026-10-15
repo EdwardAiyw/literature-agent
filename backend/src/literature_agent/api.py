@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, time, timezone
 from pathlib import Path
 from dataclasses import replace
@@ -27,6 +27,7 @@ from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRea
 from .sources import SOURCE_METADATA, build_sources
 from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
+from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for
 
 config_manager = ConfigManager(Settings.from_env())
 settings = config_manager.get()
@@ -282,7 +283,47 @@ def list_run_artifacts(run_id: str):
 def list_papers(run_id: str):
     if not database.get_run(run_id):
         raise HTTPException(404, "Run not found")
-    return database.list_papers(run_id)
+    papers = database.list_papers(run_id)
+    if settings.zotero_library_id and settings.zotero_api_key:
+        destination = destination_for(settings)
+        for paper in papers:
+            paper["zotero"] = database.get_zotero_import(paper["id"], destination)
+    return papers
+
+
+@contextmanager
+def exclusive_import_operation(conflict_message: str):
+    # Reserve the database's lifetime as well as serialize search/create pairs.
+    # Acquire before any SQLite lock; network I/O never holds the SQLite lock.
+    if not IMPORT_LOCK.acquire(blocking=False):
+        raise HTTPException(409, conflict_message)
+    try:
+        yield
+    finally:
+        IMPORT_LOCK.release()
+
+
+@app.post("/api/papers/{paper_id}/zotero")
+def import_paper_to_zotero(paper_id: str):
+    with exclusive_import_operation("Zotero 导入或数据库维护正在进行，请稍后重试。"):
+        paper = database.get_paper(paper_id)
+        if not paper:
+            raise HTTPException(404, "Paper not found")
+        if paper["review"] == "ignore":
+            raise HTTPException(409, "已忽略的论文不能导入，请先修改审核状态。")
+        with httpx.Client(timeout=30) as client:
+            try:
+                zotero = ZoteroClient(settings, client)
+            except ZoteroError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            try:
+                result = zotero.import_paper(paper)
+            except ZoteroError as exc:
+                result = {"status": "failed", "error": str(exc)}
+            try:
+                return database.save_zotero_import(paper_id, zotero.destination, result)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
 
 
 @app.get("/api/runs/{run_id}/decisions", response_model=list[DecisionCallRead])
@@ -355,6 +396,7 @@ def delete_prompt(prompt_id: str):
 
 
 SETTING_SECTIONS = {
+    "zotero": {"zotero_library_id", "zotero_library_type", "zotero_api_key", "zotero_collection_key", "zotero_collection_name"},
     "llm": {"live", "llm_base_url", "llm_model", "llm_api_key"},
     "smtp": {"smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "smtp_starttls", "smtp_ssl"},
     "sources": {"openalex_api_key", "semantic_scholar_api_key", "pubmed_api_key", "pubmed_email"},
@@ -369,6 +411,12 @@ def _public_settings() -> dict:
         "license": "AGPL-3.0-only",
         "source_url": "https://github.com/EdwardAiyw/literature-agent",
         "live": settings.live,
+        "zotero_library_id": settings.zotero_library_id,
+        "zotero_library_type": settings.zotero_library_type,
+        "zotero_collection_key": settings.zotero_collection_key,
+        "zotero_collection_name": settings.zotero_collection_name,
+        "zotero_configured": bool(settings.zotero_library_id and settings.zotero_api_key),
+        "zotero_api_key_configured": bool(settings.zotero_api_key),
         "data_dir": str(settings.data_dir),
         "llm_base_url": settings.llm_base_url,
         "llm_model": settings.llm_model,
@@ -512,6 +560,10 @@ def test_settings(section: str, payload: SettingsTestRequest):
             if provider == "localjev" and diagnostics["status"] != "ready":
                 raise RuntimeError(diagnostics.get("detail") or "LocalJev is not ready")
             return {"status": "ok", "section": section, "diagnostics": diagnostics}
+        elif section == "zotero":
+            with httpx.Client(timeout=30) as client:
+                diagnostics = ZoteroClient(candidate, client).check_connection()
+            return {"status": "ok", "section": section, "diagnostics": diagnostics}
         elif section != "runtime":
             raise HTTPException(404, "Unknown settings section")
     except HTTPException:
@@ -576,37 +628,38 @@ def select_backup_file():
 @app.put("/api/system/data-directory")
 def change_data_directory(payload: DataDirectoryRequest):
     global config_manager, settings, database, run_worker
-    target = Path(payload.path).expanduser().resolve()
-    if target == settings.data_dir.resolve():
+    with exclusive_import_operation("请等待 Zotero 导入或数据库维护完成后再切换数据目录。"):
+        target = Path(payload.path).expanduser().resolve()
+        if target == settings.data_dir.resolve():
+            return {"status": "ok", "path": str(target)}
+        if database.list_recoverable_runs():
+            raise HTTPException(409, "Cannot move data while a run is active")
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            probe = target / ".literature-agent-write-test"
+            probe.write_text("ok", encoding="ascii")
+            probe.unlink()
+            target_db = target / "literature_agent_v2.db"
+            if target_db.exists():
+                Database.validate_backup(target_db)
+            else:
+                database.backup(target_db)
+            old_values = {key: getattr(settings, key) for key in SETTING_FIELDS}
+            base = replace(settings, data_dir=target, db_path=target_db)
+            new_manager = ConfigManager(base, config_manager.secret_store)
+            new_manager.update(old_values)
+            new_settings = new_manager.get()
+            new_database = Database(new_settings.db_path)
+            new_database.seed_builtin_prompts(BUILTIN_PROMPTS)
+            if run_worker:
+                run_worker.close()
+            database.close()
+            save_bootstrap_data_dir(target)
+            config_manager, settings, database = new_manager, new_settings, new_database
+            run_worker = LocalRunWorker(lambda: settings, database)
+        except Exception as exc:
+            raise HTTPException(400, f"Could not use the selected data directory: {exc}") from exc
         return {"status": "ok", "path": str(target)}
-    if database.list_recoverable_runs():
-        raise HTTPException(409, "Cannot move data while a run is active")
-    try:
-        target.mkdir(parents=True, exist_ok=True)
-        probe = target / ".literature-agent-write-test"
-        probe.write_text("ok", encoding="ascii")
-        probe.unlink()
-        target_db = target / "literature_agent_v2.db"
-        if target_db.exists():
-            Database.validate_backup(target_db)
-        else:
-            database.backup(target_db)
-        old_values = {key: getattr(settings, key) for key in SETTING_FIELDS}
-        base = replace(settings, data_dir=target, db_path=target_db)
-        new_manager = ConfigManager(base, config_manager.secret_store)
-        new_manager.update(old_values)
-        new_settings = new_manager.get()
-        new_database = Database(new_settings.db_path)
-        new_database.seed_builtin_prompts(BUILTIN_PROMPTS)
-        if run_worker:
-            run_worker.close()
-        database.close()
-        save_bootstrap_data_dir(target)
-        config_manager, settings, database = new_manager, new_settings, new_database
-        run_worker = LocalRunWorker(lambda: settings, database)
-    except Exception as exc:
-        raise HTTPException(400, f"Could not use the selected data directory: {exc}") from exc
-    return {"status": "ok", "path": str(target)}
 
 
 @app.get("/api/scheduler")
@@ -649,23 +702,24 @@ def create_backup():
 @app.post("/api/backups/restore")
 def restore_backup(payload: BackupRestoreRequest):
     global database, run_worker
-    source = Path(payload.path).expanduser().resolve()
-    try:
-        Database.validate_backup(source)
-    except (OSError, ValueError) as exc:
-        raise HTTPException(400, str(exc)) from exc
-    if database.list_recoverable_runs():
-        raise HTTPException(409, "Cannot restore while a run is active")
-    safety = settings.data_dir / "backups" / f"before-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
-    database.backup(safety)
-    if run_worker:
-        run_worker.close()
-    database.close()
-    shutil.copy2(source, settings.db_path)
-    database = Database(settings.db_path)
-    database.seed_builtin_prompts(BUILTIN_PROMPTS)
-    run_worker = LocalRunWorker(lambda: settings, database)
-    return {"status": "ok", "safety_backup": str(safety)}
+    with exclusive_import_operation("请等待 Zotero 导入或数据库维护完成后再恢复备份。"):
+        source = Path(payload.path).expanduser().resolve()
+        try:
+            Database.validate_backup(source)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if database.list_recoverable_runs():
+            raise HTTPException(409, "Cannot restore while a run is active")
+        safety = settings.data_dir / "backups" / f"before-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+        database.backup(safety)
+        if run_worker:
+            run_worker.close()
+        database.close()
+        shutil.copy2(source, settings.db_path)
+        database = Database(settings.db_path)
+        database.seed_builtin_prompts(BUILTIN_PROMPTS)
+        run_worker = LocalRunWorker(lambda: settings, database)
+        return {"status": "ok", "safety_backup": str(safety)}
 
 
 # Keep this mount last so /api routes always win. The backend remains testable in

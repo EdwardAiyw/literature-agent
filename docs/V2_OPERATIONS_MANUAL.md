@@ -184,3 +184,4 @@ Active 下低置信度或调用异常仍会回到原有 LLM/规则路径。
 - 迁移失败：停止后端，执行 `alembic current` 查看状态；不要手动删除 `alembic_version`。
 - 前端显示旧数据：开发服务器默认通过 Vite 将同源 `/api` 代理到 `http://127.0.0.1:8001`；确认后端端口和数据库为 `data/literature_agent_v2.db`。V2 不读取旧库任务。
 - Jev 失败但任务继续：这是预期回退行为，检查 `/api/runs/{run_id}/decisions` 中的 `status=failed`、`fallback_reason=jev_error` 和运行事件。
+- Zotero 查重较慢：有 DOI 时分页读取目标库条目并比较 DOI 元数据，大库未命中时需读取全部顶层条目。网络或分页失败不会创建条目。配置、目标切换和 409/412 排查见 [Zotero 联动](ZOTERO.md)。

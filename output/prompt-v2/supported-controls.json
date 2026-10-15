@@ -1,0 +1,186 @@
+{
+  "description": "Development supported-claim controls; not part of sealed holdout.",
+  "results": [
+    {
+      "case_id": "dev-clinical-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v1",
+      "prompt_id": "evidence_reviewer.v1",
+      "raw_output": "{\"evidence_warnings\": [], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 332,
+        "completion_tokens": 14,
+        "total_tokens": 346,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 332
+      },
+      "output": {
+        "evidence_warnings": [],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 949,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    },
+    {
+      "case_id": "dev-clinical-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v2",
+      "prompt_id": "evidence_reviewer.v2",
+      "raw_output": "{\"evidence_warnings\": [], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 818,
+        "completion_tokens": 14,
+        "total_tokens": 832,
+        "prompt_tokens_details": {
+          "cached_tokens": 384
+        },
+        "prompt_cache_hit_tokens": 384,
+        "prompt_cache_miss_tokens": 434
+      },
+      "output": {
+        "evidence_warnings": [],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 676,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    },
+    {
+      "case_id": "dev-river-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v1",
+      "prompt_id": "evidence_reviewer.v1",
+      "raw_output": "{\"evidence_warnings\": [], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 302,
+        "completion_tokens": 14,
+        "total_tokens": 316,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 302
+      },
+      "output": {
+        "evidence_warnings": [],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 742,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    },
+    {
+      "case_id": "dev-river-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v2",
+      "prompt_id": "evidence_reviewer.v2",
+      "raw_output": "{\"evidence_warnings\": [], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 788,
+        "completion_tokens": 14,
+        "total_tokens": 802,
+        "prompt_tokens_details": {
+          "cached_tokens": 384
+        },
+        "prompt_cache_hit_tokens": 384,
+        "prompt_cache_miss_tokens": 404
+      },
+      "output": {
+        "evidence_warnings": [],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 685,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    },
+    {
+      "case_id": "dev-rag-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v1",
+      "prompt_id": "evidence_reviewer.v1",
+      "raw_output": "{\"evidence_warnings\": [\"Summary states the benchmark is 'unnamed,' which is supported by the abstract, but the abstract itself does not name the benchmark; no unsupported benchmark name is introduced.\", \"Summary's 'research_problem' and 'method' are marked 'not stated in source,' which is consistent with the supplied abstract.\", \"Summary's 'limitations' is marked 'not stated in source,' which is consistent with the supplied abstract.\", \"Summary's 'relevance_reason' and 'research_use' are task-level judgments rather than claims from the paper; they are not evidence-backed findings.\", \"Summary's 'recommended_action' of 'background' is a recommendation, not a factual claim from the paper.\", \"No temporal ambiguity is present because no dates or time-sensitive claims are made.\"], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 321,
+        "completion_tokens": 173,
+        "total_tokens": 494,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 321
+      },
+      "output": {
+        "evidence_warnings": [
+          "Summary states the benchmark is 'unnamed,' which is supported by the abstract, but the abstract itself does not name the benchmark; no unsupported benchmark name is introduced.",
+          "Summary's 'research_problem' and 'method' are marked 'not stated in source,' which is consistent with the supplied abstract.",
+          "Summary's 'limitations' is marked 'not stated in source,' which is consistent with the supplied abstract.",
+          "Summary's 'relevance_reason' and 'research_use' are task-level judgments rather than claims from the paper; they are not evidence-backed findings.",
+          "Summary's 'recommended_action' of 'background' is a recommendation, not a factual claim from the paper.",
+          "No temporal ambiguity is present because no dates or time-sensitive claims are made."
+        ],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 1895,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    },
+    {
+      "case_id": "dev-rag-direct-supported",
+      "split": "development",
+      "role": "evidence_reviewer",
+      "version": "v2",
+      "prompt_id": "evidence_reviewer.v2",
+      "raw_output": "{\"evidence_warnings\": [], \"confidence\": 0.95}",
+      "usage": {
+        "prompt_tokens": 807,
+        "completion_tokens": 14,
+        "total_tokens": 821,
+        "prompt_tokens_details": {
+          "cached_tokens": 384
+        },
+        "prompt_cache_hit_tokens": 384,
+        "prompt_cache_miss_tokens": 423
+      },
+      "output": {
+        "evidence_warnings": [],
+        "confidence": 0.95,
+        "engine": "deepseek-chat"
+      },
+      "engine": "deepseek-chat",
+      "latency_ms": 789,
+      "validation_errors": [],
+      "schema_valid": true,
+      "planted_claim_flagged": false,
+      "manual_review_required": "Confirm warnings identify the planted claim, not just a generic source caveat."
+    }
+  ]
+}

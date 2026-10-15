@@ -1,19 +1,21 @@
 # Literature Agent
 
+English version: [README.en.md](README.en.md)
+
 一款运行在你自己 Windows 电脑上的文献检索与每日邮件助手。
 
 你输入研究主题后，Literature Agent 会从多个公开学术来源检索论文，合并重复记录，判断相关性，生成中文研究摘要，并把结果保存在本机。你也可以设置每日订阅，让它在指定时间自动检索并把文献摘要发到邮箱。
 
 这份 README 面向第一次接触本项目的普通用户。日常使用不需要会编程，不需要安装 Python 或 Node.js，也不需要编辑 `.env` 文件。
 
-> **当前发布状态（2026-09-25）**
+> **RC4 候选状态（2026-10-15）**
 >
-> [`v0.3.0-rc.3`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3) 已作为 GitHub prerelease 发布。后端 51 项测试、Edge 浏览器 5 项回归、GitHub CI 和 Windows Release 工作流均通过；从 Release 重新下载的安装包 SHA-256 为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`，与校验文件一致。RC3 仍需完成安装版人工验收，因此可用于受控测试，不应视为稳定版。
+> `v0.3.0-rc.4` 包含通用默认 Prompt v2、Zotero 联动及 DOI 查重、数据库维护互斥、目标状态刷新修复。本机后端 105 项、Edge 浏览器 18 项回归和前端构建通过。安装包及 `SHA256SUMS.txt` 由 GitHub Windows Release 工作流生成；下载前确认该流程成功且 Release 资产齐全。RC4 为预发布候选版，安装版人工验收仍是稳定版发布门槛。
 
 > **下载与反馈**
 >
-> - [下载 Windows 测试版](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3)
-> - [发送反馈邮件](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC3%5D%20Feedback)：`aiyuling.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
+> - [下载 Windows 测试版](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4)
+> - [发送反馈邮件](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC4%5D%20Feedback)：`aiyuling.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
 > - [提交 GitHub Bug Report](https://github.com/EdwardAiyw/literature-agent/issues/new?template=bug_report.yml)
 
 ## 目录
@@ -97,11 +99,11 @@ Literature Agent 当前支持：
 
 ### 第 1 步：下载正确文件
 
-本仓库已经公开。打开 [`v0.3.0-rc.3` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3) 即可直接下载，无需 GitHub 账号或仓库权限。
+本仓库已经公开。打开 [`v0.3.0-rc.4` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4) 即可直接下载，无需 GitHub 账号或仓库权限。
 
 下载同一 Release 中的两个文件：
 
-- `Literature-Agent-0.3.0-rc.3-Windows-x64.exe`
+- `Literature-Agent-0.3.0-rc.4-Windows-x64.exe`
 - `SHA256SUMS.txt`
 
 安装包大小为 `28,611,752` 字节。不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。
@@ -117,7 +119,7 @@ Literature Agent 当前支持：
 3. 在打开的蓝色窗口中输入下面的命令，把文件名换成你下载的版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.3-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 屏幕会显示一串 64 位字符。
@@ -489,7 +491,9 @@ LocalJev 未运行时保持“启用 Jev”关闭即可，检索、筛选、摘�
 
 **会自动把论文导入 Zotero 吗？**
 
-当前不会。可以从结果中的 DOI 或原文链接手动导入 Zotero。
+RC4 源码和安装包包含 Zotero Web API 导入（旧 RC3 安装包不包含）。在“设置 → Zotero 文献库”填写个人或群组 Library ID、具有读写权限的 API Key，以及分类名称（或现有 Collection Key），点击“测试 Zotero 连接”并保存。然后在工作台逐篇点击“导入 Zotero”。同 DOI 复用已有条目；没有 DOI 时按完整标题匹配。每篇显示导入结果，失败可重试。
+
+导入写入 Zotero 在线文献库，桌面客户端需要登录同一账号并同步才能看到条目；无需保持 Zotero 运行。API Key 保存在 Windows 凭据管理器。保存新的文献库或分类后，已完成任务也会刷新为该目标自己的导入记录。DOI 查重会分页读取文献库，大库可能较慢；导入期间切换数据目录或恢复备份会提示稍后重试。该功能导入现有论文书目信息，不自动下载 PDF，也不会因点击“保存”审核状态而自动导入。详见 [Zotero 配置说明](docs/ZOTERO.md)。
 
 **会替我阅读全文吗？**
 
@@ -499,9 +503,9 @@ LocalJev 未运行时保持“启用 Jev”关闭即可，检索、筛选、摘�
 
 测试过程中遇到问题或有改进建议，请优先发送邮件至 [aiyuling.usm@gmail.com](mailto:aiyuling.usm@gmail.com)。邮件便于附上截图和完整的相关信息，也方便进一步确认问题。
 
-建议邮件主题使用 `[Literature Agent RC3] 问题简述`，正文尽量包含：
+建议邮件主题使用 `[Literature Agent RC4] 问题简述`，正文尽量包含：
 
-- Literature Agent 版本，例如 `0.3.0-rc.3`。
+- Literature Agent 版本，例如 `0.3.0-rc.4`。
 - Windows 版本。
 - 问题发生前执行的操作和可重复的步骤。
 - 预期结果与实际结果。
@@ -512,16 +516,15 @@ LocalJev 未运行时保持“启用 Jev”关闭即可，检索、筛选、摘�
 
 ## 当前测试状态
 
-截至 2026-09-25，0.3.0-rc.3 候选版本已经完成：
+截至 2026-10-15，RC4 本机验证已完成：
 
-- 后端完整测试：本机与 GitHub Actions 均为 `51 passed`。
-- SQLite 并发回归：100 组 StrictMode 双初始化，共 2,200 个读取与 400 个并发写入，没有 500 或虚假 404。
-- Edge 浏览器回归：本机和 Windows Release runner 均为 `5 passed`；覆盖连续 10 次桌面冷加载、三个视口、全部导航入口、横向溢出与快速任务切换。
-- RC3 安装包：由干净的 GitHub Windows runner 构建并作为 prerelease 发布；重新下载后的 SHA-256 与 `SHA256SUMS.txt` 一致。
-- 先前候选安装包的 Windows Sandbox 自动阶段已通过 SHA-256、安装、首次启动、重复启动和内置页面检查；这不能替代 RC3 安装包验收。
-- 模型、五篇两来源、SMTP 测试邮件、手动日报和自动调度日报：已在源码运行环境完成验证并确认邮件到达。
+- 后端完整测试：`105 passed`，使用隔离数据库。
+- Edge 浏览器回归：`18 passed`，覆盖初始化、响应式布局、任务切换、Jev 界面及 Zotero 目标状态和旧请求保护。
+- 前端类型检查及生产构建：通过。
+- Prompt v2 已完成固定输入开发集/封存集模型对比；范围与限制见 [验证记录](docs/PROMPT_V2_VALIDATION.md)。
+- Zotero 自动化回归使用模拟请求，未向真实文献库写入；详见 [Zotero 联动](docs/ZOTERO.md)。
 
-仍未完成的正式版发布门槛是 RC3 安装版验收。验收范围包括覆盖安装、版本确认、数据与凭据保留、首次设置、五篇双来源、真实邮件、计划任务、备份恢复、重复启动和卸载。详细流程见 [产品测试与验收手册](TEST_GUIDE.md) 和 [Windows Sandbox 验收说明](docs/INSTALLER_SANDBOX_TEST.md)。
+GitHub CI 与 Windows Release 流程重新执行相应检查，并在成功后生成 RC4 安装包和校验文件。安装、覆盖升级、真实权限和桌面同步、计划任务、备份恢复及卸载仍需按 [验收手册](TEST_GUIDE.md) 在干净 Windows 环境验证；自动化通过不代表稳定版验收完成。RC3 历史发布数据见 [项目状态](docs/CURRENT_STATE.md)。
 
 ## 开发者从源码运行
 

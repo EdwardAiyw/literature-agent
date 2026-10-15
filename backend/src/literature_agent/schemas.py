@@ -445,6 +445,7 @@ class PaperRead(BaseModel):
     language: str = "unknown"
     summary: dict = Field(default_factory=dict)
     review: str = "unreviewed"
+    zotero: dict | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -452,6 +453,11 @@ class ReviewRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    zotero_library_id: str | None = Field(default=None, pattern=r"^$|^[1-9][0-9]*$", max_length=30)
+    zotero_library_type: Literal["user", "group"] | None = None
+    zotero_api_key: str | None = Field(default=None, max_length=4000)
+    zotero_collection_key: str | None = Field(default=None, pattern=r"^$|^[A-Z0-9]{8}$")
+    zotero_collection_name: str | None = Field(default=None, min_length=1, max_length=255)
     live: bool | None = None
     llm_base_url: str | None = Field(default=None, min_length=8, max_length=500)
     llm_model: str | None = Field(default=None, min_length=1, max_length=200)
@@ -479,6 +485,11 @@ class SettingsUpdate(BaseModel):
     jev_review_threshold: float | None = Field(default=None, ge=0, le=1)
     source_cache_ttl_hours: int | None = Field(default=None, ge=1, le=720)
     source_daily_request_budget: int | None = Field(default=None, ge=1, le=100000)
+
+    @field_validator("zotero_collection_name")
+    @classmethod
+    def validate_zotero_collection(cls, value: str | None) -> str | None:
+        return _clean_required(value) if value is not None else None
 
     @model_validator(mode="after")
     def validate_transport(self):

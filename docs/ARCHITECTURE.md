@@ -26,7 +26,7 @@ flowchart LR
   M --> DB
   A --> DB
   DB --> UI
-  G -. future .-> Z[Zotero adapter]
+  API -->|explicit per-paper import| Z[Zotero Web API adapter]
   G -. future .-> F[OA PDF downloader]
 ```
 
@@ -42,6 +42,9 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 - Every run uses a snapshot of the versioned prompt catalog available at startup.
 - Model output is validated against a JSON shape before persistence.
 - A failed source does not fail the entire run.
-- A paper is not exported to Zotero until a user review or explicit auto-save policy allows it.
+- Zotero export requires an explicit per-paper action. Review labels alone do not trigger export; ignored papers are blocked. DOI matches reuse existing items and preserve user-edited metadata. Import results are stored per paper and destination library/collection.
+- DOI deduplication scans paginated top-level items and compares normalized DOI metadata; quick search is used only for DOI-less title candidates. A failed scan prevents creation. Creation tokens belong to one attempt; later retries scan again.
+- Zotero import, data-directory replacement, and backup restoration hold the same nonblocking lock for their entire operation, including local result persistence or global database replacement. Conflicts return HTTP 409.
+- The GUI invalidates and reloads destination-specific paper statuses on saved library/collection or configured-state changes, including completed runs. Task and destination generations reject stale responses. Collection keys take precedence over names.
 - Settings APIs expose only configuration status, never saved secret values.
 - A subscription cannot start a second active run or run twice in its configured local calendar day.

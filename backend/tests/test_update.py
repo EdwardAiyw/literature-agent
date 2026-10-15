@@ -38,7 +38,7 @@ def test_runtime_and_current_release_versions_match(monkeypatch):
             200,
             json={
                 "tag_name": f"v{__version__}",
-                "html_url": "https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3",
+                "html_url": f"https://github.com/EdwardAiyw/literature-agent/releases/tag/v{__version__}",
             },
             request=httpx.Request("GET", "https://api.github.com/"),
         )
@@ -49,12 +49,12 @@ def test_runtime_and_current_release_versions_match(monkeypatch):
         settings = client.get("/api/settings")
         update = client.get("/api/update")
 
-    assert __version__ == "0.3.0-rc.3"
+    assert __version__ == "0.3.0-rc.4"
     assert health.json()["version"] == __version__
     assert settings.json()["version"] == __version__
     assert update.json() == {
         "current": __version__,
         "available": False,
         "latest": __version__,
-        "url": "https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.3",
+        "url": f"https://github.com/EdwardAiyw/literature-agent/releases/tag/v{__version__}",
     }

@@ -10,7 +10,7 @@ Provide a local-first academic literature agent that automatically delivers a tr
 2. The scheduled agent retrieves, deduplicates, screens, ranks, and selects 10-20 papers.
 3. The agent generates Chinese summaries and recommendation reasons, then sends an email digest containing metadata, DOI, and original links.
 4. The user reviews the run, source diagnostics, results, and delivery status in the GUI.
-5. The user imports selected papers into Zotero by DOI. A future Zotero connector may automate this step.
+5. The user explicitly imports selected papers into Zotero from the workbench. The Web API connector deduplicates by DOI (exact title when DOI is absent) and reports per-paper results.
 
 ## Product boundaries
 

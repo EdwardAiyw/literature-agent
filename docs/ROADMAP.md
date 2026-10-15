@@ -17,7 +17,8 @@
 
 ## Post-Beta
 
-- Zotero DOI-based import and per-paper import status.
+- Implemented in source runtime (2026-10-14): explicit Zotero Web API citation import with DOI/title deduplication and per-paper status.
+- Future: optional automatic Zotero export policy after review.
 - Durable run pause/resume/cancel and an in-product structured log viewer.
 - Optional FAMOU evaluation workflow for labeled retrieval/ranking experiments.
 - Authenticode signing and a stable release channel.

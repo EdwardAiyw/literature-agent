@@ -135,21 +135,27 @@ class ModelProvider:
             "engine": self.model,
         }
 
-    def summarize(self, record: dict, topic: str, prompt: str = "") -> dict[str, Any]:
+    def summarize(self, record: dict, topic: str, prompt: str = "", *, task: dict | None = None) -> dict[str, Any]:
         if not self.configured:
             return fallback(record, topic)
         system = prompt or "You are a cautious academic literature analyst. Return only valid JSON with the documented summary fields."
-        result = self._complete_json(system, {"topic": topic, "paper": record})
+        payload = {"topic": topic, "paper": record}
+        if task is not None:
+            payload["task"] = task
+        result = self._complete_json(system, payload)
         missing = [key for key in SUMMARY_KEYS if key not in result]
         if missing:
             raise ValueError(f"Model response missing keys: {', '.join(missing)}")
         result["engine"] = self.model
         return result
 
-    def review_evidence(self, record: dict, summary: dict, prompt: str) -> dict[str, Any]:
+    def review_evidence(self, record: dict, summary: dict, prompt: str, *, task: dict | None = None) -> dict[str, Any]:
         if not self.configured:
             return fallback_evidence_review(record, summary)
-        result = self._complete_json(prompt, {"paper": record, "summary": summary})
+        payload = {"paper": record, "summary": summary}
+        if task is not None:
+            payload["task"] = task
+        result = self._complete_json(prompt, payload)
         if "evidence_warnings" not in result or "confidence" not in result or not isinstance(result["evidence_warnings"], list):
             raise ValueError("Evidence review missing evidence_warnings or confidence")
         return {

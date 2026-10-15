@@ -52,6 +52,8 @@ def test_jev_decision_summary_counts_routes_and_failures():
 
 def test_create_task_and_run():
     with TestClient(app) as client:
+        expected_prompt = next(prompt for prompt in client.get("/api/prompts").json()
+                               if prompt["role"] == "query_planner" and prompt["active"])
         task = client.post("/api/tasks", json={"name": "RAG test", "topic": "agentic retrieval", "target_count": 2}).json()
         assert task["topic"] == "agentic retrieval"
         run = client.post(f"/api/tasks/{task['id']}/runs")
@@ -78,7 +80,8 @@ def test_create_task_and_run():
         artifacts = client.get(f"/api/runs/{run_id}/artifacts").json()
         assert any(artifact["node"] == "result_manifest" for artifact in artifacts)
         contract = next(artifact["payload"] for artifact in artifacts if artifact["node"] == "query_planner")
-        assert contract["prompt_snapshot"]["query_planner"]["version"] == "v1"
+        assert contract["prompt_snapshot"]["query_planner"]["version"] == expected_prompt["version"]
+        assert contract["prompt_snapshot"]["query_planner"]["id"] == expected_prompt["id"]
 
 
 def test_evidence_review_adds_runtime_node():

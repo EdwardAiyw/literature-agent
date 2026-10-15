@@ -19,5 +19,6 @@ def offline_runtime(monkeypatch):
             smtp_host="",
             smtp_from="",
             jev_enabled=False,
+            zotero_api_key="",
         ),
     )
