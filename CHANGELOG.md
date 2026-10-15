@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add opt-in Linux server mode with a persistent, permission-restricted secret store and a 60-second scheduler using the existing bounded worker and per-day database guard.
+- Add a loopback-only Docker deployment, SSH web access helper and Windows-to-server migration/operations guide.
+- Edit existing daily subscriptions from the webpage, including schedule and enabled state, while preserving hidden research settings, Prompt overrides and history.
+- Display server-specific settings/scheduler status and reject online server database replacement or Windows scheduler actions.
+
 ## 0.3.0-rc.5 - 2026-10-15
 
 - Convert an existing task to a daily subscription from the current task or history, preserving identity, research settings, Prompt overrides and run history; guard duplicate/stale requests atomically.

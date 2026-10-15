@@ -1,0 +1,15 @@
+**
+!backend/
+!backend/pyproject.toml
+!backend/src/
+!backend/src/literature_agent/
+!backend/src/literature_agent/*.py
+!backend/alembic/
+!backend/alembic/**
+!backend/alembic.ini
+!frontend/
+!frontend/dist/
+!frontend/dist/**
+!deploy/
+!deploy/Dockerfile
+!LICENSE

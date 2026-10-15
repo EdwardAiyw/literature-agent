@@ -106,6 +106,12 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Published installer: 29,018,832 bytes; re-downloaded SHA-256 `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f` matches the published checksum file.
 - Installer upgrade, real Zotero permissions/sync and full Windows acceptance remain prerequisites for stable promotion.
 
+## Post-RC5 server runtime
+
+- Source supports single-user Linux Docker operation, persistent file secrets, internal daily dispatch and SSH-only web management. Desktop scheduling and credential storage remain unchanged.
+- Web subscription editing includes timing and enabled state, retains research settings and history, and supports manual server execution.
+- Deployment, migration, environment variables, data ownership and rollback are documented in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md). These changes are not in the immutable RC5 Windows installer.
+
 ## Not yet implemented
 
 - Durable pause/resume/cancel behavior across service restarts.

@@ -4,6 +4,7 @@ import os
 import json
 import sys
 import threading
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -247,6 +248,51 @@ class MemorySecretStore:
         self.values.pop(key, None)
 
 
+def server_mode() -> bool:
+    return os.getenv("LITERATURE_AGENT_SERVER", "false").lower() in {"1", "true", "yes"}
+
+
+class FileSecretStore:
+    """Server-only persistent secrets; keep the data volume private and backed up securely."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def _read(self) -> dict[str, str]:
+        if not self.path.exists():
+            return {}
+        value = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or any(key not in SECRET_FIELDS or not isinstance(item, str) for key, item in value.items()):
+            raise RuntimeError("Invalid server secret store")
+        return value
+
+    def get(self, key: str) -> str:
+        return self._read().get(key, "")
+
+    def _write(self, values: dict[str, str]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=".secrets-", dir=self.path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                json.dump(values, stream, ensure_ascii=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def set(self, key: str, value: str) -> None:
+        if key not in SECRET_FIELDS:
+            raise ValueError("Unsupported secret")
+        self._write({**self._read(), key: value})
+
+    def delete(self, key: str) -> None:
+        values = self._read()
+        values.pop(key, None)
+        self._write(values)
+
+
 class ConfigManager:
     """Owns persisted product settings and provides atomic runtime snapshots."""
 
@@ -254,7 +300,10 @@ class ConfigManager:
         self.base = base
         self.data_dir = base.data_dir.resolve()
         self.path = self.data_dir / "settings.json"
-        self.secret_store = secret_store or (WindowsCredentialStore() if os.name == "nt" else MemorySecretStore())
+        self.secret_store = secret_store or (
+            WindowsCredentialStore() if os.name == "nt" else
+            FileSecretStore(self.data_dir / "secrets.json") if server_mode() else MemorySecretStore()
+        )
         self._lock = threading.RLock()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._values = self._read_values()

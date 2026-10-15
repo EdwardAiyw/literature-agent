@@ -63,3 +63,13 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 ```
 
 The optional `enabled` field defaults to `true`. Research configuration comes from the current persisted task, including fixed publication dates and explicit Prompt overrides. Success returns HTTP 201 with the existing task ID and a new subscription ID. HTTP 404 means the task is missing; HTTP 409 means it was already converted (includes `subscription_id`) or changed during conversion; HTTP 422 means schedule/task/Prompt validation failed. Conversion neither enqueues a run nor sends mail nor registers OS tasks. The existing Windows due-subscription check/worker handles future execution. `DELETE /api/subscriptions/{id}` returns HTTP 409 while the associated task is queued, running or paused.
+
+## Single-user server runtime
+
+Explicit `LITERATURE_AGENT_SERVER=true` enables an internal 60-second `DailyScheduler` and Linux `FileSecretStore`. One API process owns one bounded worker; the scheduler reads current settings and subscriptions, applies the existing timezone/day guard and atomically reserves runs with `create_run_if_idle`. Shutdown stops the scheduler before waiting for worker completion. A pause flag suppresses new daily dispatch, not manual runs or startup recovery. See [deployment and migration](SERVER_DEPLOYMENT.md).
+
+`GET /api/settings` exposes `server_mode`; `GET /api/scheduler` reports internal mode, running state, last check and error. Windows scheduler actions, data-directory replacement and online backup restoration return HTTP 409 in server mode. Linux secrets persist via atomic JSON replacement with mode 600; the parent volume must remain private. This is plaintext file protection and does not provide multi-user authentication.
+
+`PATCH /api/subscriptions/{id}` merges exposed form changes with persisted values and updates the existing task. Web editing sends only editable fields, retaining research questions, language/output policy, evidence review, Prompt overrides and history. Existing runs use captured configurations; later runs see saved changes.
+
+The Docker image serves the locally built frontend and API on one port, published only to host loopback. SSH forwards it to the user's local browser; provider calls and email originate on the server. No database synchronization is provided between server and desktop copies.

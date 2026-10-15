@@ -2,7 +2,7 @@
 
 中文版本：[README.md](README.md)
 
-Literature Agent is a self-hosted literature search and daily email assistant for Windows. Enter a research topic and it searches several public scholarly sources, removes duplicates, ranks relevance, and produces concise research briefs. You can also create a daily subscription that runs automatically and sends an HTML and plain-text digest to your inbox.
+Literature Agent is a self-hosted literature search and daily email assistant for Windows or a Linux server. Enter a research topic and it searches several public scholarly sources, removes duplicates, ranks relevance, and produces concise research briefs. You can also create a daily subscription that runs automatically and sends an HTML and plain-text digest to your inbox.
 
 The application runs locally on your computer. It does not require a Literature Agent account, does not download or send PDFs, and does not bypass paywalls. Paper records include DOI and source links so that you can open and verify the original work.
 
@@ -90,6 +90,14 @@ API keys, SMTP authorization codes, and mailbox passwords are not the same as or
 - Python 3.12 or newer.
 - Node.js 20.19+ or 22.12+ (Node.js 22 is recommended for development).
 - Windows Edge for browser regression tests.
+
+## Server deployment
+
+The source runtime also supports a single-user Linux Docker deployment. Daily searches and email continue while the desktop is off. Open the remote web UI through `scripts/open-server.ps1 -Target user@server` and edit subscription timing, time zone, topic, recipient, sources and enabled state, or run it manually. Model and mail settings remain editable in the web UI.
+
+See the [server deployment and migration guide](docs/SERVER_DEPLOYMENT.md). The server checks schedules every 60 seconds; disable the old Windows daily task after migration to prevent duplicate delivery. Linux secrets are stored as permission-restricted plaintext files. The unauthenticated application binds to server loopback and is accessed through SSH.
+
+This is post-RC5 source functionality; the existing RC5 installer is unchanged. Windows credential storage and 15-minute OS scheduling described below apply to desktop execution.
 
 ## Install the Windows release
 

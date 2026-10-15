@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from .config import ConfigManager, SECRET_FIELDS, SETTING_FIELDS, Settings, save_bootstrap_data_dir
+from .config import ConfigManager, SECRET_FIELDS, SETTING_FIELDS, Settings, save_bootstrap_data_dir, server_mode
 from . import __version__
 from .db import Database
 from .decisions import JevDecisionProvider
@@ -28,6 +28,7 @@ from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRea
 from .sources import SOURCE_METADATA, build_sources
 from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
+from .scheduler import DailyScheduler
 from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for
 
 config_manager = ConfigManager(Settings.from_env())
@@ -35,17 +36,24 @@ settings = config_manager.get()
 database = Database(settings.db_path)
 database.seed_builtin_prompts(BUILTIN_PROMPTS)
 run_worker: LocalRunWorker | None = None
+daily_scheduler: DailyScheduler | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global run_worker
+    global run_worker, daily_scheduler
     database.cleanup_test_tasks()
     run_worker = LocalRunWorker(lambda: settings, database)
     run_worker.recover()
+    if server_mode():
+        daily_scheduler = DailyScheduler(lambda: settings, database, run_worker)
+        daily_scheduler.start()
     try:
         yield
     finally:
+        if daily_scheduler:
+            daily_scheduler.close()
+            daily_scheduler = None
         run_worker.close()
         run_worker = None
 
@@ -432,6 +440,7 @@ SETTING_SECTIONS = {
 
 def _public_settings() -> dict:
     return {
+        "server_mode": server_mode(),
         "version": __version__,
         "license": "AGPL-3.0-only",
         "source_url": "https://github.com/EdwardAiyw/literature-agent",
@@ -616,7 +625,7 @@ def onboarding_status():
         "llm": bool(settings.live and settings.llm_api_key and settings.llm_model),
         "smtp": bool(settings.smtp_host and settings.smtp_from),
         "sources": True,
-        "scheduler": set(schedule.get("tasks") and ("Literature Agent Local", "Literature Agent Daily") or ()).issubset(tasks),
+        "scheduler": bool(daily_scheduler and daily_scheduler.thread.is_alive()) if server_mode() else set(schedule.get("tasks") and ("Literature Agent Local", "Literature Agent Daily") or ()).issubset(tasks),
     }
     return {"complete": all(steps.values()), "steps": steps, "data_dir": str(settings.data_dir)}
 
@@ -662,6 +671,8 @@ def select_backup_file():
 @app.put("/api/system/data-directory")
 def change_data_directory(payload: DataDirectoryRequest):
     global config_manager, settings, database, run_worker
+    if server_mode():
+        raise HTTPException(409, "Server data directory is managed by the deployment; stop the service before migration")
     with exclusive_import_operation("请等待 Zotero 导入或数据库维护完成后再切换数据目录。"):
         target = Path(payload.path).expanduser().resolve()
         if target == settings.data_dir.resolve():
@@ -698,6 +709,8 @@ def change_data_directory(payload: DataDirectoryRequest):
 
 @app.get("/api/scheduler")
 def get_scheduler_status():
+    if server_mode():
+        return daily_scheduler.status() if daily_scheduler else {"mode": "internal", "running": False, "supported": False, "tasks": []}
     return scheduler_status()
 
 
@@ -719,6 +732,8 @@ def check_update():
 
 @app.post("/api/scheduler/{action}")
 def manage_scheduler(action: str):
+    if server_mode():
+        raise HTTPException(409, "Server scheduling is managed by the running service; enable or disable individual subscriptions")
     try:
         runtime_root = Path(sys.executable).parent if getattr(sys, "frozen", False) else settings.root.parent
         return run_scheduler_action(runtime_root, action)
@@ -736,6 +751,8 @@ def create_backup():
 @app.post("/api/backups/restore")
 def restore_backup(payload: BackupRestoreRequest):
     global database, run_worker
+    if server_mode():
+        raise HTTPException(409, "Stop the server before restoring its database backup")
     with exclusive_import_operation("请等待 Zotero 导入或数据库维护完成后再恢复备份。"):
         source = Path(payload.path).expanduser().resolve()
         try:
