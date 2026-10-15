@@ -19,6 +19,15 @@ Backend/source validation baseline: `5219ee3d09546c0e50ecf2d40a83a18e180df9db`. 
 - An actual request from the server to the configured model returned the expected connection-test JSON. SMTP TLS connection, authentication and NOOP succeeded; no test email was sent.
 - Actual remote webpage checks passed for editing a subscription and preserving its task/configuration, desktop/mobile layout, schedule and enabled-state updates, and server scheduler/settings status. Fixtures were deleted after verification; daily dispatch remained paused.
 
+## Production cutover — 2026-10-16 (Asia/Hong_Kong)
+
+- The user explicitly requested interruption of the active desktop retrieval, migration and a fresh server execution. Created a verified pre-interruption SQLite backup, stopped the desktop API and recorded the interrupted run as cancelled with a migration event; prior history remains intact.
+- Used the SQLite backup API for the final snapshot. All 14 table counts and content hashes matched the server copy before and after startup, preserving one task, one subscription, two historical runs and eight Prompts.
+- Migrated effective model, mail, source and Zotero settings and credentials over SSH. Data and secret permissions remained restricted; credential values were not committed or logged.
+- Enabled production server scheduling at 2026-10-15 23:47 UTC. The existing enabled 07:00 Asia/Hong_Kong subscription was already due and started one fresh run automatically. Query planning completed and retrieval began; no duplicate manual launch was issued.
+- Disabled both desktop Daily and Local scheduled tasks and left the old local data intact. Server is now the source of truth; the old desktop service remains stopped.
+- Confirmed healthy container, no OOM/restart, the active new run on the real webpage, one migrated subscription, retained schedule, web editing entry and internal scheduler status. Opened the local SSH browser entry; the desktop server shortcut remains available.
+
 ## Acceptance boundary
 
-Staging checks do not claim end-to-end daily delivery or retrieval quality. Final database cutover must wait for active desktop work to finish or an explicit interruption decision, then use a consistent SQLite backup with table-content verification. The old Windows daily task must remain disabled after cutover to prevent duplicate delivery. Migration and operations are described in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md).
+Migration integrity and startup/execution initiation are verified. The newly started production search and its final email are not yet verified as completed. Prior staging SMTP checks used TLS authentication and NOOP without sending mail; final digest delivery should be checked in the webpage's delivery history. Migration and operations are described in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md).
