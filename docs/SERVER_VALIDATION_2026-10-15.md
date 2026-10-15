@@ -1,6 +1,6 @@
 # Server runtime validation — 2026-10-15
 
-Source commit: `5219ee3d09546c0e50ecf2d40a83a18e180df9db`. The immutable RC5 Windows installer is unchanged.
+Backend/source validation baseline: `5219ee3d09546c0e50ecf2d40a83a18e180df9db`. Deployed runtime: `fe0d79d289d6a832b1b8ace8b6bd53a1a9780db8`, which additionally identifies remote execution in the navigation and connection label. Its frontend build, both focused server browser cases and actual remote desktop/mobile checks passed. [Runtime CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38756705343) passed. The immutable RC5 Windows installer is unchanged.
 
 ## Automated checks
 
@@ -12,7 +12,7 @@ Source commit: `5219ee3d09546c0e50ecf2d40a83a18e180df9db`. The immutable RC5 Win
 
 ## Deployed staging checks
 
-- Built `literature-agent:5219ee3` from a SHA-256 verified source archive and locally compiled frontend; no credentials or production database entered the build context.
+- Built `literature-agent:5219ee3` and the follow-up `literature-agent:fe0d79d` from a SHA-256 verified source archive and locally compiled frontend; no credentials or production database entered the build context.
 - Nonroot container started with a read-only root filesystem, bounded resources and loopback-only host publishing. Health checks, SQLite migrations and the internal scheduler initialized successfully.
 - Verified SSH tunnel access, same-origin settings writes and settings/secret persistence across a container restart.
 - Verified data directory mode 700 and settings/secret files mode 600.
