@@ -17,7 +17,7 @@
 
 ## Post-Beta
 
-- Implemented in source runtime (2026-10-14): explicit Zotero Web API citation import with DOI/title deduplication and per-paper status.
+- Released in RC4 (2026-10-15): explicit Zotero Web API citation import with paginated DOI metadata deduplication, per-destination status and database replacement locking.
 - Future: optional automatic Zotero export policy after review.
 - Durable run pause/resume/cancel and an in-product structured log viewer.
 - Optional FAMOU evaluation workflow for labeled retrieval/ranking experiments.

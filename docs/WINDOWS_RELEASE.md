@@ -2,7 +2,7 @@
 
 面向非技术用户的逐步说明、字段解释和故障排查见根目录 [`README.md`](../README.md)。本页保留为发布与维护速查。
 
-当前源码候选版为 [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4)，包含 Prompt v2 和 Zotero 联动修复。安装包由 GitHub Windows Release 工作流在回归通过后生成，下载时以该 Release 的 `SHA256SUMS.txt` 为准。RC3 历史资产信息保留在 [项目状态](CURRENT_STATE.md)。
+当前公开预发布版为 [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4)，包含 Prompt v2、LocalJev 和 Zotero 联动修复。GitHub CI、Windows Release 和打包运行时检查均通过。安装包为 29,018,832 字节，重新下载后 SHA-256 为 `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f`，与 Release 的 `SHA256SUMS.txt` 一致。RC3 历史资产信息保留在 [项目状态](CURRENT_STATE.md)。
 
 ## 安装
 

@@ -8,9 +8,9 @@ English version: [README.en.md](README.en.md)
 
 这份 README 面向第一次接触本项目的普通用户。日常使用不需要会编程，不需要安装 Python 或 Node.js，也不需要编辑 `.env` 文件。
 
-> **RC4 候选状态（2026-10-15）**
+> **当前发布状态（2026-10-15）**
 >
-> `v0.3.0-rc.4` 包含通用默认 Prompt v2、Zotero 联动及 DOI 查重、数据库维护互斥、目标状态刷新修复。本机后端 105 项、Edge 浏览器 18 项回归和前端构建通过。安装包及 `SHA256SUMS.txt` 由 GitHub Windows Release 工作流生成；下载前确认该流程成功且 Release 资产齐全。RC4 为预发布候选版，安装版人工验收仍是稳定版发布门槛。
+> [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4) 已发布为 GitHub prerelease，包含通用默认 Prompt v2、Zotero 联动和本轮可靠性修复。后端 105 项、Edge 浏览器 18 项回归、前端构建、GitHub CI、Windows Release 及打包后启动检查均通过。重新下载的安装包 SHA-256 为 `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f`，与 `SHA256SUMS.txt` 一致。RC4 的安装版人工验收仍是稳定版发布门槛。
 
 > **下载与反馈**
 >
@@ -524,7 +524,7 @@ RC4 源码和安装包包含 Zotero Web API 导入（旧 RC3 安装包不包含�
 - Prompt v2 已完成固定输入开发集/封存集模型对比；范围与限制见 [验证记录](docs/PROMPT_V2_VALIDATION.md)。
 - Zotero 自动化回归使用模拟请求，未向真实文献库写入；详见 [Zotero 联动](docs/ZOTERO.md)。
 
-GitHub CI 与 Windows Release 流程重新执行相应检查，并在成功后生成 RC4 安装包和校验文件。安装、覆盖升级、真实权限和桌面同步、计划任务、备份恢复及卸载仍需按 [验收手册](TEST_GUIDE.md) 在干净 Windows 环境验证；自动化通过不代表稳定版验收完成。RC3 历史发布数据见 [项目状态](docs/CURRENT_STATE.md)。
+GitHub CI 和 Windows Release 均已通过；RC4 安装包及校验文件已发布，重新下载后的 SHA-256 一致。打包运行时的版本、隔离数据库路径、8 个内置 Prompt/4 个默认 v2、Zotero 设置和前端页面检查均通过。安装、覆盖升级、真实权限和桌面同步、计划任务、备份恢复及卸载仍需按 [验收手册](TEST_GUIDE.md) 在干净 Windows 环境验证；自动化通过不代表稳定版验收完成。RC3 历史发布数据见 [项目状态](docs/CURRENT_STATE.md)。
 
 ## 开发者从源码运行
 

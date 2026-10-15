@@ -64,10 +64,12 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Four generic v2 defaults are released; v1, custom versions, task overrides, and explicit rollback are retained.
 - Fixed-case model quality results and the earlier 91-test acceptance baseline are recorded in [Prompt v2 validation](PROMPT_V2_VALIDATION.md). Zotero repair regression results are recorded in [Zotero integration](ZOTERO.md).
 
-## RC4 candidate (2026-10-15)
+## Verified RC4 prerelease (2026-10-15)
 
 - Version: `0.3.0-rc.4`; combines the Zotero source integration/repairs, Prompt v2 release and LocalJev changes made after RC3.
-- Local validation: 105 backend tests, frontend production build and 18 Edge regressions passed. GitHub CI and Windows Release validate the pushed source before publishing the installer and checksum.
+- Local validation, GitHub CI and Windows Release passed: 105 backend tests, frontend production build and 18 Edge regressions. Packaged runtime health/version, isolated database path, eight built-in prompts/four v2 defaults, Zotero settings and frontend checks passed.
+- Source tag `v0.3.0-rc.4` points to `9b46771`; the corrected release workflow on `main` rebuilt that immutable tag successfully ([run 38716729435](https://github.com/EdwardAiyw/literature-agent/actions/runs/38716729435)).
+- Published installer: 29,018,832 bytes; re-downloaded SHA-256 `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f` matches the published checksum file.
 - Installer upgrade, real Zotero permissions/sync and full Windows acceptance remain prerequisites for stable promotion.
 
 ## Not yet implemented

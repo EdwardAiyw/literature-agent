@@ -6,9 +6,9 @@ Literature Agent is a self-hosted literature search and daily email assistant fo
 
 The application runs locally on your computer. It does not require a Literature Agent account, does not download or send PDFs, and does not bypass paywalls. Paper records include DOI and source links so that you can open and verify the original work.
 
-> **RC4 candidate status (October 15, 2026)**
+> **Release status (October 15, 2026)**
 >
-> `v0.3.0-rc.4` includes generic default Prompt v2, Zotero integration, DOI metadata deduplication, database replacement locking, and destination-status refresh. Local validation passed 105 backend tests, 18 Edge regressions, and the frontend build. GitHub Windows Release generates the installer and `SHA256SUMS.txt`; verify that the workflow succeeded and assets are present before downloading. RC4 remains a prerelease pending manual installer acceptance.
+> [`v0.3.0-rc.4`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.4) is published as a GitHub prerelease with generic default Prompt v2, Zotero integration and reliability fixes. The 105 backend tests, 18 Edge regressions, frontend build, GitHub CI, Windows Release and packaged runtime smoke checks passed. The re-downloaded installer SHA-256 is `52efebc8eca12ba262ee7a770ce6976155d3a92694268d6874203f06ada8845f`, matching `SHA256SUMS.txt`. Manual installer acceptance remains required before stable promotion.
 
 > **Download and feedback**
 >
