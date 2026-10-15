@@ -90,6 +90,14 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Validation: 150 backend tests, production frontend build and 27 Edge regressions passed. Browser fixtures disable model/mail endpoints and run sequentially against their shared isolated database. Three preexisting screenshots were restored exactly.
 - Local service 8001 was backed up and restarted at 2026-10-15 13:00 UTC; new API/frontend are loaded, and all database table hashes/settings hashes match the pre-restart snapshot. No production task was converted or emailed during verification. See the [public validation report](VALIDATION_2026-10-15.md).
 
+## Verified RC5 prerelease (2026-10-15)
+
+- Published [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) from immutable source commit `7c68797`, packaging all RC5 changes above and retaining RC4 capabilities.
+- [GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) and [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) passed. The clean Windows runner passed 150 backend tests, the frontend production build and 27 Edge regressions.
+- Packaged runtime checks passed for version, isolated database, eight built-in Prompts/four active v2 defaults, Zotero settings, frontend and conversion retaining task settings without creating runs or deliveries.
+- Installer: 29,033,921 bytes; anonymous re-download SHA-256 `7e648d48a12397001a1b04aab39a4a58212e69293fb365ead5b2d4a269c6a0af` matches both `SHA256SUMS.txt` and GitHub's asset digest. RC4/RC3 assets and tags remain unchanged.
+- Full manual installer/upgrade, real Zotero permissions/sync, scheduler, restore and uninstall acceptance remain prerequisites for stable promotion. Anonymous Semantic Scholar remained rate-limited in the independent live probe.
+
 ## Verified RC4 prerelease (2026-10-15)
 
 - Version: `0.3.0-rc.4`; combines the Zotero source integration/repairs, Prompt v2 release and LocalJev changes made after RC3.

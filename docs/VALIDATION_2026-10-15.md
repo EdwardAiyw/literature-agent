@@ -1,4 +1,4 @@
-# Source validation — 2026-10-15
+# RC5 validation — 2026-10-15
 
 This report covers the relevance, source rate-limit and task-to-daily subscription changes packaged in RC5. The published `v0.3.0-rc.4` tag and installer do not contain them. Raw local logs, database snapshots and generated test results are excluded from Git under the contribution policy.
 
@@ -28,3 +28,11 @@ These probes did not change saved tasks or send email/Zotero writes. Fixed-case 
 After active runs finished, the local source service on port 8001 was backed up and restarted at 13:00 UTC (21:00 Asia/Hong_Kong). The conversion endpoint and updated frontend were confirmed loaded. All database table hashes and persisted settings hashes matched the pre-restart snapshots. No production task was converted or emailed during verification.
 
 Installer acceptance and full live retrieval quality checks remain open; see the [test guide](../TEST_GUIDE.md) and [current state](CURRENT_STATE.md).
+
+## Published RC5 verification
+
+The immutable `v0.3.0-rc.5` tag points to `7c68797`. [GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) and [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) passed. The clean Windows runner independently passed all 150 backend tests, 27 Edge regressions and the frontend build before publishing.
+
+The packaged application passed health/version, isolated database, Prompt catalog, Zotero settings and frontend checks. A task was created and converted inside the isolated packaged database; task identity, date bounds and target count were retained, no run or delivery was created, and the test subscription was removed afterward.
+
+The published installer was downloaded through its public URL without authentication: 29,033,921 bytes, SHA-256 `7e648d48a12397001a1b04aab39a4a58212e69293fb365ead5b2d4a269c6a0af`. This matched both `SHA256SUMS.txt` and GitHub's asset digest. No installed production application or live database was replaced by this download verification. Manual installer acceptance remains open.

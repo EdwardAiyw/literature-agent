@@ -10,7 +10,7 @@ English version: [README.en.md](README.en.md)
 
 > **当前发布状态（2026-10-15）**
 >
-> 当前候选版本为 [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5)，将任务转每日订阅、相关性筛选与来源限流修复纳入安装包，并保留默认 Prompt v2、Zotero 联动和 LocalJev。发布构建与打包验证结果见下方“当前测试状态”和 Release 页面；安装版完整人工验收仍是稳定版发布门槛。
+> [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) 已发布为 GitHub prerelease，安装包包含任务转每日订阅、相关性筛选与来源限流修复，并保留默认 Prompt v2、Zotero 和 LocalJev。150 项后端测试、27 项 Edge 回归、前端构建、GitHub CI、Windows Release 及打包后检查均通过；公开下载的安装包 SHA-256 校验一致。完整人工安装验收仍是稳定版发布门槛。
 
 > **下载与反馈**
 >
@@ -120,10 +120,10 @@ Literature Agent 当前支持：
 
 下载同一 Release 中的两个文件：
 
-- `Literature-Agent-0.3.0-rc.5-Windows-x64.exe`
-- `SHA256SUMS.txt`
+- [Literature-Agent-0.3.0-rc.5-Windows-x64.exe](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.5/Literature-Agent-0.3.0-rc.5-Windows-x64.exe)
+- [SHA256SUMS.txt](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.5/SHA256SUMS.txt)
 
-安装包大小为 `28,611,752` 字节。不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。
+安装包大小为 `29,033,921` 字节。不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。
 
 如果 Release 页面没有上述两个资产，或文件名不一致，不要继续安装。
 
@@ -141,6 +141,12 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.5-Windows-x64.exe -Algorithm SHA256
 
 4. 屏幕会显示一串 64 位字符。
 5. 用记事本打开同一 RC5 Release 的 `SHA256SUMS.txt`，确认安装包的 SHA-256 与其中对应文件的值一致。英文字母大小写不同没有关系，不要使用旧版本的校验值。
+
+本次 RC5 安装包的 SHA-256：
+
+```text
+7e648d48a12397001a1b04aab39a4a58212e69293fb365ead5b2d4a269c6a0af
+```
 
 不相同就不要运行安装包，应删除文件并从 GitHub Releases 重新下载。
 
@@ -557,7 +563,7 @@ RC5 延续 RC4 的 Zotero Web API 导入及查重修复（旧 RC3 安装包不�
 - Prompt v2 已完成固定输入开发集/封存集模型对比；范围与限制见 [验证记录](docs/PROMPT_V2_VALIDATION.md)。
 - Zotero 自动化回归使用模拟请求，未向真实文献库写入；详见 [Zotero 联动](docs/ZOTERO.md)。
 
-RC5 的 GitHub CI、Windows Release、安装包下载校验和打包后启动验证将在发布完成后记录于本节。打包门禁检查版本、隔离数据库路径、8 个内置 Prompt/4 个默认 v2、Zotero 设置、前端页面及任务转换无检索/投递副作用。安装、覆盖升级、真实权限和桌面同步、计划任务、备份恢复及卸载仍需按 [验收手册](TEST_GUIDE.md) 在干净 Windows 环境验证；自动化通过不代表稳定版验收完成。自动化和真实来源复测范围见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，历版状态见 [项目状态](docs/CURRENT_STATE.md)。
+RC5 的 [GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) 和 [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) 均通过，安装包与校验文件已发布；重新公开下载后的 SHA-256 同时与 `SHA256SUMS.txt` 和 GitHub 资产摘要一致。打包门禁检查版本、隔离数据库路径、8 个内置 Prompt/4 个默认 v2、Zotero 设置、前端页面及任务转换无检索/投递副作用。安装、覆盖升级、真实权限和桌面同步、计划任务、备份恢复及卸载仍需按 [验收手册](TEST_GUIDE.md) 在干净 Windows 环境验证；自动化通过不代表稳定版验收完成。自动化和真实来源复测范围见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，历版状态见 [项目状态](docs/CURRENT_STATE.md)。
 
 ## 开发者从源码运行
 

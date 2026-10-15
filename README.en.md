@@ -8,7 +8,7 @@ The application runs locally on your computer. It does not require a Literature 
 
 > **Release status (October 15, 2026)**
 >
-> The current candidate is [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5), packaging task-to-daily conversion, relevance filtering and source rate-limit repairs alongside default Prompt v2, Zotero and LocalJev. Release build and packaged verification results are recorded on the Release page and under Testing below. Full manual installer acceptance remains required before stable promotion.
+> [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) is published as a prerelease with task-to-daily conversion, relevance filtering and source rate-limit repairs, retaining default Prompt v2, Zotero and LocalJev. The 150 backend tests, 27 Edge regressions, frontend build, GitHub CI, Windows Release and packaged checks passed. The publicly downloaded installer matches its SHA-256 checksum. Full manual installer acceptance remains required before stable promotion.
 
 > **Download and feedback**
 >
@@ -94,7 +94,7 @@ API keys, SMTP authorization codes, and mailbox passwords are not the same as or
 ## Install the Windows release
 
 1. Open the [`v0.3.0-rc.5` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5).
-2. Download both `Literature-Agent-0.3.0-rc.5-Windows-x64.exe` and `SHA256SUMS.txt`. Do not use GitHub's `Source code (zip)` as an installer.
+2. Download both [Literature-Agent-0.3.0-rc.5-Windows-x64.exe](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.5/Literature-Agent-0.3.0-rc.5-Windows-x64.exe) and [SHA256SUMS.txt](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.5/SHA256SUMS.txt). Do not use GitHub's `Source code (zip)` as an installer.
 3. In the download folder, open PowerShell and verify the installer:
 
    ```powershell
@@ -105,6 +105,12 @@ API keys, SMTP authorization codes, and mailbox passwords are not the same as or
 
 4. Run the installer. The prerelease is not commercially code-signed, so Windows SmartScreen may require **More info > Run anyway** after you have verified the checksum.
 5. Start the application from the installer or the Windows Start menu. It opens a browser at <http://127.0.0.1:8001>.
+
+The RC5 installer is 29,033,921 bytes. Its SHA-256 is:
+
+```text
+7e648d48a12397001a1b04aab39a4a58212e69293fb365ead5b2d4a269c6a0af
+```
 
 `127.0.0.1` means this computer. The local web interface is not exposed as a public website.
 
@@ -220,7 +226,7 @@ The selected data directory contains:
 - `logs/`: rotating logs retained for 14 days.
 - `backups/`: manual and safety backups.
 
-Model, SMTP, and source credentials are stored in the current Windows user's Credential Manager under names beginning with `LiteratureAgent/`. Credentials are not copied when a database is moved to another computer, and uninstalling does not automatically remove them or user data.
+Model, SMTP, source, Zotero and Jev credentials are stored in the current Windows user's Credential Manager under names beginning with `LiteratureAgent/`. Credentials are not copied when a database is moved to another computer, and uninstalling does not automatically remove them or user data.
 
 During a real run, query text and paper metadata are sent to the selected scholarly sources. The topic and paper metadata used for summarization are sent to the configured model provider. Email summaries are sent through the configured SMTP provider. Do not enter confidential information that should not be shared with those providers.
 
@@ -299,7 +305,7 @@ DOI matching scans paginated top-level library items because Zotero quick search
 
 ## Testing
 
-Local validation passed 150 backend tests, 27 Edge regressions and the frontend production build. RC5 CI, Windows Release, downloaded checksum and packaged smoke results will be recorded here after publishing. Packaged checks cover version, isolated database, Prompt v2 catalog, Zotero settings, frontend and task conversion without search or email side effects. Full manual install/upgrade, real Zotero sync, scheduling, restore and uninstall acceptance remain open. See the [public validation report](docs/VALIDATION_2026-10-15.md).
+Local validation passed 150 backend tests, 27 Edge regressions and the frontend production build. [RC5 CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) and [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) passed, including the full backend/browser suites. An anonymous download matched both `SHA256SUMS.txt` and the GitHub asset digest. Packaged checks cover version, isolated database, Prompt v2 catalog, Zotero settings, frontend and task conversion without search or email side effects. Full manual install/upgrade, real Zotero sync, scheduling, restore and uninstall acceptance remain open. See the [public validation report](docs/VALIDATION_2026-10-15.md).
 
 Run the backend tests, build the frontend, and execute browser regression tests:
 
