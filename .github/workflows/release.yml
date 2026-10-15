@@ -3,6 +3,12 @@ name: Windows Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build without moving it
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,6 +18,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -44,13 +52,13 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ inputs.release_tag || github.ref_name }}"
           $version = $tag.TrimStart('v')
           .\scripts\build-windows-release.ps1 -Version $version
       - name: Smoke test packaged runtime
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          $version = "${{ inputs.release_tag || github.ref_name }}".TrimStart('v')
           $env:LITERATURE_AGENT_DATA_DIR = Join-Path $env:RUNNER_TEMP "rc4-packaged-smoke"
           $env:LITERATURE_AGENT_BOOTSTRAP = Join-Path $env:RUNNER_TEMP "rc4-packaged-bootstrap.json"
           $env:LITERATURE_AGENT_LIVE = "false"
@@ -65,7 +73,7 @@ jobs:
             }
             if (-not $health -or $health.status -ne "ok" -or $health.version -ne $version) { throw "Packaged runtime health/version check failed" }
             if ([IO.Path]::GetFullPath($health.database.path) -ne [IO.Path]::GetFullPath((Join-Path $env:LITERATURE_AGENT_DATA_DIR "literature_agent_v2.db"))) { throw "Packaged runtime used the wrong database" }
-            $prompts = @(Invoke-RestMethod "http://127.0.0.1:8012/api/prompts")
+            $prompts = Invoke-RestMethod "http://127.0.0.1:8012/api/prompts"
             if (@($prompts | Where-Object builtin).Count -ne 8 -or @($prompts | Where-Object { $_.active -and $_.version -eq "v2" }).Count -ne 4) { throw "Packaged Prompt v2 catalog check failed" }
             $settings = Invoke-RestMethod "http://127.0.0.1:8012/api/settings"
             if ($settings.version -ne $version -or $settings.zotero_collection_name -ne "Literature Agent") { throw "Packaged Zotero settings check failed" }
@@ -81,7 +89,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          prerelease: ${{ contains(inputs.release_tag || github.ref_name, '-') }}
           files: |
             release/Literature-Agent-*-Windows-x64.exe
             release/SHA256SUMS.txt

@@ -123,7 +123,7 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.4-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 屏幕会显示一串 64 位字符。
-5. 用记事本打开 `SHA256SUMS.txt`，确认结果为 `5cfc8b45a68346b6ce5e51282d510d71ae0889b11760f79b05d00aaf2a5b51fc`。英文字母大小写不同没有关系。
+5. 用记事本打开同一 RC4 Release 的 `SHA256SUMS.txt`，确认安装包的 SHA-256 与其中对应文件的值一致。英文字母大小写不同没有关系，不要使用旧版本的校验值。
 
 不相同就不要运行安装包，应删除文件并从 GitHub Releases 重新下载。
 

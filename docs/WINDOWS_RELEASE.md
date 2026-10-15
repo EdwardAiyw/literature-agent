@@ -57,7 +57,7 @@ cd ..
 稳定版发布前还要使用 RC4 安装包在 Windows Sandbox 中运行：
 
 ```powershell
-.\scripts\run-installer-sandbox.ps1
+.\scripts\run-installer-sandbox.ps1 -Version 0.3.0-rc.4
 ```
 
 按 [`INSTALLER_SANDBOX_TEST.md`](INSTALLER_SANDBOX_TEST.md) 完成首次设置、五篇两来源、邮件、计划任务、备份恢复、重复启动和卸载。Sandbox 未完成时只能发布为 prerelease 候选版。
