@@ -248,6 +248,7 @@ def test_subscription_crud_and_delivery_history():
         database.add_run_event(run["id"], "retrieval", "completed", "Delete smoke event")
         database.save_run_artifact(run["id"], "retrieval", {"sources": {}})
         database.create_delivery(subscription["id"], run["id"], "digest", subscription["recipient"], "Delete smoke")
+        database.update_run(run["id"], status="completed")
 
         deleted = client.delete(f"/api/subscriptions/{subscription['id']}")
         assert deleted.status_code == 200

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from typing import Any
 
 import httpx
@@ -15,6 +17,15 @@ SUMMARY_KEYS = (
     "recommended_action",
     "confidence",
     "evidence_warnings",
+)
+
+QUERY_EXECUTION_REQUIREMENTS = (
+    "Search APIs consume keyword queries, not a prose description. Use 2-8 keywords per query, "
+    "focused on the task's central concept and at most one additional facet. Do not pack every task "
+    "subtopic into each query. For bilingual search, start with a short English query for the central "
+    "research topic and a Chinese query for that same topic; any remaining queries may cover an explicitly "
+    "requested facet. For English-only or Chinese-only tasks use only the requested language. "
+    "Preserve task scope; do not invent exclusions or extra requirements."
 )
 
 
@@ -68,6 +79,35 @@ def fallback_evidence_review(record: dict, summary: dict) -> dict[str, Any]:
     }
 
 
+def validate_query_plan(result: dict, task: dict) -> dict[str, Any]:
+    required = ("queries", "exclusions", "language_policy", "source_routing")
+    if not isinstance(result, dict) or any(key not in result for key in required):
+        raise ValueError("Query plan must contain queries, exclusions, language_policy and source_routing")
+    for key in ("queries", "exclusions", "source_routing"):
+        if not isinstance(result[key], list) or any(not isinstance(value, str) for value in result[key]):
+            raise ValueError(f"Query plan {key} must be an array of strings")
+    queries = list(dict.fromkeys(query.strip() for query in result["queries"] if query.strip()))
+    if not 1 <= len(queries) <= 4:
+        raise ValueError("Query plan must contain 1-4 distinct nonempty queries")
+    language = task.get("language", "bilingual")
+    has_chinese = [bool(re.search(r"[\u3400-\u9fff]", query)) for query in queries]
+    has_english = [not chinese and bool(re.search(r"[A-Za-z]", query)) for query, chinese in zip(queries, has_chinese)]
+    if language == "bilingual" and not (any(has_chinese) and any(has_english)):
+        raise ValueError("Bilingual search requires separate Chinese and English queries, including an English query without Chinese text")
+    if language == "en" and not all(has_english):
+        raise ValueError("English search requires English queries without Chinese text")
+    if language == "zh" and not all(has_chinese):
+        raise ValueError("Chinese search requires Chinese wording in every query")
+    if any(len(query.split()) > 16 or len(query) > 160 for query in queries):
+        raise ValueError("Search queries are too long; split the topic into short complementary keyword queries")
+    if result["language_policy"] != language:
+        raise ValueError("Query plan language_policy must match task.language")
+    return {
+        "queries": queries, "exclusions": [term.strip() for term in result["exclusions"] if term.strip()],
+        "language_policy": language, "source_routing": list(task.get("sources", result["source_routing"])),
+    }
+
+
 class ModelProvider:
     def __init__(self, base_url: str, api_key: str, model: str, client: httpx.Client | None = None) -> None:
         self.base_url = base_url.rstrip("/")
@@ -102,18 +142,28 @@ class ModelProvider:
     def plan_queries(self, task: dict, prompt: str) -> dict[str, Any]:
         if not self.configured:
             return fallback_query_plan(task)
-        result = self._complete_json(prompt, {"task": task})
-        required = ("queries", "exclusions", "language_policy", "source_routing")
-        missing = [key for key in required if key not in result]
-        if missing or not isinstance(result["queries"], list):
-            raise ValueError(f"Query plan missing fields: {', '.join(missing)}")
-        return {
-            "queries": [str(query).strip() for query in result["queries"] if str(query).strip()],
-            "exclusions": [str(term).strip() for term in result["exclusions"] if str(term).strip()],
-            "language_policy": str(result["language_policy"]),
-            "source_routing": [str(source).strip() for source in result["source_routing"] if str(source).strip()],
-            "engine": self.model,
-        }
+        payload = {"task": task, "execution_requirements": QUERY_EXECUTION_REQUIREMENTS}
+        validation_errors = []
+        for attempt in range(2):
+            result = self._complete_json(prompt, payload)
+            try:
+                plan = validate_query_plan(result, task)
+            except ValueError as exc:
+                validation_errors.append(str(exc))
+                if attempt == 1:
+                    raise ValueError(f"Invalid query plan after repair: {exc}") from exc
+                payload = {
+                    "task": task, "previous_plan": result, "validation_error": str(exc),
+                    "execution_requirements": QUERY_EXECUTION_REQUIREMENTS,
+                    "repair_instruction": "Return the same JSON schema. Correct the validation error using only the task scope. "
+                    "Use short complementary keyword queries, each focused on a core concept and at most one facet; "
+                    "do not concatenate the whole topic or add new concepts. For bilingual search include separate "
+                    "Chinese and English queries. Keep technical acronyms where needed, but English queries must contain no Chinese wording.",
+                }
+                continue
+            return {**plan, "engine": self.model, "repair_count": attempt, "validation_errors": validation_errors,
+                    "execution_requirements": QUERY_EXECUTION_REQUIREMENTS}
+        raise AssertionError("Query plan attempts exhausted")
 
     def screen(self, record: dict, task: dict, prompt: str) -> dict[str, Any]:
         if not self.configured:
@@ -123,15 +173,19 @@ class ModelProvider:
         missing = [key for key in required if key not in result]
         if missing:
             raise ValueError(f"Screening result missing fields: {', '.join(missing)}")
-        score = min(1.0, max(0.0, float(result["relevance_score"])))
-        priority = str(result["priority"]).upper()
-        if priority not in {"P0", "P1", "P2"}:
-            priority = "P0" if score >= 0.7 else "P1" if score >= 0.4 else "P2"
+        raw_score = result["relevance_score"]
+        if isinstance(raw_score, bool) or not math.isfinite(float(raw_score)) or not 0 <= float(raw_score) <= 1:
+            raise ValueError("Screening relevance_score must be a finite number between 0 and 1")
+        score = float(raw_score)
+        priority = "P0" if score >= 0.7 else "P1" if score >= 0.4 else "P2"
+        action = str(result["recommended_action"])
+        if action not in {"read", "save", "background", "ignore"}:
+            raise ValueError("Screening recommended_action must be read, save, background or ignore")
         return {
             "relevance_score": score,
             "priority": priority,
             "relevance_reason": str(result["relevance_reason"]),
-            "recommended_action": str(result["recommended_action"]),
+            "recommended_action": action,
             "engine": self.model,
         }
 

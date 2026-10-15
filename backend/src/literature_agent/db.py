@@ -120,6 +120,33 @@ class Database:
             return None
         return {**json.loads(row["payload"]), "id": row["id"], "task_id": row["task_id"], "enabled": bool(row["enabled"]), "created_at": row["created_at"], "updated_at": row["updated_at"]}
 
+    def subscribe_task(self, task_id: str, expected_task: dict, payload: dict) -> dict:
+        """Atomically promote a task, retaining its ID/history and guarding duplicate/stale requests."""
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            current = self.get_task(task_id)
+            if not current:
+                return {"status": "missing"}
+            existing = self.connection.execute(
+                "SELECT id FROM subscriptions WHERE task_id = ? LIMIT 1", (task_id,)
+            ).fetchone()
+            if existing:
+                return {"status": "subscribed", "subscription_id": existing["id"]}
+            if current != expected_task:
+                return {"status": "changed"}
+            subscription_id, timestamp = str(uuid4()), now()
+            self.connection.execute(
+                "INSERT INTO subscriptions(id, task_id, payload, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (subscription_id, task_id, json.dumps(payload, ensure_ascii=False), int(payload["enabled"]), timestamp, timestamp),
+            )
+            task_payload = {key: value for key, value in current.items() if key not in {"id", "created_at", "updated_at"}}
+            task_payload["origin"] = "subscription"
+            self.connection.execute(
+                "UPDATE tasks SET payload = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(task_payload, ensure_ascii=False), timestamp, task_id),
+            )
+        return {"status": "created", "subscription": self.get_subscription(subscription_id)}
+
     def list_subscriptions(self, enabled_only: bool = False) -> list[dict]:
         query = "SELECT id FROM subscriptions"
         if enabled_only:
@@ -138,24 +165,21 @@ class Database:
 
     def delete_subscription(self, subscription_id: str) -> bool:
         """Delete a subscription and all data owned by its task in one transaction."""
-        subscription = self.connection.execute(
-            "SELECT task_id FROM subscriptions WHERE id = ?", (subscription_id,)
-        ).fetchone()
-        if not subscription:
-            return False
-
-        task_id = subscription["task_id"]
-        shared_task = self.connection.execute(
-            "SELECT 1 FROM subscriptions WHERE task_id = ? AND id != ? LIMIT 1",
-            (task_id, subscription_id),
-        ).fetchone()
-        run_rows = self.connection.execute(
-            "SELECT id FROM runs WHERE task_id = ?", (task_id,)
-        ).fetchall()
-        run_ids = [row["id"] for row in run_rows]
-
         try:
-            self.connection.execute("BEGIN")
+            self.connection.execute("BEGIN IMMEDIATE")
+            subscription = self.connection.execute(
+                "SELECT task_id FROM subscriptions WHERE id = ?", (subscription_id,)
+            ).fetchone()
+            if not subscription:
+                self.connection.commit()
+                return False
+            task_id = subscription["task_id"]
+            if self.task_blockers(task_id)["active_runs"]:
+                raise ValueError("Cannot delete a subscription while its task has an active run")
+            shared_task = self.connection.execute(
+                "SELECT 1 FROM subscriptions WHERE task_id = ? AND id != ? LIMIT 1", (task_id, subscription_id),
+            ).fetchone()
+            run_ids = [row["id"] for row in self.connection.execute("SELECT id FROM runs WHERE task_id = ?", (task_id,))]
             self.connection.execute("DELETE FROM deliveries WHERE subscription_id = ?", (subscription_id,))
             if run_ids and not shared_task:
                 placeholders = ",".join("?" for _ in run_ids)
@@ -264,10 +288,11 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def has_run_since(self, task_id: str, started_at: str) -> bool:
+    def has_run_since(self, task_id: str, started_at: str, trigger_kind: str | None = None) -> bool:
+        trigger_filter = " AND trigger_kind = ?" if trigger_kind is not None else ""
         row = self.connection.execute(
-            "SELECT 1 FROM runs WHERE task_id = ? AND started_at >= ? LIMIT 1",
-            (task_id, started_at),
+            f"SELECT 1 FROM runs WHERE task_id = ? AND started_at >= ?{trigger_filter} LIMIT 1",
+            (task_id, started_at, trigger_kind) if trigger_kind is not None else (task_id, started_at),
         ).fetchone()
         return row is not None
 

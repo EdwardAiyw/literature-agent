@@ -161,6 +161,8 @@ Leave the global prompt version unchanged on your first run. Select **Start**. T
 
 ## Create a daily subscription
 
+In the current source runtime, select **Convert to daily task** on the current-task card or the envelope action in workspace history. Review the inherited research configuration, enter the recipient, daily time and time zone, then save. Conversion retains the task ID, history, research questions, language/output settings, target count, sources, fixed date bounds, evidence review and Prompt overrides. Saving does not start a search or send mail. Converted tasks reopen their existing subscription; duplicate conversions are rejected. Deleting the subscription also deletes the original task/history and is blocked while a run is active. This feature is not in the published RC4 installer.
+
 On **Daily Subscriptions**, enter a name, topic, recipients, target count, local execution time, time zone, optional date range, and one or more sources. Common time zones include `Asia/Shanghai`, `Asia/Hong_Kong`, and `Asia/Kuala_Lumpur`.
 
 Before relying on automation:
@@ -181,6 +183,8 @@ The browser does not need to stay open, but the computer must be powered on, con
 - `Failed`: the page includes the error and corrective action.
 
 Source diagnostics show each provider's status and returned record count. One failed provider does not necessarily invalidate results from other providers. Relevance is an ordering aid, not a quality score. Papers without abstracts may have weaker screening signals, so inspect the original source.
+
+The current source runtime excludes scores below 0.40, `ignore` recommendations and unverified keyword fallbacks. Scores of 0.40–0.69 may still represent background reading. Expand the executed search conditions to check queries/date bounds and inspect evaluated/rejected/selected counts. A date mentioned in topic text does not override the date fields. Existing results are preserved; the fix applies to new runs and is not yet included in the published RC4 installer.
 
 Workspace history can be searched, filtered, edited, or deleted. Deleting a task permanently deletes its run records and paper results.
 
@@ -229,9 +233,11 @@ Use an SMTP authorization code or app password, not the mailbox login password. 
 
 Broaden the topic, remove a restrictive date range, choose multiple sources, and start with a small target count. The target is not a guarantee; papers must pass the relevance threshold.
 
-### Semantic Scholar returns 429
+### Crossref or Semantic Scholar returns 429
 
-This is provider rate limiting. Retry later, add a Semantic Scholar key, or rely on the other sources while the service backs off.
+This is provider rate limiting. Unreleased source changes add shared pacing, bounded retries and Retry-After cooldowns (at least 60 seconds after exhaustion), preserving earlier successful queries/pages. Only completed queries are cached, and every actual retry counts against the local budget. The workbench explains both current and historical HTTP 429 diagnostics; source connection checks show individual results.
+
+Crossref uses the configured PubMed contact email or SMTP sender for mailto/User-Agent identification. Anonymous Semantic Scholar access can remain limited; save an API key under Settings > Literature sources and retry later. Raising the local daily budget cannot remove a provider limit. A read-only check on 2026-10-15 returned four Crossref records in two HTTP 200 requests, while four anonymous Semantic Scholar requests still returned HTTP 429. These changes require a backend restart after active runs finish and are not in the published RC4 installer.
 
 ### The daily email is missing
 

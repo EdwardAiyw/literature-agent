@@ -122,7 +122,7 @@ def test_graph_context_and_actual_jev_routing(database, tmp_path, monkeypatch, m
         role = bodies[system]
         captured[role] = payload
         if role == "query_planner":
-            return {"queries": [task["topic"]], "exclusions": [], "language_policy": "bilingual", "source_routing": ["fixture"]}
+            return {"queries": ["用户提供的主题", task["topic"]], "exclusions": [], "language_policy": "bilingual", "source_routing": ["fixture"]}
         if role == "relevance_screener":
             return {"relevance_score": .8, "priority": "P0", "relevance_reason": "baseline reason", "recommended_action": "read"}
         if role == "literature_summarizer":

@@ -26,7 +26,7 @@ def test_due_subscriptions_honor_local_time_and_run_once_per_day(tmp_path):
 
     assert [item["id"] for item in due_subscriptions(database, [morning, afternoon], now_utc)] == [morning["id"]]
 
-    run = database.create_run(morning["task_id"], total_steps=6)
+    run = database.create_run(morning["task_id"], total_steps=6, trigger_kind="subscription", subscription_id=morning["id"])
     database.update_run(run["id"], started_at="2026-09-22T00:05:00+00:00")
     assert due_subscriptions(database, [morning, afternoon], now_utc) == []
     database.close()

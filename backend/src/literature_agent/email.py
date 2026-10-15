@@ -38,6 +38,10 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
     subject = f"[Literature Agent] {topic} · {len(papers)} 篇文献"
     lines = [f"Literature Agent 日报", f"主题：{topic}", f"论文数量：{len(papers)}", ""]
     cards: list[str] = []
+    if not papers:
+        notice = "本次没有找到符合相关性要求的文献。请查看来源诊断、检索式和日期范围后重试。"
+        lines.extend([notice, ""])
+        cards.append(f"<p>{notice}</p>")
     for index, paper in enumerate(papers, start=1):
         authors = ", ".join(paper.get("authors") or [])
         doi = paper.get("doi") or "未提供"

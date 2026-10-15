@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Convert an existing task to a daily subscription from the current task or history, preserving identity, research settings, Prompt overrides and run history; guard duplicate/stale requests atomically.
+- Keep same-day manual runs from suppressing a newly converted subscription's daily schedule, and reject subscription deletion while its task is active.
+- Add desktop/mobile conversion regressions and isolate browser fixture runs from real model/mail endpoints.
+- Enforce relevance >=0.40 and respect `ignore` after final ordinary/Jev routing; exclude unverified keyword fallbacks from live results instead of filling target counts with unrelated papers.
+- Validate multilingual query plans and repair invalid plans once; record concise-query execution requirements without modifying published Prompt bodies.
+- Keep empty live searches empty and skip unsupported Chinese-only arXiv queries instead of substituting generic results.
+- Show executed queries, date bounds and screening counts; explain empty digests without recommending rejected papers.
+- Add Crossref contact identification and shared per-provider pacing, bounded HTTP 429 retries and Retry-After cooldowns for Crossref/Semantic Scholar.
+- Preserve completed queries and earlier pages after later source failures; cache only completed queries, and account for each actual retry against the request budget.
+- Explain source rate limits and partial results in the workbench/settings checks, including legacy HTTP 429 diagnostics. Anonymous Semantic Scholar availability remains provider-controlled.
+
 ## 0.3.0-rc.4 - 2026-10-15
 
 - Bundle the LocalJev decision layer and controls added after RC3, and gate Windows publishing on packaged runtime, Prompt catalog, Zotero settings and frontend smoke checks.

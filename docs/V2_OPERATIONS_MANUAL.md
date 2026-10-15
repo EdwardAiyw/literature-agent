@@ -10,7 +10,8 @@
 | 后端 | `http://127.0.0.1:8001` | FastAPI + 本地任务队列 |
 | 健康检查 | `http://127.0.0.1:8001/api/health` | 不暴露密钥 |
 | 运行时设置 | `http://127.0.0.1:8001/api/settings` | 查看配置状态 |
-| Jev 审计 | `/api/runs/{run_id}/decisions` | 当前通过 API 查看，暂无 GUI 审计面板 |
+| Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |
+| 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 只补收件人、执行时间及时区；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
 
 V2 工作流是：创建任务 -> 检索 -> 去重 -> 相关性筛选 -> 文献总结 -> 可选证据审查 -> 结果查看。Jev 是类型化决策层，不替代生成式 LLM。
 
@@ -68,7 +69,7 @@ LLM_API_KEY=你的LLM密钥
 LLM_MODEL=你的模型名
 ```
 
-可选数据源配置：`OPENALEX_API_KEY`、`SEMANTIC_SCHOLAR_API_KEY`、`PUBMED_API_KEY`、`PUBMED_EMAIL`、`SOURCE_CACHE_TTL_HOURS=24`、`SOURCE_DAILY_REQUEST_BUDGET=200`。邮件订阅另外填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`。所有密钥只放在本机 `backend/.env`，不要提交到 Git、放入 Prompt 或发到聊天中。
+可选数据源配置：`OPENALEX_API_KEY`、`SEMANTIC_SCHOLAR_API_KEY`、`PUBMED_API_KEY`、`PUBMED_EMAIL`、`SOURCE_CACHE_TTL_HOURS=24`、`SOURCE_DAILY_REQUEST_BUDGET=200`。邮件订阅另外填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`。推荐在页面保存设置，密钥由 Windows 凭据管理器保管；`backend/.env` 仅作为源码兼容回退。不要将密钥提交到 Git、放入 Prompt 或发到聊天中。
 
 ## 4. 启用 Jev Shadow
 

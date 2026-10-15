@@ -49,23 +49,25 @@ Task form/API -> SQLite -> bounded local worker -> resolve task prompts -> query
 | `output_language` | Available to all four model roles | v2 specifies Chinese/English/bilingual explanations; keys, enums and missing-evidence marker remain unchanged; fallback is not newly localized |
 | `date_from`, `date_to` | Source filtering; original bounds recorded in the planning artifact | Unknown dates can be retained and marked by existing adapters |
 | `sources` | Executor uses user-selected sources | Nonempty task selection takes precedence over planner routing |
-| `target_count` | Retrieval limits and final selection | Existing selection can retain low-score papers to fill the count |
+| `target_count` | Retrieval limits and maximum final selection | Candidates below 0.40 or recommended `ignore` are excluded; the count is not filled with unrelated papers |
 | `evidence_review` | Controls whether evidence review runs | Disabled means no review node |
 | `prompt_overrides` | Explicit role version takes precedence over global activation | Tasks pinned to v1 remain pinned after upgrade |
 
-Planner queries are executed, deduplicated and capped at four. Its `exclusions` are recorded but not applied as hard search filters or forwarded to screening. Explicit scope in the task remains available to planning and screening. `language_policy` is planning metadata; `recommended_action=ignore` does not itself remove a record. Source diversity eligibility (0.55) is distinct from priority thresholds. This change does not add exclusion fields or change retrieval/ranking algorithms.
+Planner queries are validated as 1-4 distinct keyword strings before execution. Runtime execution requirements ask for short queries centered on the actual task, including independent English and Chinese queries for bilingual input. Invalid language coverage, empty/malformed plans and excessive query length trigger one repair request. A second invalid plan fails a live run before retrieval rather than silently searching the whole topic. The query plan artifact records execution requirements, repair count and validation errors; saved v1/v2/custom bodies remain unchanged.
+
+Planner `exclusions` are recorded but not applied as hard search filters or forwarded to screening. Explicit scope in the task remains available to planning and screening. Task sources take precedence over planner routing. After ordinary/Jev routing, result selection requires relevance >=0.40 and an action other than `ignore`. Live results also require model screening rather than a keyword fallback. Qualified background papers (0.40-0.69) may remain; they are not direct evidence. Source diversity eligibility (0.55) is separate from this inclusion threshold. Screening artifacts record evaluated, qualified, selected and rejected counts plus rejected candidates/reasons. Only selected candidates reach summaries, persistence and digests.
 
 The backend supports research questions and output language. The current task creation UI does not expose questions and sends Chinese output; editing exposes both. Subscription creation also sends fixed language defaults. This change does not expand these forms.
 
 ## Model interfaces and actual output provenance
 
-`ModelProvider.summarize(..., *, task=None)` and `review_evidence(..., *, task=None)` accept optional task context. Old positional calls remain valid. Graph calls now supply it to both, while planner/screener already receive task input. Model choice, temperature (0.1), timeout (45 seconds) and production parsing are unchanged.
+`ModelProvider.summarize(..., *, task=None)` and `review_evidence(..., *, task=None)` accept optional task context. Old positional calls remain valid. Graph calls supply it to both, while planner/screener also receive task input. Model choice, temperature (0.1) and timeout (45 seconds) remain unchanged. Screening rejects nonfinite/out-of-range scores and invalid actions; priority is derived from the validated score.
 
 The graph replaces summary `relevance_reason` and `recommended_action` with the actual screening result. Review warnings are merged and final confidence cannot exceed summary confidence. Original metadata is not rewritten. Unknown research fields use `not stated in source`; v2 requests an array containing this marker for unknown findings/limitations. Source-access caveats are warnings, not invented author-reported limitations.
 
 Jev uses independent typed questions in `decisions.py`, not these prompt bodies. Shadow mode observes Jev while preserving the ordinary-model result; active mode can apply an eligible Jev result. Inspect `screening.engine`, `summary.engine`, `summary.evidence_review_engine`, decision audit baseline/final outcomes and routing. A v2 prompt snapshot does not establish that every final decision used v2. Jev algorithms/questions remain unchanged. Offline graph tests verify off/shadow/active-auto/active-review routes, not real Jev quality.
 
-Unconfigured/failed models use explicit `engine=fallback`; empty live retrieval can use `fixture_fallback`. Neither counts as evidence of prompt quality or real retrieval success.
+Unconfigured/failed screening models use explicit `engine=fallback`; keyword fallback candidates cannot enter live results. Empty live retrieval stays empty, with source diagnostics retained. Fixtures are used only in explicit fixture/offline mode. arXiv skips queries with no supported English keywords instead of substituting an unrelated generic `literature` query. None of these fallback paths counts as evidence of model quality.
 
 ## Release and rollback
 

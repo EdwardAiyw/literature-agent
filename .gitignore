@@ -24,3 +24,6 @@ test-results/zotero-*.png
 output/pdf/
 output/**/test-runtime*/
 output/**/release-test-runtime*/
+output/relevance-fix/
+output/source-rate-fix/
+output/task-subscription/

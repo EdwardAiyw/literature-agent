@@ -109,6 +109,37 @@ def test_second_run_for_same_task_is_rejected():
         client.delete(f"/api/tasks/{task['id']}")
 
 
+def test_source_connection_check_does_not_claim_limited_source_is_ok(monkeypatch):
+    import httpx
+    from literature_agent import sources as source_module
+    from literature_agent.sources import CrossrefSource, SemanticScholarSource
+
+    monkeypatch.setattr(source_module, "_REQUEST_GATES", {})
+    transport = httpx.MockTransport(lambda request: (
+        httpx.Response(200, json={"message": {"items": []}})
+        if request.url.host == "api.crossref.org"
+        else httpx.Response(429, headers={"Retry-After": "120"})
+    ))
+    with httpx.Client(transport=transport) as source_client:
+        monkeypatch.setattr(api, "build_sources", lambda *_: {
+            "crossref": CrossrefSource(source_client),
+            "semantic_scholar": SemanticScholarSource(source_client),
+        })
+        with TestClient(api.app) as client:
+            response = client.post("/api/settings/sources/test", json={})
+            diagnostics = response.json()["diagnostics"]
+            assert diagnostics["crossref"]["ok"] is True
+            assert diagnostics["semantic_scholar"]["ok"] is False
+            assert diagnostics["semantic_scholar"]["status"] == "rate_limited"
+            assert diagnostics["semantic_scholar"]["final_http_status"] == 429
+            monkeypatch.setattr(api, "build_sources", lambda *_: {
+                "semantic_scholar": SemanticScholarSource(source_client),
+            })
+            response = client.post("/api/settings/sources/test", json={})
+            assert response.status_code == 400
+            assert "All literature source checks failed" in response.text
+
+
 def test_subscription_run_window_and_backup_integrity(tmp_path):
     database = Database(tmp_path / "agent.db")
     try:

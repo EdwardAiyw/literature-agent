@@ -71,6 +71,16 @@ legend { color: #505057; font-size: 12px; padding: 0 6px 0 0; }
 .status-pill.failed { color: #c50025; background: #fff1f3; }
 .run-task { display: flex; align-items: center; gap: 12px; border-top: 1px solid #e5e5e7; border-bottom: 1px solid #e5e5e7; margin-top: 19px; padding: 15px 0; }
 .run-task strong { font-size: 14px; }
+.task-subscription-action { display: flex; justify-content: flex-end; margin-top: 12px; }
+.task-subscription-action button { margin-top: 0; }
+.subscription-task-summary { border-top: 1px solid #d8d8da; border-bottom: 1px solid #d8d8da; padding: 14px 0; overflow-wrap: anywhere; }
+.subscription-task-summary > strong { display: block; font-size: 14px; }
+.subscription-task-summary p { margin-top: 8px; color: #505057; font-size: 12px; line-height: 1.6; }
+.subscription-task-summary dl { display: grid; grid-template-columns: 85px minmax(0, 1fr); gap: 8px 12px; margin-bottom: 0; font-size: 11px; line-height: 1.6; }
+.subscription-task-summary dt { color: #707074; }
+.subscription-task-summary dd { margin: 0; min-width: 0; }
+.schedule-fields { display: grid; grid-template-columns: minmax(110px, .75fr) minmax(0, 1.25fr); gap: 14px; }
+.subscription-schedule-note { margin-top: 20px; color: #707074; font-size: 11px; line-height: 1.7; }
 .run-task p { color: #77777d; font-size: 11px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 390px; }
 .task-avatar { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; background: #f2f2f3; color: #555; font-size: 11px; font-weight: 700; }
 .task-avatar.large { width: 36px; height: 36px; flex-basis: 36px; background: #e4002b; color: #fff; }

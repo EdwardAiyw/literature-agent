@@ -184,6 +184,26 @@ def _validate_prompt_overrides(value: dict[str, str]) -> dict[str, str]:
     return cleaned
 
 
+class TaskSubscriptionCreate(BaseModel):
+    """Only scheduling details are supplied when promoting an existing task."""
+
+    model_config = {"extra": "forbid"}
+    recipient: str = Field(min_length=3, max_length=320)
+    schedule_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    timezone: str = Field(default="Asia/Hong_Kong", min_length=1, max_length=80)
+    enabled: bool = True
+
+    @field_validator("recipient")
+    @classmethod
+    def validate_recipient(cls, value: str) -> str:
+        return _validate_email(value)
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        return _validate_timezone(value)
+
+
 class SubscriptionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     topic: str = Field(min_length=1, max_length=1000)

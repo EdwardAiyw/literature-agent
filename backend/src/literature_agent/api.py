@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
 from .config import ConfigManager, SECRET_FIELDS, SETTING_FIELDS, Settings, save_bootstrap_data_dir
 from . import __version__
@@ -23,7 +24,7 @@ from .decisions import JevDecisionProvider
 from .email import send_test_message
 from .llm import ModelProvider
 from .prompts import BUILTIN_PROMPTS
-from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SettingsTestRequest, SettingsUpdate, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskUpdate, TestSendRequest
+from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SettingsTestRequest, SettingsUpdate, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskSubscriptionCreate, TaskUpdate, TestSendRequest
 from .sources import SOURCE_METADATA, build_sources
 from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
@@ -183,6 +184,26 @@ def list_subscriptions():
     return database.list_subscriptions()
 
 
+@app.post("/api/tasks/{task_id}/subscription", response_model=SubscriptionRead, status_code=201)
+def subscribe_task(task_id: str, payload: TaskSubscriptionCreate):
+    current = database.get_task(task_id)
+    if not current:
+        raise HTTPException(404, "Task not found")
+    try:
+        values = SubscriptionCreate.model_validate({**current, **payload.model_dump()}).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    _validate_prompt_overrides(values["prompt_overrides"])
+    outcome = database.subscribe_task(task_id, current, values)
+    if outcome["status"] == "missing":
+        raise HTTPException(404, "Task not found")
+    if outcome["status"] == "subscribed":
+        raise HTTPException(409, {"message": "Task already has a daily subscription", "subscription_id": outcome["subscription_id"]})
+    if outcome["status"] == "changed":
+        raise HTTPException(409, "Task changed during conversion; reload and try again")
+    return outcome["subscription"]
+
+
 @app.get("/api/subscriptions/{subscription_id}", response_model=SubscriptionRead)
 def get_subscription(subscription_id: str):
     subscription = database.get_subscription(subscription_id)
@@ -210,7 +231,11 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
 
 @app.delete("/api/subscriptions/{subscription_id}")
 def delete_subscription(subscription_id: str):
-    if not database.delete_subscription(subscription_id):
+    try:
+        deleted = database.delete_subscription(subscription_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not deleted:
         raise HTTPException(404, "Subscription not found")
     return {"status": "deleted", "subscription_id": subscription_id}
 
@@ -540,9 +565,18 @@ def test_settings(section: str, payload: SettingsTestRequest):
                 for name, source in build_sources(client, candidate).items():
                     try:
                         records = source.search(("retrieval augmented generation",), 1, "", "")
-                        diagnostics[name] = {"ok": True, "count": len(records)}
+                        limited = source.rate_limited
+                        diagnostics[name] = {
+                            "ok": not source.errors, "count": len(records),
+                            "status": ("partial" if records else "rate_limited") if limited else "partial" if source.errors else "ok",
+                            "error": "; ".join(source.errors), "rate_limited": limited,
+                            "retry_after_seconds": source.retry_after_seconds,
+                            "attempts": source.attempts, "retry_count": source.retry_count,
+                            "final_http_status": source.final_http_status,
+                        }
                     except Exception as exc:
-                        diagnostics[name] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+                        diagnostics[name] = {"ok": False, "status": "failed", "count": 0,
+                            "error": f"{type(exc).__name__}: {exc}"}
             if not any(item["ok"] for item in diagnostics.values()):
                 raise RuntimeError("All literature source checks failed")
             return {"status": "ok", "section": section, "diagnostics": diagnostics}

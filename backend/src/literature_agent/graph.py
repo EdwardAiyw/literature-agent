@@ -27,8 +27,29 @@ class GraphState(TypedDict, total=False):
     errors: list[str]
 
 
-def select_diverse_records(screened: list[dict], target_count: int, minimum_score: float = 0.55) -> tuple[list[dict], dict]:
-    ranked = sorted(screened, key=lambda item: item["relevance_score"], reverse=True)
+def select_diverse_records(
+    screened: list[dict], target_count: int, minimum_score: float = 0.55,
+    *, minimum_relevance_score: float = 0.4, require_model_screening: bool = False,
+) -> tuple[list[dict], dict]:
+    eligible = []
+    rejected = []
+    for item in screened:
+        screening = item.get("screening") or {}
+        if item["relevance_score"] < minimum_relevance_score:
+            reason = "below_relevance_threshold"
+        elif screening.get("recommended_action") == "ignore":
+            reason = "recommended_ignore"
+        elif require_model_screening and screening.get("engine", "fallback") == "fallback":
+            reason = "unverified_fallback"
+        else:
+            eligible.append(item)
+            continue
+        rejected.append({
+            "canonical_id": item.get("canonical_id", ""), "title": item.get("title", ""),
+            "source": item.get("source", ""), "relevance_score": item["relevance_score"],
+            "reason": reason, "screening_engine": screening.get("engine", ""),
+        })
+    ranked = sorted(eligible, key=lambda item: item["relevance_score"], reverse=True)
     qualified_sources = {
         item.get("source", "") for item in ranked
         if item.get("source") and item["relevance_score"] >= minimum_score
@@ -62,6 +83,9 @@ def select_diverse_records(screened: list[dict], target_count: int, minimum_scor
     else:
         reason = "No eligible second-source paper could be selected."
     return selected, {
+        "evaluated_count": len(screened), "qualified_count": len(eligible),
+        "selected_count": len(selected), "rejected_count": len(rejected),
+        "minimum_relevance_score": minimum_relevance_score, "rejected": rejected,
         "selected_source_counts": source_counts,
         "diversity_required": diversity_required,
         "diversity_satisfied": satisfied,
@@ -132,6 +156,8 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             query_plan = provider.plan_queries(task, prompt_for(prompts, "query_planner")["body"])
             errors = list(state.get("errors", []))
         except Exception as exc:
+            if settings.live:
+                raise
             query_plan = fallback_query_plan(task)
             errors = errors_for(state, "query_planner", exc)
         contract = {
@@ -183,12 +209,8 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                     cache=database,
                 )
             for name, result in diagnostics.items():
-                if result["status"] in {"failed", "partial"}:
+                if result["status"] in {"failed", "partial", "rate_limited"}:
                     errors.append(f"retrieval/{name}: {result['error']}")
-            if not records:
-                records = fixture_records(task["topic"])
-                source_mode = "fixture_fallback"
-                diagnostics["fixture"] = {"status": "fallback", "count": len(records), "error": "No live source returned records"}
         artifact = {"source_mode": source_mode, "sources": diagnostics, "retrieved_count": len(records), "errors": errors[-10:]}
         completed(state, "retrieval", f"Retrieved {len(records)} candidate record(s)", 2, artifact)
         return {"node": "retrieval", "records": records, "source_diagnostics": diagnostics, "errors": errors}
@@ -269,13 +291,16 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             record["relevance_score"] = final_decision["relevance_score"]
             record["priority"] = final_decision["priority"]
             screened.append(record)
-        screened, diversity = select_diverse_records(screened, task["target_count"])
+        screened, diversity = select_diverse_records(
+            screened, task["target_count"],
+            require_model_screening=settings.live and task.get("sources") != ["fixture"],
+        )
         completed(
             state,
             "relevance_screener",
-            f"Ranked {len(screened)} record(s)",
+            f"Selected {len(screened)} of {diversity['evaluated_count']} candidate(s); rejected {diversity['rejected_count']}",
             4,
-            {"evaluated_count": len(screened), "top_titles": [record["title"] for record in screened[:3]], **diversity,
+            {"top_titles": [record["title"] for record in screened[:3]], **diversity,
              "jev": {"configured": decisions.configured, "mode": decisions.mode,
                      "evaluated_count": jev_evaluated, "auto_eligible_count": jev_auto}},
         )

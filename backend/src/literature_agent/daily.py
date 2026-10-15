@@ -23,7 +23,7 @@ def due_subscriptions(database: Database, subscriptions: list[dict], now_utc: da
         if local_now < scheduled:
             continue
         local_day_start = datetime.combine(local_now.date(), time.min, tzinfo=zone)
-        if database.has_run_since(subscription["task_id"], local_day_start.astimezone(timezone.utc).isoformat()):
+        if database.has_run_since(subscription["task_id"], local_day_start.astimezone(timezone.utc).isoformat(), trigger_kind="subscription"):
             continue
         due.append(subscription)
     return due
