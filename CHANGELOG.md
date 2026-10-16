@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Vendor pinned MIT LocalJev with JSON Object cloud compatibility, internal authenticated Compose service, bounded resources and reproducible screening evaluation.
+- Pass effective task/Prompt context to Jev; version cache by deployment; bound screening workers and record intermediate counts and skipped ordinary calls. Active high-confidence screening skips duplicate model requests; Shadow retains ordinary decisions.
+- Record the failed real DeepSeek active-screening gate; retain production Shadow mode. Confirm the first server digest was accepted by SMTP without repeating the completed run.
+
 - Add opt-in Linux server mode with a persistent, permission-restricted secret store and a 60-second scheduler using the existing bounded worker and per-day database guard.
 - Add a loopback-only Docker deployment, SSH web access helper and Windows-to-server migration/operations guide.
 - Edit existing daily subscriptions from the webpage, including schedule and enabled state, while preserving hidden research settings, Prompt overrides and history.

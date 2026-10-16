@@ -30,4 +30,4 @@ Backend/source validation baseline: `5219ee3d09546c0e50ecf2d40a83a18e180df9db`. 
 
 ## Acceptance boundary
 
-Migration integrity and startup/execution initiation are verified. The newly started production search and its final email are not yet verified as completed. Prior staging SMTP checks used TLS authentication and NOOP without sending mail; final digest delivery should be checked in the webpage's delivery history. Migration and operations are described in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md).
+Migration integrity and execution are verified. Follow-up on 2026-10-16 confirmed the first production search completed with 50 papers and SMTP accepted its digest at 08:09 Asia/Hong_Kong; inbox receipt is unverified. The completed run was not restarted or mailed again. LocalJev cloud follow-up is recorded in [its validation report](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md). Prior staging SMTP checks used TLS authentication and NOOP without sending mail; final digest delivery should be checked in the webpage's delivery history. Migration and operations are described in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md).

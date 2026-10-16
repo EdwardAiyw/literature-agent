@@ -1,4 +1,5 @@
 import pytest
+from threading import Barrier, Lock
 
 from literature_agent import graph as graph_module
 from literature_agent import runner as runner_module
@@ -186,4 +187,66 @@ def test_subscription_digest_does_not_recommend_rejected_papers(tmp_path, monkey
     assert "Unrelated fiction" not in messages[0].text + messages[0].html
     assert "没有找到符合相关性要求" in messages[0].text
     assert "没有找到符合相关性要求" in messages[0].html
+    database.close()
+
+
+@pytest.mark.parametrize("shadow", [False, True])
+def test_screening_bounds_workers_skips_only_active_auto_and_reports_progress(tmp_path, monkeypatch, shadow):
+    database = Database(tmp_path / "bounded.db")
+    database.seed_builtin_prompts(BUILTIN_PROMPTS)
+    task = database.create_task(TaskCreate(name="Bounded", topic="Topic", sources=["fixture"],
+                                          target_count=24, evidence_review=False).model_dump())
+    run = database.create_run(task["id"], total_steps=6)
+    records = [{"title": f"Paper {i}", "source": "fixture", "source_id": str(i)} for i in range(24)]
+    monkeypatch.setattr(graph_module, "fixture_records", lambda _: records)
+    barrier, lock = Barrier(2), Lock()
+    counters = {"inflight": 0, "peak": 0, "baseline": 0}
+    saved_titles = []
+    add_paper = database.add_paper
+    def save_paper(run_id, canonical_id, record):
+        saved_titles.append(record["title"])
+        return add_paper(run_id, canonical_id, record)
+    monkeypatch.setattr(database, "add_paper", save_paper)
+    class Decisions:
+        configured = True
+        provider = "test"
+        probability_kind = "self_reported"
+        mode = "shadow" if shadow else "active"
+        def __init__(self, *_): pass
+        def screen_paper(self, _run, record, actual_task, prompt):
+            assert actual_task == task and prompt
+            with lock:
+                counters["inflight"] += 1
+                counters["peak"] = max(counters["peak"], counters["inflight"])
+            try:
+                i = int(record["source_id"])
+                if i < 2: barrier.wait(timeout=5)
+                database.add_decision_call({"run_id": _run, "stage": "relevance_screener",
+                    "subject_id": record["canonical_id"], "mode": self.mode, "status": "applied",
+                    "requested_model": "test", "schema_version": "test"})
+                if i % 3 == 2: raise TimeoutError("Jev unavailable")
+                return {"relevance_score": .6, "priority": "P1", "recommended_action": "background",
+                        "relevance_reason": "Task fit", "engine": "jev-test", "decision_confidence": .95 if i % 3 == 0 else .6,
+                        "auto_eligible": i % 3 == 0, "route": "auto_apply" if i % 3 == 0 else "needs_review"}
+            finally:
+                with lock: counters["inflight"] -= 1
+    monkeypatch.setattr(graph_module, "JevDecisionProvider", Decisions)
+    def baseline(*_):
+        with lock: counters["baseline"] += 1
+        return {"relevance_score": .6, "priority": "P1", "recommended_action": "background",
+                "relevance_reason": "Ordinary task fit", "engine": "ordinary"}
+    monkeypatch.setattr(ModelProvider, "screen", baseline)
+    result = execute_run(Settings(root=tmp_path, jev_shadow_mode=shadow, jev_max_inflight=2), database, run["id"], task)
+    assert result["status"] == "completed", result
+    assert counters["peak"] == 2, result
+    assert counters["baseline"] == (24 if shadow else 16)
+    assert saved_titles == [p["title"] for p in records]
+    progress = database.get_run_artifact(run["id"], "screening_progress")["payload"]
+    assert progress == {"processed": 24, "total": 24, "auto_applied": 0 if shadow else 8,
+                        "baseline_calls": 24 if shadow else 16, "fallback_count": 0 if shadow else 16}
+    audit = database.latest_decision_call(run["id"], "relevance_screener", "fixture:0")
+    assert audit["baseline_outcome"] == (baseline() if shadow else {"skipped": True, "reason": "jev_auto_apply"})
+    assert audit["fallback_used"] is False
+    failure = database.latest_decision_call(run["id"], "relevance_screener", "fixture:2")
+    assert failure["fallback_reason"] == "jev_error"
     database.close()

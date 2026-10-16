@@ -158,6 +158,8 @@ Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed are available. Crossref 
 
 ### 5. Optional Jev decision layer
 
+The server Compose stack includes a separate authenticated LocalJev cloud adapter (`http://localjev:8080`, alias `localjev-latest`). It uses the existing cloud model without loading a local model. The 2026-10-16 active-screening comparison failed quality and speed acceptance, so production retains Shadow mode and ordinary-model decisions. See the [measured results](docs/LOCALJEV_CLOUD_VALIDATION_2026-10-16.md).
+
 Jev is disabled by default. Searches, filtering, summaries, and email delivery work without it. To experiment with the local Jev stack:
 
 ```powershell
@@ -210,7 +212,7 @@ The browser does not need to stay open, but the computer must be powered on, con
 
 The four generic default v2 Prompts cover planning, relevance screening, summarization and evidence review. They use the current task's saved topic, research questions, language, dates and output requirements. When research questions are absent, screening follows the topic without inventing extra requirements. No fixed personal research topic is needed.
 
-Keep the global default for the first run. Manage versions on the Runtime Prompt page or choose a task override under advanced settings. v1 and custom versions remain available. Runs retain Prompt snapshots and actual model paths; changing a default does not rewrite history. Jev has independent decision questions, so inspect its routing audit when enabled. See the [Prompt system](docs/PROMPT_SYSTEM.md) and [v2 validation scope](docs/PROMPT_V2_VALIDATION.md).
+Keep the global default for the first run. Manage versions on the Runtime Prompt page or choose a task override under advanced settings. v1 and custom versions remain available. Runs retain Prompt snapshots and actual model paths; changing a default does not rewrite history. Jev receives the effective screening Prompt and task context while using independent decision questions, so inspect its routing audit when enabled. See the [Prompt system](docs/PROMPT_SYSTEM.md) and [v2 validation scope](docs/PROMPT_V2_VALIDATION.md).
 
 ## Understand results
 

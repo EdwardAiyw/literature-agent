@@ -69,6 +69,8 @@ Jev uses independent typed questions in `decisions.py`, not these prompt bodies.
 
 Unconfigured/failed screening models use explicit `engine=fallback`; keyword fallback candidates cannot enter live results. Empty live retrieval stays empty, with source diagnostics retained. Fixtures are used only in explicit fixture/offline mode. arXiv skips queries with no supported English keywords instead of substituting an unrelated generic `literature` query. None of these fallback paths counts as evidence of model quality.
 
+Screening now passes the actual resolved screening Prompt and task context to Jev as well as the ordinary model. Jev still returns its independent typed-question schema; this is not equivalent to ordinary-model Prompt execution. `paper-screen.v3` and deployment identity isolate cache entries. In Active mode only high-confidence `auto_apply` skips ordinary screening; Shadow and fallback still execute it. The cloud adapter's [2026-10-16 active gate failed](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md), so production retains Shadow and v2 ordinary-model decisions.
+
 ## Release and rollback
 
 `DEFAULT_PROMPT_VERSION` in `prompts.py` is the explicit release gate. It is now `v2` after recorded acceptance, registering both versions:

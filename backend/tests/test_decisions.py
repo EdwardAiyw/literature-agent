@@ -211,3 +211,23 @@ def test_localjev_connection_status_reports_unavailable_upstream(tmp_path, monke
     assert status["status"] == "unavailable"
     assert "upstream model is not loaded" in status["detail"]
     database.close()
+
+
+def test_screen_cache_tracks_prompt_task_and_deployment(tmp_path, monkeypatch):
+    database = Database(tmp_path / "cache-context.db")
+    calls = []
+    provider = JevDecisionProvider(Settings(root=tmp_path, jev_enabled=True,
+        jev_provider="typesafe_cloud", jev_api_key="test"), database,
+        client_factory=lambda: FakeClient(calls))
+    record = {"title": "Same paper"}
+    task = {"topic": "First topic", "research_questions": []}
+    provider.screen_paper("r", record, task, "prompt v1")
+    provider.screen_paper("r", record, task, "prompt v1")
+    provider.screen_paper("r", record, task, "prompt v2")
+    provider.screen_paper("r", record, {**task, "topic": "Other topic"}, "prompt v2")
+    monkeypatch.setenv("LITERATURE_AGENT_JEV_DEPLOYMENT", "cloud-v2")
+    provider.screen_paper("r", record, task, "prompt v2")
+    assert len(calls) == 4
+    assert calls[0]["state"]["screening_prompt"] == "prompt v1"
+    assert calls[0]["state"]["task"]["research_questions"] == []
+    database.close()

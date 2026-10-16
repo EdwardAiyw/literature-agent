@@ -6,6 +6,7 @@ backend/src/*.egg-info/
 backend/data/
 backend/logs/
 frontend/node_modules/
+deploy/localjev/node_modules/
 frontend/dist/
 frontend/.env
 frontend/.env.local

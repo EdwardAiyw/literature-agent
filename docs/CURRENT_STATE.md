@@ -112,7 +112,14 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Web subscription editing includes timing and enabled state, retains research settings and history, and supports manual server execution.
 - Deployment, migration, environment variables, data ownership and rollback are documented in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md). These changes are not in the immutable RC5 Windows installer.
 - Validation: 156 tests passed on Windows and in the Ubuntu runtime container, 29 Edge regressions passed, and GitHub CI passed. Staging verified restart persistence, model/SMTP connectivity without mail, and actual remote desktop/mobile subscription editing. See [server validation](SERVER_VALIDATION_2026-10-15.md).
-- Production cutover completed on 2026-10-16 (Asia/Hong_Kong): all 14 tables verified, desktop active run cancelled at user request, both desktop scheduled tasks disabled, server scheduling enabled and one fresh due subscription run started. Final search/email completion is pending; server is the authoritative task/configuration store.
+- Production cutover completed on 2026-10-16 (Asia/Hong_Kong): all 14 tables verified, desktop active run cancelled at user request, both desktop scheduled tasks disabled, server scheduling enabled and one fresh due subscription run started. The first server search completed with 50 papers; SMTP accepted its digest at 08:09 Asia/Hong_Kong. Inbox receipt is unverified. Server is the authoritative task/configuration store.
+
+## LocalJev cloud screening
+
+- Pinned lightweight LocalJev adapter supports authenticated internal Compose access to the existing DeepSeek cloud model. Effective screening Prompt/task and deployment identity participate in decisions/cache.
+- Bounded screening concurrency, progress counts and explicit ordinary-call skip audit are implemented; active high-confidence skips duplicate screening, low-confidence/error falls back.
+- Real 12-case comparison failed: ordinary 12/12 at 7.96 s, active 10/12 at 13.47 s, including two unrelated acceptances. Keep production Shadow mode; do not claim active screening acceptance. [Results](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md).
+- Verification: 159 backend tests, 20 LocalJev tests/typecheck, frontend build and five focused Edge checks passed.
 
 ## Not yet implemented
 

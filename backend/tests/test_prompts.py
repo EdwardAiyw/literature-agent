@@ -138,6 +138,7 @@ def test_graph_context_and_actual_jev_routing(database, tmp_path, monkeypatch, m
             self.mode = mode
 
         def screen_paper(self, *_):
+            captured["jev_screen"] = {"task": _[2], "prompt": _[3]}
             return {"relevance_score": .95, "priority": "P0", "relevance_reason": "jev reason", "recommended_action": "save",
                     "decision_confidence": .95, "auto_eligible": True, "route": route, "engine": "jev-test"}
 
@@ -151,7 +152,12 @@ def test_graph_context_and_actual_jev_routing(database, tmp_path, monkeypatch, m
     graph_module.build_graph(settings, database, database.resolve_prompts(task)).invoke({"task": task, "run_id": run["id"], "errors": []})
     assert database.get_run(run["id"])["status"] == "completed"
     assert database.get_run_artifact(run["id"], "result_manifest")["payload"]["errors"] == []
-    assert set(captured) == {prompt["role"] for prompt in V2_PROMPTS}
+    expected_roles = {prompt["role"] for prompt in V2_PROMPTS}
+    if mode != "off":
+        assert captured.pop("jev_screen")["prompt"] == next(p["body"] for p in V2_PROMPTS if p["role"] == "relevance_screener")
+    if mode == "active" and route == "auto_apply":
+        expected_roles.remove("relevance_screener")
+    assert set(captured) == expected_roles
     for payload in captured.values():
         assert payload["task"] == task
     paper = database.list_papers(run["id"])[0]

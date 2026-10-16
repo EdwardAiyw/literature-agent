@@ -2,6 +2,8 @@
 
 V2 separates orchestration (LangGraph), open-ended generation (OpenAI-compatible LLM), typed decisions (Jev), and deterministic execution. SQLite uses WAL; Alembic owns versioned schema upgrades; queued/running work is recovered by a bounded local worker after restart.
 
+When Jev is configured, screening uses at most `jev_max_inflight` workers, each with its own ordinary HTTP client. Active high-confidence `auto_apply` decisions skip ordinary screening; low-confidence/error decisions fall back, and Shadow always retains ordinary screening. Results are restored to candidate order before ranking. Every ten completions, fifteen elapsed seconds at a completion, or the last completion writes counts to `screening_progress` and an event. Audit records explicitly mark skipped ordinary calls. Jev receives the effective task and screening Prompt; `paper-screen.v3` caches include this context and `LITERATURE_AGENT_JEV_DEPLOYMENT`. Summary/evidence behavior is unchanged. Server LocalJev uses a separate internal authenticated cloud adapter; active promotion is withheld after the [failed real-model gate](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md).
+
 ```mermaid
 flowchart LR
   EXE[Windows launcher] --> API[FastAPI]

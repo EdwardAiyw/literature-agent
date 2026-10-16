@@ -13,3 +13,9 @@
 !deploy/
 !deploy/Dockerfile
 !LICENSE
+!deploy/localjev/
+!deploy/localjev/Dockerfile
+!deploy/localjev/package.json
+!deploy/localjev/LICENSE
+!deploy/localjev/src/
+!deploy/localjev/src/**

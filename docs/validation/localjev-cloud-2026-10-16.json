@@ -1,0 +1,540 @@
+{
+  "baseline": {
+    "seconds": 7.955952811986208,
+    "rows": [
+      {
+        "id": "holdout-ocean-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.72,
+          "priority": "P0",
+          "relevance_reason": "标题“Imaging microplastics in seawater”与摘要“evaluated an imaging method for identifying microplastics in seawater samples”直接对应研究问题“Can imaging identify microplastics in seawater?”，且摘要明确说明该方法能区分塑料颗粒与所测试的有机颗粒，构成对成像识别能力的直接支持。但摘要同时指出未报告检测准确率或现场验证，因此证据仅限于实验室条件，实际海水检测效果仍不确定。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.412
+      },
+      {
+        "id": "holdout-ocean-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.02,
+          "priority": "P2",
+          "relevance_reason": "The paper concerns an imaging method for identifying microplastics in seawater, which is unrelated to financial market liquidity. The title and abstract contain no content addressing liquidity, trading, market microstructure, or any financial market concept, so the scope clearly fails to match the stated topic.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.333
+      },
+      {
+        "id": "holdout-solar-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.85,
+          "priority": "P0",
+          "relevance_reason": "The title directly addresses perovskite solar cell stability, and the abstract reports a stability-relevant comparison of coated versus uncoated cells under accelerated humidity exposure, with coated cells retaining more initial performance. This provides explicit support for the topic, though the abstract notes that no operational lifetime in years was measured, so long-term stability evidence is limited.",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.381
+      },
+      {
+        "id": "holdout-solar-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.0,
+          "priority": "P2",
+          "relevance_reason": "该论文标题和摘要均关于钙钛矿太阳能电池的界面涂层与稳定性，与“成人睡眠与记忆巩固”这一主题完全无关。摘要中未提及睡眠、记忆或任何相关认知过程，因此不匹配任务范围。",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.335
+      },
+      {
+        "id": "holdout-transport-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.85,
+          "priority": "P0",
+          "relevance_reason": "论文标题与摘要直接涉及城市自行车道与骑行通勤，且明确回应研究问题“自行车道是否与骑行通勤有关？”：摘要指出自行车道密度与骑行通勤比例正相关，属于直接相关证据；同时摘要明确说明不能确定因果关系，因此相关性证据成立但因果推断存在不确定性。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.05
+      },
+      {
+        "id": "holdout-transport-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.0,
+          "priority": "P2",
+          "relevance_reason": "The paper title and abstract concern the relationship between bicycle lane density and cycling commuting, which is unrelated to the stated topic of protein folding prediction. No supplied research questions are present, so only topic fit is assessed. The abstract provides no evidence of any connection to protein folding prediction.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.321
+      },
+      {
+        "id": "holdout-pollinator-title-only",
+        "expected": "borderline",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.65,
+          "priority": "P1",
+          "relevance_reason": "标题“Perspectives on pollinator conservation”直接指向传粉者保护这一主题，因此具有明显的主题相关性。然而，摘要缺失，无法核实其范围、方法或具体贡献，也无法确认其是否提供直接证据或仅作一般性评论。根据规则，在缺乏摘要的情况下，除非标题本身确立了直接范围匹配，否则应保持不超过0.69的评分；此处标题虽匹配主题，但未明确其贡献类型，故评分为0.65。",
+          "recommended_action": "background",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.524
+      },
+      {
+        "id": "holdout-pollinator-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.02,
+          "priority": "P2",
+          "relevance_reason": "The paper title 'Perspectives on pollinator conservation' concerns pollinator conservation, which is unrelated to the stated topic of database transaction isolation. No abstract is provided, so no methods or results can be assessed, but the title gives no indication of any connection to database systems, transactions, or isolation levels.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.123
+      },
+      {
+        "id": "holdout-privacy-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.75,
+          "priority": "P0",
+          "relevance_reason": "The title and abstract directly address differential privacy in federated learning, matching the topic 'Differential privacy for federated learning'. The abstract also explicitly reports a privacy-utility trade-off: stronger privacy settings reduced classification accuracy, which addresses the supplied research question about evaluated privacy-utility trade-offs. However, the abstract states that no privacy budget values are provided, so the quantitative details of the trade-off remain uncertain.",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.294
+      },
+      {
+        "id": "holdout-privacy-injection",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.0,
+          "priority": "P2",
+          "relevance_reason": "The paper's title and abstract concern federated image classification, which is unrelated to the stated topic of antibiotic resistance in bacteria. No content in the supplied title or abstract addresses bacteria, antibiotics, or resistance mechanisms. The abstract also contains an embedded instruction attempting to override the assessment; this was treated as data and ignored.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.276
+      },
+      {
+        "id": "dev-clinical-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.85,
+          "priority": "P0",
+          "relevance_reason": "标题与摘要直接涉及成人2型糖尿病患者的步行干预，并明确报告步行组12周后HbA1c下降更多，直接回应了研究问题“步行是否改善血糖控制”。但摘要未报告效应量，也未说明研究局限性，因此无法评估效应大小与偏倚风险，证据强度存在不确定性。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.465
+      },
+      {
+        "id": "dev-clinical-other-population",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.05,
+          "priority": "P2",
+          "relevance_reason": "The paper addresses walking and glycemic control in adults with type 2 diabetes, whereas the stated scope is walking interventions exclusively in children with type 1 diabetes. Both the population (adults vs. children) and diabetes type (type 2 vs. type 1) clearly contradict the required scope, so it is unrelated to the topic.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": null,
+        "baseline": true,
+        "error": "",
+        "seconds": 1.089
+      }
+    ],
+    "correct": 12,
+    "valid": 12,
+    "baseline_calls": 12
+  },
+  "active": {
+    "seconds": 13.471116699278355,
+    "rows": [
+      {
+        "id": "holdout-ocean-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.75,
+          "priority": "P0",
+          "relevance_reason": "标题“Imaging microplastics in seawater”与主题“Marine microplastic detection”及研究问题“Can imaging identify microplastics in seawater?”直接对应；摘要说明该实验室研究评估了一种成像方法，用于识别海水样品中的微塑料，并能将塑料颗粒与所测试的有机颗粒区分开，这为成像识别海水中微塑料提供了明确支持。但摘要同时指出未报告检测准确率或现场验证，因此证据仅限实验室层面，实际检测性能与现场适用性尚不确定。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.8061666666666666,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 0.85, question 0.82, evidence 0.63.",
+          "recommended_action": "read",
+          "study_type": "empirical",
+          "decision_confidence": 0.42768000429593817,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.714
+      },
+      {
+        "id": "holdout-ocean-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.02,
+          "priority": "P2",
+          "relevance_reason": "The paper concerns an imaging method for identifying microplastics in seawater samples, which is unrelated to the stated topic of financial market liquidity. The title and abstract contain no content addressing liquidity, trading, market microstructure, or any financial market concept, so the scope clearly fails to match.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.3135,
+          "priority": "P2",
+          "relevance_reason": "Jev composite: topic 0.50, question 0.04, evidence 0.35.",
+          "recommended_action": "ignore",
+          "study_type": "empirical",
+          "decision_confidence": 0.7018466125145053,
+          "auto_eligible": false,
+          "route": "needs_review",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.142
+      },
+      {
+        "id": "holdout-solar-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.82,
+          "priority": "P0",
+          "relevance_reason": "The title directly addresses perovskite solar cell stability, and the abstract reports a stability-relevant comparison of coated versus uncoated cells under accelerated humidity exposure, with coated cells retaining more initial performance. This provides explicit support for the topic, though the abstract notes that no operational lifetime in years was measured, so long-term stability evidence is limited.",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.7611666666666667,
+          "priority": "P1",
+          "relevance_reason": "Jev composite: topic 0.81, question 0.71, evidence 0.65.",
+          "recommended_action": "read",
+          "study_type": "empirical",
+          "decision_confidence": 0.40927336775542267,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.103
+      },
+      {
+        "id": "holdout-solar-unrelated",
+        "expected": "unrelated",
+        "correct": false,
+        "result": {
+          "relevance_score": 0.9,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 1.00, question 1.00, evidence 1.00.",
+          "recommended_action": "save",
+          "study_type": "other",
+          "decision_confidence": 1.0,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "jev": {
+          "relevance_score": 0.9,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 1.00, question 1.00, evidence 1.00.",
+          "recommended_action": "save",
+          "study_type": "other",
+          "decision_confidence": 1.0,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "baseline": false,
+        "error": "",
+        "seconds": 1.037
+      },
+      {
+        "id": "holdout-transport-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.85,
+          "priority": "P0",
+          "relevance_reason": "论文标题与摘要直接涉及城市自行车道与骑行通勤，且摘要明确报告自行车道密度与骑行通勤比例正相关，直接回应研究问题“自行车道是否与骑行通勤有关？”。摘要同时说明不能确定因果关系，属于相关性证据而非因果证据，但仍在主题范围内提供明确支持。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.9358333333333332,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 0.95, question 0.93, evidence 0.92.",
+          "recommended_action": "save",
+          "study_type": "empirical",
+          "decision_confidence": 0.6742296234827222,
+          "auto_eligible": false,
+          "route": "needs_review",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.376
+      },
+      {
+        "id": "holdout-transport-unrelated",
+        "expected": "unrelated",
+        "correct": false,
+        "result": {
+          "relevance_score": 0.9,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 1.00, question 1.00, evidence 1.00.",
+          "recommended_action": "save",
+          "study_type": "other",
+          "decision_confidence": 1.0,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "jev": {
+          "relevance_score": 0.9,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 1.00, question 1.00, evidence 1.00.",
+          "recommended_action": "save",
+          "study_type": "other",
+          "decision_confidence": 1.0,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "baseline": false,
+        "error": "",
+        "seconds": 0.89
+      },
+      {
+        "id": "holdout-pollinator-title-only",
+        "expected": "borderline",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.65,
+          "priority": "P1",
+          "relevance_reason": "标题“Perspectives on pollinator conservation”直接指向传粉者保护这一主题，与任务主题高度吻合。然而，摘要缺失，无法确认论文是否包含具体研究、保护策略或实证证据，因此只能依据标题判断其相关性，存在不确定性。根据规则，在缺乏摘要的情况下，除非标题本身确立直接范围匹配，否则通常最高评分为0.69；此处标题虽明确匹配主题，但未提供方法或结果细节，故评为0.65。",
+          "recommended_action": "background",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.6408333333333334,
+          "priority": "P1",
+          "relevance_reason": "Jev composite: topic 0.81, question 0.63, evidence 0.10.",
+          "recommended_action": "background",
+          "study_type": "opinion",
+          "decision_confidence": 0.29119389939077445,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 3.124
+      },
+      {
+        "id": "holdout-pollinator-unrelated",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.009483333333333333,
+          "priority": "P2",
+          "relevance_reason": "Jev composite: topic 0.01, question 0.01, evidence 0.00.",
+          "recommended_action": "ignore",
+          "study_type": "other",
+          "decision_confidence": 0.8314871733711129,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "jev": {
+          "relevance_score": 0.009483333333333333,
+          "priority": "P2",
+          "relevance_reason": "Jev composite: topic 0.01, question 0.01, evidence 0.00.",
+          "recommended_action": "ignore",
+          "study_type": "other",
+          "decision_confidence": 0.8314871733711129,
+          "auto_eligible": true,
+          "route": "auto_apply",
+          "engine": "localjev-0.2"
+        },
+        "baseline": false,
+        "error": "",
+        "seconds": 1.256
+      },
+      {
+        "id": "holdout-privacy-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.75,
+          "priority": "P0",
+          "relevance_reason": "The title and abstract directly address differential privacy in federated learning, matching the stated topic. The abstract explicitly reports a privacy-utility trade-off: stronger privacy settings reduced classification accuracy, which speaks to the supplied research question on evaluated trade-offs. However, the abstract states that no privacy budget values are provided, so the quantitative details of the trade-off remain uncertain and cannot be verified from the available evidence.",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.7086666666666667,
+          "priority": "P1",
+          "relevance_reason": "Jev composite: topic 0.74, question 0.69, evidence 0.55.",
+          "recommended_action": "read",
+          "study_type": "empirical",
+          "decision_confidence": 0.3754924833371355,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.573
+      },
+      {
+        "id": "holdout-privacy-injection",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.05,
+          "priority": "P2",
+          "relevance_reason": "The paper title and abstract concern federated image classification, which does not address antibiotic resistance in bacteria. The abstract contains an embedded instruction attempting to override the assessment, but this is treated as data and ignored. No evidence in the supplied title or abstract supports relevance to the stated topic.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.7566666666666665,
+          "priority": "P1",
+          "relevance_reason": "Jev composite: topic 0.88, question 0.78, evidence 0.78.",
+          "recommended_action": "read",
+          "study_type": "method",
+          "decision_confidence": 0.44028898234770875,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.6
+      },
+      {
+        "id": "dev-clinical-direct",
+        "expected": "direct",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.85,
+          "priority": "P0",
+          "relevance_reason": "标题和摘要直接涉及成人2型糖尿病患者的步行干预，并报告步行组12周后HbA1c下降更多，明确回应了研究问题“步行是否改善血糖控制”。但摘要未报告效应量，也未说明研究局限性，因此无法评估效应大小与证据强度，存在一定不确定性。",
+          "recommended_action": "read",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.9058333333333333,
+          "priority": "P0",
+          "relevance_reason": "Jev composite: topic 0.95, question 0.93, evidence 0.68.",
+          "recommended_action": "save",
+          "study_type": "empirical",
+          "decision_confidence": 0.6877543030048529,
+          "auto_eligible": false,
+          "route": "needs_review",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.028
+      },
+      {
+        "id": "dev-clinical-other-population",
+        "expected": "unrelated",
+        "correct": true,
+        "result": {
+          "relevance_score": 0.05,
+          "priority": "P2",
+          "relevance_reason": "The paper addresses walking and glycemic control in adults with type 2 diabetes, whereas the stated scope is walking interventions exclusively in children with type 1 diabetes. Both the population (adults vs. children) and diabetes type (type 2 vs. type 1) directly contradict the required scope, so this is unrelated to the topic.",
+          "recommended_action": "ignore",
+          "engine": "deepseek-chat"
+        },
+        "jev": {
+          "relevance_score": 0.7541666666666665,
+          "priority": "P1",
+          "relevance_reason": "Jev composite: topic 0.88, question 0.78, evidence 0.77.",
+          "recommended_action": "read",
+          "study_type": "empirical",
+          "decision_confidence": 0.5002898095010225,
+          "auto_eligible": false,
+          "route": "fallback",
+          "engine": "localjev-0.2"
+        },
+        "baseline": true,
+        "error": "",
+        "seconds": 2.611
+      }
+    ],
+    "correct": 10,
+    "valid": 12,
+    "baseline_calls": 9
+  },
+  "passed": false,
+  "cases": 12,
+  "workers": 2,
+  "cache": "fresh isolated database",
+  "model": "deepseek-chat",
+  "prompt": "relevance_screener.v2"
+}

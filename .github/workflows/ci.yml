@@ -9,6 +9,20 @@ permissions:
   contents: read
 
 jobs:
+  localjev:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/localjev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+
   backend:
     runs-on: ubuntu-latest
     steps:

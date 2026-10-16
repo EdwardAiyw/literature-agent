@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 from datetime import date, datetime, timezone
 from typing import TypedDict
 
@@ -237,35 +238,67 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         jev_evaluated = 0
         jev_auto = 0
         prompt = prompt_for(prompts, "relevance_screener")["body"]
-        jev_results: dict[int, tuple[dict | None, Exception | None]] = {}
-        if decisions.configured and state.get("records"):
+        records = state.get("records", [])
+        counts = {"auto_applied": 0, "baseline_calls": 0, "fallback_count": 0}
+        last_progress = time.monotonic()
+
+        def assess(index, record):
+            decision, jev_error = None, None
+            if decisions.configured:
+                try:
+                    decision = decisions.screen_paper(state["run_id"], record, task, prompt)
+                except Exception as exc:
+                    jev_error = exc
+            route = decision.get("route") if decision else "fallback"
+            skip_baseline = bool(decision and decision.get("auto_eligible") and
+                                 not settings.jev_shadow_mode and route == "auto_apply")
+            baseline, baseline_error = {}, None
+            if not skip_baseline:
+                worker_provider = ModelProvider(settings.llm_base_url, settings.llm_api_key, settings.llm_model) if decisions.configured else provider
+                try:
+                    baseline = worker_provider.screen(record, task, prompt)
+                except Exception as exc:
+                    baseline = fallback_screen(record, task["topic"])
+                    baseline_error = exc
+                finally:
+                    if decisions.configured and getattr(worker_provider, "client", None) is not None:
+                        worker_provider.client.close()
+            return index, record, decision, jev_error, baseline, baseline_error, skip_baseline
+
+        def results():
+            if not decisions.configured:
+                for index, record in enumerate(records):
+                    yield assess(index, record)
+                return
             with ThreadPoolExecutor(max_workers=max(1, settings.jev_max_inflight)) as pool:
-                futures = {pool.submit(decisions.screen_paper, state["run_id"], record, task): index
-                           for index, record in enumerate(state.get("records", []))}
-                for future in as_completed(futures):
-                    index = futures[future]
-                    try:
-                        jev_results[index] = (future.result(), None)
-                    except Exception as exc:
-                        jev_results[index] = (None, exc)
-        for index, record in enumerate(state.get("records", [])):
-            jev_decision, jev_error = jev_results.get(index, (None, None))
-            if jev_decision:
-                jev_evaluated += 1
-                jev_auto += int(jev_decision["auto_eligible"])
+                source = iter(enumerate(records))
+                pending = set()
+                def enqueue():
+                    item = next(source, None)
+                    if item is not None:
+                        pending.add(pool.submit(assess, *item))
+                for _ in range(max(1, settings.jev_max_inflight)):
+                    enqueue()
+                while pending:
+                    done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        pending.remove(future)
+                        yield future.result()
+                        enqueue()
+
+        ordered = {}
+        for index, record, jev_decision, jev_error, baseline_decision, baseline_error, skipped in results():
+            jev_evaluated += int(jev_decision is not None)
+            jev_auto += int(bool(jev_decision and jev_decision["auto_eligible"]))
+            counts["auto_applied"] += int(skipped)
+            counts["baseline_calls"] += int(not skipped)
+            counts["fallback_count"] += int(decisions.configured and not settings.jev_shadow_mode and not skipped)
             if jev_error:
                 errors = errors_for({"errors": errors}, "jev_relevance_screener", jev_error)
-            try:
-                decision = provider.screen(record, task, prompt)
-            except Exception as exc:
-                decision = fallback_screen(record, task["topic"])
-                errors = errors_for({"errors": errors}, "relevance_screener", exc)
-            baseline_decision = dict(decision)
+            if baseline_error:
+                errors = errors_for({"errors": errors}, "relevance_screener", baseline_error)
             route = jev_decision.get("route") if jev_decision else "fallback"
-            if jev_decision and not settings.jev_shadow_mode and route == "auto_apply":
-                final_decision = dict(jev_decision)
-            else:
-                final_decision = dict(decision)
+            final_decision = dict(jev_decision if skipped else baseline_decision)
             if jev_decision:
                 final_decision["jev"] = {"mode": decisions.mode, "engine": jev_decision["engine"],
                     "relevance_score": jev_decision["relevance_score"],
@@ -275,7 +308,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                 final_decision["requires_human_review"] = route == "needs_review"
                 audit = database.latest_decision_call(state["run_id"], "relevance_screener", record.get("canonical_id", ""))
                 if audit:
-                    database.update_decision_call(audit["id"], baseline_outcome=baseline_decision,
+                    database.update_decision_call(audit["id"], baseline_outcome=({"skipped": True, "reason": "jev_auto_apply"} if skipped else baseline_decision),
                                                  final_outcome=final_decision, outcome=final_decision,
                                                  routing="shadow_only" if settings.jev_shadow_mode else route,
                                                  fallback_used=not settings.jev_shadow_mode and route != "auto_apply",
@@ -290,7 +323,14 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             record["screening"] = final_decision
             record["relevance_score"] = final_decision["relevance_score"]
             record["priority"] = final_decision["priority"]
-            screened.append(record)
+            ordered[index] = record
+            processed = len(ordered)
+            if processed % 10 == 0 or time.monotonic() - last_progress >= 15 or processed == len(records):
+                database.save_run_artifact(state["run_id"], "screening_progress", {"processed": processed, "total": len(records), **counts})
+                database.add_run_event(state["run_id"], "relevance_screener", "progress",
+                    f"Screened {processed}/{len(records)}; Jev applied {counts['auto_applied']}; baseline {counts['baseline_calls']}; fallback {counts['fallback_count']}")
+                last_progress = time.monotonic()
+        screened = [ordered[index] for index in sorted(ordered)]
         screened, diversity = select_diverse_records(
             screened, task["target_count"],
             require_model_screening=settings.live and task.get("sources") != ["fixture"],
@@ -302,7 +342,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
             4,
             {"top_titles": [record["title"] for record in screened[:3]], **diversity,
              "jev": {"configured": decisions.configured, "mode": decisions.mode,
-                     "evaluated_count": jev_evaluated, "auto_eligible_count": jev_auto}},
+                     "evaluated_count": jev_evaluated, "auto_eligible_count": jev_auto, **counts}},
         )
         return {"node": "relevance_screener", "records": screened, "errors": errors}
 

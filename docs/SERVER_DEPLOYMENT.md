@@ -35,6 +35,7 @@ npm ci
 npm run build
 cd ..
 docker build -f deploy/Dockerfile -t literature-agent:YOUR_COMMIT .
+docker build -f deploy/localjev/Dockerfile -t literature-localjev:YOUR_COMMIT .
 ```
 
 `.dockerignore` 使用白名单，只发送应用源码、迁移、构建后的网页和许可证；不发送 `.env`、密钥、数据库或测试输出。容器只运行一个 API 进程和一个后台工作线程。
@@ -44,11 +45,25 @@ docker build -f deploy/Dockerfile -t literature-agent:YOUR_COMMIT .
 ```sh
 install -d -m 700 -o 10001 -g 10001 /opt/literature-agent/data
 cd /opt/literature-agent
-printf 'LITERATURE_AGENT_IMAGE=literature-agent:YOUR_COMMIT\nLITERATURE_AGENT_SCHEDULER_PAUSED=true\n' > .env
+printf 'LITERATURE_AGENT_IMAGE=literature-agent:YOUR_COMMIT\nLOCALJEV_IMAGE=literature-localjev:YOUR_COMMIT\nLOCALJEV_DEPLOYMENT=YOUR_COMMIT-deepseek-chat\nLITERATURE_AGENT_SCHEDULER_PAUSED=true\n' > .env
 chmod 600 .env
+chmod 600 localjev.env
 docker compose -f compose.server.yaml up -d
 docker compose -f compose.server.yaml ps
 curl --fail http://127.0.0.1:18081/api/health
+```
+
+启动前先创建 `/opt/literature-agent/localjev.env`，权限 600，填入以下配置。`LOCALJEV_UPSTREAM_API_KEY` 是已有云端模型密钥；`LOCALJEV_API_KEY` 使用单独生成的内部密钥，并在应用网页的 Jev API Key 中填写相同值。不要提交真实文件。
+
+```env
+LOCALJEV_UPSTREAM=https://api.deepseek.com
+LOCALJEV_UPSTREAM_API_KEY=YOUR_CLOUD_MODEL_KEY
+LOCALJEV_UPSTREAM_MODEL=deepseek-chat
+LOCALJEV_API_KEY=YOUR_SEPARATE_INTERNAL_KEY
+LOCALJEV_OUTPUT_MODE=json_object
+LOCALJEV_TIMEOUT=45
+LOCALJEV_MALFORMED_RETRIES=1
+LOCALJEV_MAX_INFLIGHT=2
 ```
 
 首次保持调度暂停，在网页完成配置、导入并校验数据，确认没有待恢复的本机运行，再将 `.env` 中 `LITERATURE_AGENT_SCHEDULER_PAUSED` 改为 `false` 并再次 `up -d`。该变量只暂停新的每日调度，不阻止手动执行或启动恢复。
@@ -75,10 +90,14 @@ Compose 只发布 `127.0.0.1:18081`，使用 SSH 访问。应用没有多用户�
 | `LITERATURE_AGENT_BOOTSTRAP=/data/bootstrap.json` | 容器路径选择文件 |
 | `LITERATURE_AGENT_SCHEDULER_PAUSED=true` | 迁移或检修时暂停新每日任务 |
 | `LITERATURE_AGENT_IMAGE` | Compose 使用的固定镜像标签 |
+| `LOCALJEV_IMAGE` | 独立 LocalJev 固定镜像标签 |
+| `LOCALJEV_DEPLOYMENT` | 传给应用的 `LITERATURE_AGENT_JEV_DEPLOYMENT`，隔离决策缓存版本 |
 
 Linux 服务器密钥库是受文件权限保护的明文 JSON，不是 Windows 凭据库加密；备份与 SSH 账号同样需要保护。设置接口仅返回密钥是否已配置。数据目录应由单个 API 实例写配置，不支持多个 API 副本并行修改密钥。
 
-Jev 默认关闭；启用前需确保配置的服务能从容器访问。Windows 上的 `127.0.0.1` 地址不会自动指向原电脑。
+Jev 默认关闭。服务器配置使用 `http://localjev:8080`、`localjev-latest` 和独立内部密钥；先启用影子模式并执行网页连接测试。LocalJev 没有宿主机端口，128 MiB 内存限额，使用现有模型的云端 API。健康检查只检查服务进程；网页 `/api/jev/status` 另检查上游就绪和带鉴权模型列表。Windows 上的 `127.0.0.1` 地址不会自动指向原电脑。
+
+2026-10-16 的主动筛选质量/耗时门槛未通过，生产保留影子模式。阈值 0.82 本身不能保证正确。复验可运行 `python scripts/evaluate-jev-screening.py --output output/task-subscription/jev-evaluation.json`：它读取有效模型配置，使用独立临时库和固定案例，不发邮件或写 Zotero，但会产生云端调用费用。详见 [验收记录](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md)。
 
 ## 运维、更新与回退
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import statistics
 import time
 from contextlib import AbstractContextManager
@@ -15,7 +16,7 @@ from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
 from .config import Settings
 from .db import Database
 
-SCREEN_SCHEMA_VERSION = "paper-screen.v2"
+SCREEN_SCHEMA_VERSION = "paper-screen.v3"
 EVIDENCE_SCHEMA_VERSION = "evidence-check.v2"
 LOCALJEV_DEFAULT_URL = "http://127.0.0.1:8080"
 LOCALJEV_MODEL_ALIASES = {"localjev-0.2", "localjev-latest", "jev-latest", "jev-preview"}
@@ -209,6 +210,7 @@ class JevDecisionProvider:
         state_hash = _hash(state)
         question_payload = self._question_payload(questions)
         cache_key = _hash({"provider": self.provider, "base_url": self.settings.jev_base_url,
+                           "deployment": os.getenv("LITERATURE_AGENT_JEV_DEPLOYMENT", ""),
                            "model": self.settings.jev_model, "schema": schema_version,
                            "state": state, "questions": question_payload})
         cached = self.database.get_decision_cache(cache_key)
@@ -279,14 +281,15 @@ class JevDecisionProvider:
             "attempt_count": envelope.get("attempt_count", 1), "validation_error": envelope.get("validation_error", ""),
         })
 
-    def screen_paper(self, run_id: str, record: dict, task: dict) -> dict:
+    def screen_paper(self, run_id: str, record: dict, task: dict, prompt: str = "") -> dict:
         subject = str(record.get("canonical_id") or record.get("source_id") or _hash(record.get("title", "")))
-        state = {"task": {"topic": task.get("topic", ""), "research_questions": task.get("research_questions", [])},
+        state = {"screening_prompt": prompt, "task": {key: task.get(key, [] if key == "research_questions" else "")
+                 for key in ("topic", "research_questions", "language", "output_language", "date_from", "date_to", "sources")},
                  "paper": {key: record.get(key, "") for key in ("title", "abstract", "published_date", "source", "venue")}}
         questions = {
             "topic_fit": Score(instructions="How directly does the paper address the task topic?",
                                criteria=["Unrelated", "Peripheral", "Directly relevant", "Central evidence"]),
-            "question_fit": Score(instructions="How well can it answer a task research question?",
+            "question_fit": Score(instructions="How well can it answer an explicitly supplied research question? If none are supplied, assess topic fit; do not invent a question.",
                                   criteria=["Cannot help", "Weak context", "Useful evidence", "Direct answer"]),
             "evidence": Score(instructions="How much usable evidence is in the title and abstract?",
                               criteria=["Insufficient", "Broad only", "Method or findings", "Substantially complete"]),

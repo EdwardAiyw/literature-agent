@@ -4,13 +4,29 @@ Literature Agent 将 [githubnext/localjev](https://github.com/githubnext/localje
 
 ## 服务边界
 
-默认链路：
+Windows 本地链路：
 
 ```text
 Literature Agent :8001 -> LocalJev :8080 -> OpenAI-compatible model server :8000
 ```
 
 LocalJev 仓库默认推荐 DiffusionGemma 上游，但 oMLX 只适用于 Apple Silicon。当前 Windows 机器使用 `node-llama-cpp` Vulkan 后端和 Qwen2.5 3B Instruct Q4_K_M，提供 LocalJev 所需的 OpenAI Chat Completions 与 JSON Schema 约束。它返回的是模型自报并归一化的概率，不等同于直接读取模型 logits；在 Active 模式使用阈值前，应先通过 Shadow 数据检查校准情况。
+
+## Linux 服务器与云端模型
+
+服务器使用独立的轻量 LocalJev 容器，上游为已有 DeepSeek 云端 API，无需加载本地大模型：
+
+```text
+app -> http://localjev:8080 -> DeepSeek cloud API
+```
+
+Compose 内部地址为 `http://localjev:8080`；模型别名使用 `localjev-latest`，不能填写云端模型名或 `jev-1.13.0`。云端实际模型在 `/ready` 和网页连接检查中显示。服务只在容器网络开放，使用独立 API Key。安装、密钥文件和构建命令见 [服务器部署](SERVER_DEPLOYMENT.md)。
+
+固定源码及 MIT 许可证在 [`deploy/localjev`](../deploy/localjev/PROVENANCE.md)。适配器显式配置 `LOCALJEV_OUTPUT_MODE=json_object`，把结构约束放进系统提示词，继续执行本地校验，最多一次格式修复；支持严格 JSON Schema 的本地上游可保留 `json_schema`。云端请求超时 45 秒、上游并发 2，容器限额 128 MiB。
+
+2026-10-16 的真实筛选对比未通过主动模式门槛：普通模型 12/12、7.96 秒；主动路径 10/12、13.47 秒，误收两篇无关论文。服务器应保持 Shadow；不能因连接成功就开启主动采用。详见 [验收记录](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md)。
+
+筛选会把当次任务和实际生效的 Prompt 传给 Jev。Active 高置信度可跳过普通模型；低置信度或异常走普通模型；Shadow 保留两条路径。缓存包含任务、Prompt、模型、URL、schema 和 `LITERATURE_AGENT_JEV_DEPLOYMENT`。更换云端模型、适配器或决策规则时，应修改部署标识以失效旧缓存。进度事件及 `screening_progress` artifact 记录处理数量、主动采用、普通调用和回退数量；审计明确记录被跳过的普通调用。
 
 ## 当前安装
 

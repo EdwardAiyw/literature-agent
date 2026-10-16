@@ -11,6 +11,7 @@ services:
       LITERATURE_AGENT_DATA_DIR: /data
       LITERATURE_AGENT_BOOTSTRAP: /data/bootstrap.json
       LITERATURE_AGENT_SCHEDULER_PAUSED: ${LITERATURE_AGENT_SCHEDULER_PAUSED:-false}
+      LITERATURE_AGENT_JEV_DEPLOYMENT: ${LOCALJEV_DEPLOYMENT:-cloud-v1}
     volumes:
       - /opt/literature-agent/data:/data
     read_only: true
@@ -27,3 +28,27 @@ services:
       options:
         max-size: 10m
         max-file: "3"
+  localjev:
+    image: ${LOCALJEV_IMAGE:?Set the immutable LocalJev image tag}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - /opt/literature-agent/localjev.env
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:8080/health');process.exit(r.ok?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
