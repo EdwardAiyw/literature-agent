@@ -58,7 +58,7 @@ curl --fail http://127.0.0.1:18081/api/health
 ```env
 LOCALJEV_UPSTREAM=https://api.deepseek.com
 LOCALJEV_UPSTREAM_API_KEY=YOUR_CLOUD_MODEL_KEY
-LOCALJEV_UPSTREAM_MODEL=deepseek-chat
+LOCALJEV_UPSTREAM_MODEL=deepseek-flash
 LOCALJEV_API_KEY=YOUR_SEPARATE_INTERNAL_KEY
 LOCALJEV_OUTPUT_MODE=json_object
 LOCALJEV_TIMEOUT=45
@@ -95,7 +95,7 @@ Compose 只发布 `127.0.0.1:18081`，使用 SSH 访问。应用没有多用户�
 
 Linux 服务器密钥库是受文件权限保护的明文 JSON，不是 Windows 凭据库加密；备份与 SSH 账号同样需要保护。设置接口仅返回密钥是否已配置。数据目录应由单个 API 实例写配置，不支持多个 API 副本并行修改密钥。
 
-Jev 默认关闭。服务器配置使用 `http://localjev:8080`、`localjev-latest` 和独立内部密钥；先启用影子模式并执行网页连接测试。LocalJev 没有宿主机端口，128 MiB 内存限额，使用现有模型的云端 API。健康检查只检查服务进程；网页 `/api/jev/status` 另检查上游就绪和带鉴权模型列表。Windows 上的 `127.0.0.1` 地址不会自动指向原电脑。
+Jev 默认关闭。服务器配置使用 `http://localjev:8080`、`localjev-latest` 和独立内部密钥；先启用影子模式并执行网页连接测试。LocalJev 没有宿主机端口，128 MiB 内存限额，使用现有模型的云端 API。健康检查只检查服务进程；网页 `/api/jev/status` 另检查上游就绪和带鉴权模型列表。上游模型名必须出现在云端 `/models` 中；本次实测 `deepseek-chat` 请求实际解析为 `deepseek-flash`，所以适配器使用正式名称。其他账号应先核实自己的模型列表和推理响应，不能照抄不可用名称。Windows 上的 `127.0.0.1` 地址不会自动指向原电脑。
 
 2026-10-16 的主动筛选质量/耗时门槛未通过，生产保留影子模式。阈值 0.82 本身不能保证正确。复验可运行 `python scripts/evaluate-jev-screening.py --output output/task-subscription/jev-evaluation.json`：它读取有效模型配置，使用独立临时库和固定案例，不发邮件或写 Zotero，但会产生云端调用费用。详见 [验收记录](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md)。
 

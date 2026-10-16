@@ -20,7 +20,7 @@ LocalJev 仓库默认推荐 DiffusionGemma 上游，但 oMLX 只适用于 Apple 
 app -> http://localjev:8080 -> DeepSeek cloud API
 ```
 
-Compose 内部地址为 `http://localjev:8080`；模型别名使用 `localjev-latest`，不能填写云端模型名或 `jev-1.13.0`。云端实际模型在 `/ready` 和网页连接检查中显示。服务只在容器网络开放，使用独立 API Key。安装、密钥文件和构建命令见 [服务器部署](SERVER_DEPLOYMENT.md)。
+Compose 内部地址为 `http://localjev:8080`；模型别名使用 `localjev-latest`，不能填写云端模型名或 `jev-1.13.0`。云端实际模型在 `/ready` 和网页连接检查中显示。云端已验证旧别名 `deepseek-chat` 实际解析为 `deepseek-flash`，适配器使用 `/models` 列出的正式名称，避免就绪检查误报。服务只在容器网络开放，使用独立 API Key。安装、密钥文件和构建命令见 [服务器部署](SERVER_DEPLOYMENT.md)。
 
 固定源码及 MIT 许可证在 [`deploy/localjev`](../deploy/localjev/PROVENANCE.md)。适配器显式配置 `LOCALJEV_OUTPUT_MODE=json_object`，把结构约束放进系统提示词，继续执行本地校验，最多一次格式修复；支持严格 JSON Schema 的本地上游可保留 `json_schema`。云端请求超时 45 秒、上游并发 2，容器限额 128 MiB。
 

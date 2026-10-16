@@ -30,8 +30,16 @@ The command makes paid model requests, reads current settings, writes only its r
 - 159 backend tests passed, including bounded concurrency, stable processing order, progress counts, active skip, shadow baseline, low-confidence/error fallback, audit skip markers and Prompt/task/deployment cache invalidation.
 - Vendored LocalJev: typecheck and 20 tests passed, including JSON Object schema instructions, validation and one bounded repair.
 - Production frontend build and five focused Edge browser checks passed.
-- Isolated server LocalJev readiness and authenticated model listing passed; unauthenticated model listing returned HTTP 401. Idle memory was about 10 MiB within the 128 MiB limit.
+- Isolated server authenticated model listing passed; unauthenticated model listing returned HTTP 403. Idle memory was about 10 MiB within the 128 MiB limit. The initial readiness check failed because the cloud catalog omitted the working legacy alias; canonical-model validation below resolved it.
 
 The existing production run completed with 50 papers and its digest was accepted by SMTP at 08:09 Asia/Hong_Kong. This proves server acceptance, not inbox receipt. It used the ordinary model path captured before Jev was enabled. It was not interrupted, restarted or mailed again.
 
-Server application cutover and the final real-model Shadow workflow are recorded after deployment below.
+## Deployed server follow-up
+
+- Runtime images: `literature-agent:9ab4b74` and `literature-localjev:9ab4b74`. The follow-up lockfile/documentation commit does not alter runtime source. RC5 Windows release tags/assets remain unchanged.
+- Cloud `/models` listed `deepseek-flash` and `deepseek-v4-pro`; a real `deepseek-chat` completion resolved to `deepseek-flash`. Configured LocalJev with that canonical name while retaining the ordinary model's existing alias. `/api/jev/status` now reports `ready`, with the actual upstream model visible.
+- Paused scheduling, verified no active runs, stopped the application and backed up SQLite plus settings, secrets and deployment configuration before replacement. All 14 database tables matched their pre-update content after deployment. Existing 07:00 Asia/Hong_Kong schedule and history were retained.
+- Executed an isolated real-model workflow with the saved task and one real retrieved paper: completed with one paper, two `shadow_observed` decisions, ordinary-model screening/evidence results, no errors, and progress `1/1`. This called real planning, screening, summary and evidence models; retrieval was constrained to that supplied paper. It sent no mail and made no Zotero writes.
+- Both containers were healthy, with zero OOMs and restarts. Added a dedicated project-owned 2 GiB swap file when existing swap was full; preserved the original swap. Docker boot startup is enabled.
+- Restored daily scheduling and removed the temporary LocalJev staging container. Ordinary decisions remain authoritative. No duplicate production run or digest was created.
+- Bun 1.3.5 initially rejected the inherited version-2 lockfile. The version-1 lockfile passed frozen installation, typecheck and all 20 tests in the actual pinned Linux Bun image.

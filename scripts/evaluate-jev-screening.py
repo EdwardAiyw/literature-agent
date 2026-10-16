@@ -32,11 +32,14 @@ def compare(settings: Settings, cases: list[dict], workers: int = 2) -> dict:
 
         def evaluate(case: dict, active: bool) -> dict:
             started = time.perf_counter()
-            decision, baseline, output, error, correct = None, False, {}, "", False
+            decision, baseline, output, error, jev_error, correct = None, False, {}, "", "", False
             try:
                 if active:
-                    decision = decisions.screen_paper("validation", {"canonical_id": case["id"],
-                        **case["paper"]}, case["task"], prompt)
+                    try:
+                        decision = decisions.screen_paper("validation", {"canonical_id": case["id"],
+                            **case["paper"]}, case["task"], prompt)
+                    except Exception as exc:
+                        jev_error = type(exc).__name__
                 if decision and decision.get("auto_eligible") and decision.get("route") == "auto_apply":
                     output = decision
                 else:
@@ -55,7 +58,7 @@ def compare(settings: Settings, cases: list[dict], workers: int = 2) -> dict:
                 # Do not serialize authenticated URLs, headers or upstream bodies.
                 error = type(exc).__name__
             return {"id": case["id"], "expected": case["expected"], "correct": correct,
-                    "result": output, "jev": decision, "baseline": baseline, "error": error,
+                    "result": output, "jev": decision, "baseline": baseline, "error": error, "jev_error": jev_error,
                     "seconds": round(time.perf_counter() - started, 3)}
 
         report = {"cases": len(cases), "workers": workers, "cache": "fresh isolated database",
@@ -69,7 +72,7 @@ def compare(settings: Settings, cases: list[dict], workers: int = 2) -> dict:
                     "correct": sum(r["correct"] for r in rows), "valid": sum(not r["error"] for r in rows),
                     "baseline_calls": sum(r["baseline"] for r in rows)}
             active, baseline = report["active"], report["baseline"]
-            report["passed"] = (active["correct"] / len(cases) >= .9 and active["valid"] == len(cases)
+            report["passed"] = (active["correct"] / len(cases) >= .9 and active["valid"] == baseline["valid"] == len(cases)
                 and active["baseline_calls"] < len(cases) and active["seconds"] < baseline["seconds"]
                 and all(r["correct"] for r in active["rows"] if r["expected"] == "unrelated"))
             return report

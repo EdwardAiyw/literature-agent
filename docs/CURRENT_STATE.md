@@ -119,7 +119,8 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Pinned lightweight LocalJev adapter supports authenticated internal Compose access to the existing DeepSeek cloud model. Effective screening Prompt/task and deployment identity participate in decisions/cache.
 - Bounded screening concurrency, progress counts and explicit ordinary-call skip audit are implemented; active high-confidence skips duplicate screening, low-confidence/error falls back.
 - Real 12-case comparison failed: ordinary 12/12 at 7.96 s, active 10/12 at 13.47 s, including two unrelated acceptances. Keep production Shadow mode; do not claim active screening acceptance. [Results](LOCALJEV_CLOUD_VALIDATION_2026-10-16.md).
-- Verification: 159 backend tests, 20 LocalJev tests/typecheck, frontend build and five focused Edge checks passed.
+- Server runtime `9ab4b74` is deployed in Shadow mode; internal LocalJev reports ready using canonical `deepseek-flash` (the existing ordinary `deepseek-chat` alias resolves to it). Real isolated workflow completed with one paper and two Shadow decisions; all 14 production tables matched the backup and daily scheduling resumed.
+- Verification: 159 backend tests, 20 LocalJev tests/typecheck on pinned Linux Bun 1.3.5, frontend build and five focused Edge checks passed.
 
 ## Not yet implemented
 
