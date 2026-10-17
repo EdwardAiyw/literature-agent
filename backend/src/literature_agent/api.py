@@ -119,7 +119,10 @@ def update_task(task_id: str, patch: TaskUpdate):
     if blockers["active_runs"]:
         raise HTTPException(409, "Task cannot be edited while a run is queued, running, or paused")
     values = {**current, **patch.model_dump(exclude_none=True)}
-    validated = TaskCreate.model_validate(values).model_dump()
+    try:
+        validated = TaskCreate.model_validate(values).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(422, str(exc)) from exc
     _validate_prompt_overrides(validated["prompt_overrides"])
     _validate_zotero_target(validated)
     return database.update_task(task_id, validated)
@@ -245,7 +248,10 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
     values.pop("task_id", None)
     values.pop("created_at", None)
     values.pop("updated_at", None)
-    validated = SubscriptionCreate.model_validate(values).model_dump()
+    try:
+        validated = SubscriptionCreate.model_validate(values).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(422, str(exc)) from exc
     _validate_prompt_overrides(validated["prompt_overrides"])
     _validate_zotero_target(validated)
     updated = database.update_subscription(subscription_id, validated)

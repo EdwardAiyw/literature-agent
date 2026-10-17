@@ -148,9 +148,11 @@ def test_api_target_preservation_download_and_pending_maintenance(setup, monkeyp
     monkeypatch.setattr(ZoteroClient, "_collection", lambda _: "TARGET01")
     # No lifespan: this test inspects a queued batch before worker execution.
     with TestClient(api.app) as client:
+        assert client.patch(f"/api/tasks/{task['id']}", json={"zotero_collection_key": ""}).status_code == 422
         subscription = client.post(f"/api/tasks/{task['id']}/subscription", json={"recipient": "reader@example.org", "schedule_time": "07:00"}).json()
         assert subscription["zotero_collection_key"] == "TARGET01"
         assert subscription["zotero_auto_import"] is True
+        assert client.patch(f"/api/subscriptions/{subscription['id']}", json={"zotero_collection_key": ""}).status_code == 422
         content = client.get(f"/api/runs/{run['id']}/zotero-identifiers")
         assert content.text == "10.1234/same\n"
         assert content.headers["X-Missing-Identifier-Count"] == "0"
