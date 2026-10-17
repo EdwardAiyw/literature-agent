@@ -555,6 +555,7 @@ def _public_settings() -> dict:
         "license": "AGPL-3.0-only",
         "source_url": "https://github.com/EdwardAiyw/literature-agent",
         "live": settings.live,
+        "journal_metrics_auto": settings.journal_metrics_auto,
         "zotero_library_id": settings.zotero_library_id,
         "zotero_library_type": settings.zotero_library_type,
         "zotero_collection_key": settings.zotero_collection_key,

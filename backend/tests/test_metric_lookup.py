@@ -275,7 +275,10 @@ def test_auto_setting_persists_and_api_preserves_import_interfaces(tmp_path, mon
     monkeypatch.setattr(api, "settings", manager.get())
     with TestClient(api.app) as client:
         assert client.get('/api/journal-metrics').json()['auto_enabled'] is True
-        assert client.put('/api/settings/journal_metrics', json={'journal_metrics_auto': False}).status_code == 200
+        response = client.put('/api/settings/journal_metrics', json={'journal_metrics_auto': False})
+        assert response.status_code == 200
+        assert response.json()['journal_metrics_auto'] is False
+        assert client.get('/api/settings').json()['journal_metrics_auto'] is False
         assert client.get('/api/journal-metrics').json()['auto_enabled'] is False
         assert ConfigManager(base, store).get().journal_metrics_auto is False
         assert client.put('/api/settings/journal_metrics', json={'llm_model': 'wrong-section'}).status_code == 422
