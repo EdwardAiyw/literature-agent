@@ -55,6 +55,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Source runtime adds opt-in exact-collection task/subscription imports, destination snapshots, shared batch DOI indexes, durable per-paper progress and failure retry without retrieval/mail. Worker restart resumes unfinished batches.
 - Daily digests attach UTF-8 identifier TXT when reliable IDs exist; the workbench exports the same identifiers for existing runs. No invented identifiers or PDF attachments.
 - Defaults remain off; task conversion preserves settings. Global credentials stay shared. Existing Windows RC5 assets remain immutable. See [Zotero configuration and APIs](ZOTERO.md).
+- Server updated to `b131145`; approved daily task targets Daily Digest. Oct17 backfill processed 50 records (47 new, 3 existing, 0 failed), confirmed 48 unique remote items in the target collection. No retrieval/mail repeated; 07:00 Asia/Hong_Kong and LocalJev Shadow retained. CI passed 182 backend tests; Edge full suite passed 30. See [validation](ZOTERO_VALIDATION_2026-10-17.md).
 
 ## Zotero source-runtime integration (updated 2026-10-15)
 

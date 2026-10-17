@@ -45,6 +45,8 @@ Windows API Key 保存在当前用户的凭据管理器；服务器保存在权�
 
 批次存储于既有 `run_artifacts`，节点名为 `zotero_batch.<destination hash>`，自动目标快照为 `zotero_target`；无需新增表或修改历史运行。`zotero_imports` 继续按论文及目标记录逐篇状态。
 
+2026-10-17 已通过 182 项后端 CI 测试、30 项 Edge 全量回归及真实服务器集合归属验收；详见 [本次验证记录](ZOTERO_VALIDATION_2026-10-17.md)。
+
 ## 导入
 
 在工作台的论文行点击“导入 Zotero”。导入仅传输该论文现有的标题、作者、摘要、日期、DOI、链接和来源标签。
