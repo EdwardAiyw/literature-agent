@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add user-imported JCR JIF data with validated ISSN/year, atomic CSV imports, provenance, latest-year matching and explicit missing/inapplicable states in the workbench/digest. New Zotero journal items include journal/ISSN and available JIF provenance; existing user metadata and identifier TXT stay intact. No live JCR provider or model-estimated factors are introduced.
+- Automatically enrich selected papers with DOI journal metadata and explicitly published publisher JIF/year/source before digest creation and automatic Zotero import. Add bounded public HTTPS lookup, shared caches, a settings toggle and run diagnostics; preserve delivery on lookup failure and user-imported metrics on same-year conflicts. Validate three real Frontiers journals; other publishers may block access or lack supported formats. Retain atomic JCR CSV imports, existing Zotero metadata and identifier-only TXT. No model-estimated factors or substitute citation metrics.
 
 - Add task/subscription-specific opt-in Zotero import into exact existing collections, read-only collection selection, durable destination snapshots, batch progress/retry and restart recovery independent of retrieval/mail.
 - Share one remote DOI index per batch attempt, preserve existing metadata/collections, verify target membership and block deletion/database replacement while import work is pending.

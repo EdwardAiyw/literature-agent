@@ -26,7 +26,7 @@ test("imported JIF refreshes completed papers with year/source and keeps preprin
     return route.fulfill({ json: { imported: 1, records: 1 } });
   });
   await page.goto("/");
-  await expect(page.getByText("期刊影响因子：未提供", { exact: false })).toBeVisible();
+  await expect(page.getByText("期刊影响因子：暂未查到", { exact: false })).toBeVisible();
   await expect(page.getByText("期刊影响因子：不适用", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(page.getByText("期刊影响因子（JIF）", { exact: true })).toBeVisible();
@@ -41,4 +41,38 @@ test("imported JIF refreshes completed papers with year/source and keeps preprin
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("journal-metrics-mobile.png"), fullPage: true });
+});
+
+test("automatic JIF shows publisher provenance and settings toggle persists", async ({ page }) => {
+  let enabled = true;
+  const task = { id: "auto-jif", name: "Automatic JIF", topic: "AI", sources: ["crossref"], target_count: 1, research_questions: [], prompt_overrides: {}, created_at: new Date().toISOString() };
+  const run = { id: "auto-run", task_id: task.id, status: "completed", paper_count: 1, progress: 6, total_steps: 6 };
+  await page.route("**/api/onboarding", (route) => route.fulfill({ json: { complete: true, steps: {} } }));
+  await page.route("**/api/tasks", (route) => route.fulfill({ json: [task] }));
+  await page.route("**/api/tasks/auto-jif/runs*", (route) => route.fulfill({ json: [run] }));
+  await page.route("**/api/runs/auto-run", (route) => route.fulfill({ json: run }));
+  await page.route("**/api/runs/auto-run/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/papers")) return route.fulfill({ json: [{ id: "auto-paper", title: "Fixture paper", authors: [], source: "crossref", venue: "Fixture Journal", venue_type: "journal", journal_metric_status: "matched", journal_metric: { journal: "Fixture Journal", year: 2025, jif: "1.2", source: "Publisher fixture", source_kind: "publisher", source_url: "https://www.frontiersin.org/about/impact", fetched_at: "2026-10-17T01:00:00Z" }, relevance_score: .9, summary: {}, review: "save" }] });
+    if (path.endsWith("/artifacts")) return route.fulfill({ json: [{ node: "journal_metrics", payload: { enabled: true, matched: 1, not_applicable: 0, lookup_failed: 0 } }] });
+    return route.fulfill({ json: path.endsWith("/summary") ? { total: 0 } : [] });
+  });
+  await page.route("**/api/journal-metrics", (route) => route.fulfill({ json: { records: 1, latest_year: 2025, auto_enabled: enabled, cached_journals: 1, matched_journals: 1 } }));
+  await page.route("**/api/settings/journal_metrics", (route) => {
+    expect(route.request().method()).toBe("PUT");
+    enabled = route.request().postDataJSON().journal_metrics_auto;
+    return route.fulfill({ json: { journal_metrics_auto: enabled } });
+  });
+  await page.goto("/");
+  await expect(page.locator(".journal-metric").filter({ hasText: "期刊/出版物" })).toContainText("官网公布");
+  await expect(page.getByRole("link", { name: "来源链接", exact: true })).toHaveAttribute("href", "https://www.frontiersin.org/about/impact");
+  await expect(page.getByText("已匹配 1 篇", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  const toggle = page.getByRole("checkbox", { name: "自动获取影响因子", exact: true });
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(page.getByText("已关闭自动查询", { exact: false })).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await expect(page.getByText("已开启：下次运行", { exact: false })).toBeVisible();
 });

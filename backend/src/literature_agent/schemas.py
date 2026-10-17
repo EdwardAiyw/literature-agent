@@ -477,6 +477,7 @@ class PaperRead(BaseModel):
     venue_type: str = ""
     issns: list[str] = Field(default_factory=list)
     journal_metric: dict | None = None
+    journal_metric_status: str = "not_found"
     official_url: str = ""
     open_access_url: str = ""
     relevance_score: float = 0.0
@@ -498,6 +499,7 @@ class JournalMetricsImport(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    journal_metrics_auto: bool | None = None
     zotero_library_id: str | None = Field(default=None, pattern=r"^$|^[1-9][0-9]*$", max_length=30)
     zotero_library_type: Literal["user", "group"] | None = None
     zotero_api_key: str | None = Field(default=None, max_length=4000)

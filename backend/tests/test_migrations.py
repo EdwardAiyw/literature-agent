@@ -15,7 +15,7 @@ def test_empty_database_upgrade_is_repeatable_and_has_v2_schema(tmp_path):
     assert "fallback_reason" in columns
     assert {"provider", "probability_kind", "routing", "baseline_outcome", "final_outcome",
             "probabilities", "attempt_count", "validation_error"} <= columns
-    assert database.connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "20261017_0004"
+    assert database.connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "20261017_0005"
     assert database.connection.execute("SELECT COUNT(*) FROM zotero_imports").fetchone()[0] == 0
     assert database.journal_metrics_status()["records"] == 0
     database.close()

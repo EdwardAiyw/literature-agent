@@ -384,31 +384,62 @@ class Database:
         rows = self.connection.execute("SELECT * FROM papers WHERE run_id = ? ORDER BY json_extract(payload, '$.relevance_score') DESC", (run_id,)).fetchall()
         return [self.with_journal_metric({**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]}) for row in rows]
 
-    def import_journal_metrics(self, records: list[dict]) -> int:
+    def import_journal_metrics(self, records: list[dict], automatic: bool = False) -> int:
         with self.connection:
-            self.connection.executemany(
-                """INSERT INTO journal_metrics VALUES (?, ?, ?, ?)
-                ON CONFLICT(issn, year) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at""",
-                [(r["issn"], r["year"], json.dumps(r, ensure_ascii=False), now()) for r in records],
-            )
+            for record in records:
+                self.connection.execute(
+                    """INSERT INTO journal_metrics VALUES (?, ?, ?, ?)
+                    ON CONFLICT(issn, year) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at
+                    WHERE ?=0 OR json_extract(journal_metrics.payload, '$.source_kind')='publisher'""",
+                    (record["issn"], record["year"], json.dumps(record, ensure_ascii=False), now(), int(automatic)),
+                )
         return len(records)
 
     def journal_metrics_status(self) -> dict:
         row = self.connection.execute("SELECT count(*) AS records, max(year) AS latest_year, max(updated_at) AS updated_at FROM journal_metrics").fetchone()
-        return dict(row)
+        lookup = self.connection.execute("SELECT count(*) AS journals, sum(CASE WHEN json_extract(payload, '$.status')='matched' THEN 1 ELSE 0 END) AS matched FROM journal_metric_lookups WHERE cache_key LIKE 'issn:%'").fetchone()
+        return {**dict(row), "cached_journals": lookup["journals"], "matched_journals": lookup["matched"] or 0}
+
+    def get_metric_lookup(self, key: str) -> dict | None:
+        row = self.connection.execute("SELECT payload FROM journal_metric_lookups WHERE cache_key=? AND expires_at>?", (key, now())).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def save_metric_lookup(self, key: str, payload: dict, days: int = 1) -> None:
+        timestamp = now()
+        with self.connection:
+            self.connection.execute(
+                """INSERT INTO journal_metric_lookups VALUES (?, ?, ?, ?)
+                ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, checked_at=excluded.checked_at, expires_at=excluded.expires_at""",
+                (key, json.dumps(payload, ensure_ascii=False), timestamp, (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()),
+            )
+
+    def enrich_paper_journal(self, paper_id: str, metadata: dict) -> None:
+        row = self.connection.execute("SELECT payload FROM papers WHERE id=?", (paper_id,)).fetchone()
+        if row:
+            paper = json.loads(row[0])
+            for key in ("venue", "venue_type", "issns"):
+                if metadata.get(key):
+                    paper[key] = metadata[key]
+            with self.connection:
+                self.connection.execute("UPDATE papers SET payload=? WHERE id=?", (json.dumps(paper, ensure_ascii=False), paper_id))
 
     def with_journal_metric(self, paper: dict) -> dict:
         # Resolve current imported data for display/email/export without
         # rewriting historical paper payloads or model relevance decisions.
-        result = {**paper, "journal_metric": None}
+        result = {**paper, "journal_metric": None, "journal_metric_status": "not_found"}
         if not metrics_applicable(paper):
+            result["journal_metric_status"] = "not_applicable"
             return result
         values = paper.get("issns") or []
         if isinstance(values, str):
             values = [values]
         issns = list(dict.fromkeys(filter(None, (normalize_issn(str(v)) for v in values))))
         if not issns:
+            result["journal_metric_status"] = "insufficient_metadata"
             return result
+        lookups = [self.get_metric_lookup("issn:" + issn) for issn in issns]
+        if any(v and v.get("status") == "failed" for v in lookups):
+            result["journal_metric_status"] = "failed"
         placeholders = ",".join("?" for _ in issns)
         rows = self.connection.execute(f"SELECT payload FROM journal_metrics WHERE issn IN ({placeholders}) ORDER BY year DESC", issns).fetchall()
         if not rows:
@@ -419,6 +450,9 @@ class Database:
         # Conflicting print/electronic matches are missing, never guessed.
         if len({(r["journal"], r["jif"], r["source"], r["source_url"]) for r in records}) == 1:
             result["journal_metric"] = {**records[0], "matched_by": "issn"}
+            result["journal_metric_status"] = "matched"
+        else:
+            result["journal_metric_status"] = "conflict"
         return result
 
     def review_paper(self, paper_id: str, review: str) -> bool:

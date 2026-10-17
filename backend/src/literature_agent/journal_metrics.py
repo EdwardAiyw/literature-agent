@@ -1,4 +1,4 @@
-"""JIF from explicit user-supplied data, matched by checksum-valid ISSN."""
+"""Journal impact factors with explicit year and provenance."""
 from __future__ import annotations
 
 import csv
@@ -57,7 +57,9 @@ def parse_metrics_csv(content: str, source: str, source_url: str) -> list[dict]:
 
 
 def metrics_applicable(paper: dict) -> bool:
-    return paper.get("source") != "arxiv" and paper.get("venue_type") not in {
+    if paper.get("venue") in {"arXiv", "arXiv (Cornell University)"} and paper.get("venue_type") not in {"journal", "journal-article"}:
+        return False
+    return (paper.get("source") != "arxiv" or paper.get("venue_type") in {"journal", "journal-article"}) and paper.get("venue_type") not in {
         "repository", "conference", "proceedings-article", "book", "book-chapter", "posted-content",
     }
 
@@ -79,5 +81,8 @@ def format_jif(paper: dict) -> str:
         return "期刊影响因子：不适用（预印本或非期刊文献）"
     metric = paper.get("journal_metric")
     if not metric:
-        return "期刊影响因子：未提供（无可匹配的已导入 JCR 数据）"
-    return f"期刊影响因子 JIF：{metric['jif']}（{metric['year']}；来源：{metric['source']}；用户导入）"
+        if paper.get("journal_metric_status") == "insufficient_metadata":
+            return "期刊影响因子：期刊信息不足"
+        return "期刊影响因子：暂未查到"
+    provenance = "官网公布" if metric.get("source_kind") == "publisher" else "用户导入"
+    return f"期刊影响因子 JIF：{metric['jif']}（{metric['year']}；来源：{metric['source']}；{provenance}）"

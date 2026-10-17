@@ -372,7 +372,7 @@ def list_zotero_collections():
 
 @app.get("/api/journal-metrics")
 def journal_metrics_status():
-    return database.journal_metrics_status()
+    return {**database.journal_metrics_status(), "auto_enabled": settings.journal_metrics_auto}
 
 
 @app.get("/api/journal-metrics/template")
@@ -538,6 +538,7 @@ def delete_prompt(prompt_id: str):
 
 
 SETTING_SECTIONS = {
+    "journal_metrics": {"journal_metrics_auto"},
     "zotero": {"zotero_library_id", "zotero_library_type", "zotero_api_key", "zotero_collection_key", "zotero_collection_name"},
     "llm": {"live", "llm_base_url", "llm_model", "llm_api_key"},
     "smtp": {"smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", "smtp_starttls", "smtp_ssl"},

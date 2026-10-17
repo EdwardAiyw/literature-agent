@@ -12,7 +12,7 @@
 | 后端 | `http://127.0.0.1:8001` | FastAPI + 本地任务队列 |
 | 健康检查 | `http://127.0.0.1:8001/api/health` | 不暴露密钥 |
 | 运行时设置 | `http://127.0.0.1:8001/api/settings` | 查看配置状态 |
-| 期刊影响因子 | `/api/journal-metrics`、`/import`、`/template` | 用户导入 JCR CSV，按 ISSN/年份匹配；见 [指标说明](JOURNAL_METRICS.md) |
+| 期刊影响因子 | `/api/journal-metrics`、`/import`、`/template`、`PUT /api/settings/journal_metrics` | 默认查询官网 JIF，邮件附年份/来源；支持 JCR CSV 补充，见 [指标说明](JOURNAL_METRICS.md) |
 | Zotero 自动批次与附件 | `/api/runs/{run_id}/zotero-batches`、`/zotero-identifiers` | 按任务集合导入、失败重试及 TXT 下载，详见 [Zotero 接口](ZOTERO.md) |
 | Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |
 | 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 只补收件人、执行时间及时区；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
@@ -73,7 +73,7 @@ LLM_API_KEY=你的LLM密钥
 LLM_MODEL=你的模型名
 ```
 
-可选数据源配置：`OPENALEX_API_KEY`、`SEMANTIC_SCHOLAR_API_KEY`、`PUBMED_API_KEY`、`PUBMED_EMAIL`、`SOURCE_CACHE_TTL_HOURS=24`、`SOURCE_DAILY_REQUEST_BUDGET=200`。邮件订阅另外填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`。推荐在页面保存设置，密钥由 Windows 凭据管理器保管；`backend/.env` 仅作为源码兼容回退。不要将密钥提交到 Git、放入 Prompt 或发到聊天中。
+可选数据源配置：`OPENALEX_API_KEY`、`SEMANTIC_SCHOLAR_API_KEY`、`PUBMED_API_KEY`、`PUBMED_EMAIL`、`SOURCE_CACHE_TTL_HOURS=24`、`SOURCE_DAILY_REQUEST_BUDGET=200`。`JOURNAL_METRICS_AUTO=true` 初始启用官网 JIF 查询，网页可覆盖；此查询另有 60 秒运行预算和最多 2 个并发请求，查不到不影响邮件。邮件订阅另外填写 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`。推荐在页面保存设置，密钥由 Windows 凭据管理器保管；`backend/.env` 仅作为源码兼容回退。不要将密钥提交到 Git、放入 Prompt 或发到聊天中。
 
 ## 4. 启用 Jev Shadow
 

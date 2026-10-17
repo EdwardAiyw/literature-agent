@@ -420,6 +420,10 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
         started(state, "complete", "Persisting reviewed literature records")
         for record in state.get("records", []):
             database.add_paper(state["run_id"], record["canonical_id"], record)
+        from .metric_lookup import enrich_run
+        if settings.live and settings.journal_metrics_auto:
+            database.update_run(state["run_id"], current_node="journal_metrics")
+        enrich_run(settings, database, state["run_id"])
         total_steps = 7 if state["task"].get("evidence_review") else 6
         database.save_run_artifact(
             state["run_id"],

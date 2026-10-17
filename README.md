@@ -20,7 +20,7 @@ English version: [README.en.md](README.en.md)
 
 当前源码另支持按任务自动导入 Zotero 指定集合及每日邮件标识符附件：在任务/订阅中“读取集合”、选择目标并开启自动导入；工作台可查看进度、重试失败条目或下载编号 TXT。附件每行一个真实 DOI、PMID、arXiv ID、ISBN 或 ADS 条码，可粘贴到 Zotero 的“通过标识符添加条目”窗口。缺少编号会在邮件中说明。该更新不在既有 RC5 安装包中，详见 [Zotero 使用说明](docs/ZOTERO.md)。
 
-期刊影响因子可在“设置 → 期刊影响因子（JIF）”导入已有 JCR CSV，按 ISSN 展示 JIF、指标年份和来源，并加入邮件及新建 Zotero 条目。当前检索源不提供官方 JIF；未导入/未匹配显示“未提供”，预印本显示“不适用”。详见 [影响因子使用说明](docs/JOURNAL_METRICS.md)。
+文献推送默认自动查询期刊官网的影响因子（JIF），在网页、每日邮件和新建 Zotero 条目中附上数值、指标年份及来源；也可导入已有 JCR CSV。公开来源覆盖不全，查不到显示“暂未查到”，预印本/会议论文显示“不适用”，查询失败不阻止邮件。可在设置中关闭自动查询，或通过 `JOURNAL_METRICS_AUTO=false` 设置初始默认值。详见 [影响因子使用说明](docs/JOURNAL_METRICS.md)。
 
 本次源码验证：182 项后端 CI 测试、30 项 Edge 回归和前端构建通过，服务器已完成指定集合的真实导入验收，详见 [2026-10-17 验证记录](docs/ZOTERO_VALIDATION_2026-10-17.md)。
 

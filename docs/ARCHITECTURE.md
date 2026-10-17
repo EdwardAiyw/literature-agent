@@ -20,8 +20,9 @@ flowchart LR
   C --> S[Structured summarizer]
   S --> E{Evidence review enabled?}
   E -->|yes| V[Evidence reviewer]
-  E -->|no| M[Result manifest]
-  V --> M
+  E -->|no| IF[Bounded public JIF enrichment]
+  V --> IF
+  IF --> M[Result manifest]
   G --> A[Run events and artifacts]
   G --> J[Jev typed decisions]
   J --> DB
@@ -56,7 +57,7 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 - Zotero imports and database replacement share one lock through network operations and persistence. API operations use nonblocking acquisition (HTTP 409 on conflict); background batches wait for the lock. Pending batches also block database replacement and deletion. SQLite connection locks never cover network I/O.
 - The GUI invalidates and reloads destination-specific paper statuses on saved library/collection or configured-state changes, including completed runs. Task and destination generations reject stale responses. Collection keys take precedence over names.
 - Settings APIs expose only configuration status, never saved secret values.
-- JIF is deterministic display/export enrichment from the user-imported `journal_metrics` table, keyed by checksum-valid ISSN/year. Paper reads resolve the latest imported year without changing historical payloads or model ranking. Cross-source dedupe retains ISSNs. Conflicting electronic/print matches return no metric; preprints/non-journal items are inapplicable. No model estimates or substitute citation metrics are used. See [journal metrics API/data model](JOURNAL_METRICS.md).
+- JIF enrichment runs after selected papers are saved and before run completion, email rendering and automatic Zotero import. Crossref fills missing DOI journal metadata; OpenAlex locates ISSN-verified publisher homepages; explicit publisher JIF/year evidence populates `journal_metrics`. `journal_metric_lookups` (migration `20261017_0005`) caches DOI/ISSN results for 30 days on success or 24 hours on failure/missing. Network requests use at most two concurrent slots and a 60-second run deadline without holding a SQLite lock. Lookup failure never fails delivery. Latest-year reads preserve manual same-year data; conflicting print/electronic matches return no metric. New runs may update journal metadata, never ranking/evidence; historical papers are not automatically enriched. Settings use `PUT /api/settings/journal_metrics`; records/status/template/import use `/api/journal-metrics`. No model estimates or substitute citation metrics. See [API, source limits and validation](JOURNAL_METRICS.md).
 - `zotero_target` snapshots automatic destinations before retrieval; completed runs reserve one `zotero_batch.<destination hash>` artifact per destination. Worker startup repairs the completion/enqueue gap and resumes pending batches without retrieval or mail. Each attempt shares a fresh remote DOI/title index; confirmed writes update it, uncertain writes end the attempt so retry rechecks remotely. Library mismatch fails safely. Exact collection membership is checked after import.
 - Successful subscription retrieval durably reserves import before SMTP, then attempts mail and import independently. Digests attach a UTF-8 one-identifier-per-paper TXT with deduplication and missing-ID notices; existing runs expose the same export without sending mail. See [Zotero interfaces and operations](ZOTERO.md).
 - A subscription cannot start a second active run or run twice in its configured local calendar day.

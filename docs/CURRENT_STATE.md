@@ -52,7 +52,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 
 ## Zotero task automation and identifier attachments (2026-10-17)
 
-- Source adds optional JCR CSV import and ISSN-based JIF/year/source display in workbench/mail/new Zotero items. Actual factors require user-supplied data; unavailable/preprint records do not receive guessed factors. Alembic `20261017_0004` adds `journal_metrics` without changing old paper payloads. See [configuration](JOURNAL_METRICS.md).
+- Source defaults to public publisher JIF lookup after selected-paper persistence and before completion/mail/Zotero. DOI metadata and ISSN journal identity are verified; success/missing/failure are cached, with a 60-second deadline and two concurrent requests. Optional JCR CSV imports remain; no model guesses or substitute metrics. `20261017_0005` adds `journal_metric_lookups` beside `journal_metrics`; historical papers are not automatically enriched. Three real Frontiers journals passed; an isolated copy of the current 50 records produced 48 inapplicable/2 insufficient-metadata records and no JIF. See [configuration and limits](JOURNAL_METRICS.md).
 - JIF update `ca5a4bb` deployed to server after backup; 13 existing business-table hashes/settings/secrets preserved, metric table empty pending user data. CI passed 199 backend tests/build/LocalJev checks; 13 affected Edge cases passed. Existing daily schedule/automatic Zotero target/Shadow retained; no mail, retrieval or Zotero writes during this update.
 
 - Source runtime adds opt-in exact-collection task/subscription imports, destination snapshots, shared batch DOI indexes, durable per-paper progress and failure retry without retrieval/mail. Worker restart resumes unfinished batches.

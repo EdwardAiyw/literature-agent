@@ -68,6 +68,7 @@ class Settings:
     pubmed_email: str = ""
     source_cache_ttl_hours: int = 24
     source_daily_request_budget: int = 200
+    journal_metrics_auto: bool = True
     jev_enabled: bool = False
     jev_shadow_mode: bool = True
     jev_provider: str = "localjev"
@@ -120,6 +121,7 @@ class Settings:
             pubmed_email=os.getenv("PUBMED_EMAIL", ""),
             source_cache_ttl_hours=max(1, int(os.getenv("SOURCE_CACHE_TTL_HOURS", "24"))),
             source_daily_request_budget=max(1, int(os.getenv("SOURCE_DAILY_REQUEST_BUDGET", "200"))),
+            journal_metrics_auto=os.getenv("JOURNAL_METRICS_AUTO", "true").lower() in {"1", "true", "yes"},
             jev_enabled=os.getenv("JEV_ENABLED", "false").lower() in {"1", "true", "yes"},
             jev_shadow_mode=os.getenv("JEV_SHADOW_MODE", "true").lower() in {"1", "true", "yes"},
             jev_provider=os.getenv("JEV_PROVIDER", "localjev"),
@@ -156,6 +158,7 @@ SETTING_FIELDS = {
     "zotero_library_id", "zotero_library_type", "zotero_collection_key", "zotero_collection_name",
     "live", "llm_base_url", "llm_model", "pubmed_email",
     "source_cache_ttl_hours", "source_daily_request_budget",
+    "journal_metrics_auto",
     "jev_enabled", "jev_shadow_mode", "jev_model", "jev_timeout_seconds",
     "jev_provider", "jev_base_url", "jev_auto_threshold", "jev_review_threshold", "jev_cache_ttl_hours",
     "jev_max_inflight",

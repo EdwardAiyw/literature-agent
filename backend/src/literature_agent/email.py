@@ -58,12 +58,18 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
         summary = _summary_text(paper)
         journal = paper.get("venue") or (paper.get("journal_metric") or {}).get("journal") or "未提供"
         jif = format_jif(paper)
+        metric_url = (paper.get("journal_metric") or {}).get("source_url", "")
+        # Only render safe, absolute source links in HTML mail.
+        if not metric_url.startswith(("https://", "http://")):
+            metric_url = ""
+        metric_link = f"<br><a href='{_clean(metric_url)}'>影响因子来源</a>" if metric_url else ""
         lines.extend([
             f"{index}. {paper.get('title', 'Untitled')}",
             f"作者：{authors or '未提供'} | 来源：{paper.get('source', '')} | 日期：{paper.get('published_date', '')}",
             f"DOI：{doi}",
             f"期刊/出版物：{journal}",
             jif,
+            *([f"影响因子来源：{metric_url}"] if metric_url else []),
             f"原文：{url}",
             summary,
             "",
@@ -73,7 +79,7 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
             f"<h2 style='font-size:17px;margin:0 0 8px'>{index}. {_clean(paper.get('title', 'Untitled'))}</h2>"
             f"<p style='color:#555;margin:4px 0'>作者：{_clean(authors or '未提供')} · 来源：{_clean(paper.get('source', ''))} · 日期：{_clean(paper.get('published_date', ''))}</p>"
             f"<p style='margin:8px 0'>DOI：{_clean(doi)}<br>原文：<a href='{_clean(url)}'>{_clean(url or '未提供')}</a></p>"
-            f"<p>期刊/出版物：{_clean(journal)}<br>{_clean(jif)}</p>"
+            f"<p>期刊/出版物：{_clean(journal)}<br>{_clean(jif)}{metric_link}</p>"
             f"<p style='white-space:pre-line;line-height:1.55'>{_clean(summary)}</p>"
             "</article>"
         )
