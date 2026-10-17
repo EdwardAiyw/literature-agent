@@ -28,7 +28,10 @@ flowchart LR
   M --> DB
   A --> DB
   DB --> UI
-  API -->|explicit per-paper import| Z[Zotero Web API adapter]
+  API -->|per-paper or run batch import| Z[Zotero Web API adapter]
+  M --> B[Durable Zotero batch]
+  B --> Z
+  M --> MAIL[Digest and identifier TXT]
   G -. future .-> F[OA PDF downloader]
 ```
 
@@ -48,11 +51,13 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 - Live query plans require valid task-language coverage and bounded keyword queries, with one repair attempt before failure. Runtime planning requirements and repairs are recorded separately from immutable Prompt versions.
 - After ordinary/Jev routing, only candidates with relevance >=0.40, no `ignore` recommendation and verified model screening enter live results. Source diversity never overrides this gate. Artifacts retain rejected candidates and counts; target counts are upper bounds.
 - Empty live retrieval stays empty; fixture records are restricted to explicit fixture/offline execution. Rejected candidates do not consume summary requests or enter digests.
-- Zotero export requires an explicit per-paper action. Review labels alone do not trigger export; ignored papers are blocked. DOI matches reuse existing items and preserve user-edited metadata. Import results are stored per paper and destination library/collection.
+- Zotero export supports explicit per-paper actions and opt-in task-specific automatic batches. Review labels alone do not trigger export; ignored papers are blocked/skipped. DOI matches reuse existing items and preserve user-edited metadata. Import results are stored per paper and destination library/collection.
 - DOI deduplication scans paginated top-level items and compares normalized DOI metadata; quick search is used only for DOI-less title candidates. A failed scan prevents creation. Creation tokens belong to one attempt; later retries scan again.
-- Zotero import, data-directory replacement, and backup restoration hold the same nonblocking lock for their entire operation, including local result persistence or global database replacement. Conflicts return HTTP 409.
+- Zotero imports and database replacement share one lock through network operations and persistence. API operations use nonblocking acquisition (HTTP 409 on conflict); background batches wait for the lock. Pending batches also block database replacement and deletion. SQLite connection locks never cover network I/O.
 - The GUI invalidates and reloads destination-specific paper statuses on saved library/collection or configured-state changes, including completed runs. Task and destination generations reject stale responses. Collection keys take precedence over names.
 - Settings APIs expose only configuration status, never saved secret values.
+- `zotero_target` snapshots automatic destinations before retrieval; completed runs reserve one `zotero_batch.<destination hash>` artifact per destination. Worker startup repairs the completion/enqueue gap and resumes pending batches without retrieval or mail. Each attempt shares a fresh remote DOI/title index; confirmed writes update it, uncertain writes end the attempt so retry rechecks remotely. Library mismatch fails safely. Exact collection membership is checked after import.
+- Successful subscription retrieval durably reserves import before SMTP, then attempts mail and import independently. Digests attach a UTF-8 one-identifier-per-paper TXT with deduplication and missing-ID notices; existing runs expose the same export without sending mail. See [Zotero interfaces and operations](ZOTERO.md).
 - A subscription cannot start a second active run or run twice in its configured local calendar day.
 - Task promotion uses an immediate SQLite transaction to attach one subscription and change task ownership without duplicating the task or rewriting its run history. A re-read detects stale task snapshots and duplicate conversions across API/database connections. Manual runs do not count as daily-subscription executions; active runs still block overlapping execution and subscription deletion.
 

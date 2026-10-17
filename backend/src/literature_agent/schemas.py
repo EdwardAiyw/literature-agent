@@ -49,7 +49,18 @@ def _validate_timezone(value: str) -> str:
     return value
 
 
-class TaskCreate(BaseModel):
+class ZoteroTaskConfig(BaseModel):
+    zotero_auto_import: bool = False
+    zotero_collection_key: str = Field(default="", pattern=r"^$|^[A-Z0-9]{8}$")
+
+    @model_validator(mode="after")
+    def validate_zotero_target(self):
+        if self.zotero_auto_import and not self.zotero_collection_key:
+            raise ValueError("Automatic Zotero import requires an exact Collection Key")
+        return self
+
+
+class TaskCreate(ZoteroTaskConfig):
     name: str = Field(min_length=1, max_length=120)
     topic: str = Field(min_length=1, max_length=1000)
     research_questions: list[str] = Field(default_factory=list)
@@ -101,6 +112,8 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
+    zotero_auto_import: bool | None = None
+    zotero_collection_key: str | None = Field(default=None, pattern=r"^$|^[A-Z0-9]{8}$")
     name: str | None = Field(default=None, min_length=1, max_length=120)
     topic: str | None = Field(default=None, min_length=1, max_length=1000)
     research_questions: list[str] | None = None
@@ -204,7 +217,7 @@ class TaskSubscriptionCreate(BaseModel):
         return _validate_timezone(value)
 
 
-class SubscriptionCreate(BaseModel):
+class SubscriptionCreate(ZoteroTaskConfig):
     name: str = Field(min_length=1, max_length=120)
     topic: str = Field(min_length=1, max_length=1000)
     research_questions: list[str] = Field(default_factory=list)
@@ -269,6 +282,8 @@ class SubscriptionCreate(BaseModel):
 
 
 class SubscriptionUpdate(BaseModel):
+    zotero_auto_import: bool | None = None
+    zotero_collection_key: str | None = Field(default=None, pattern=r"^$|^[A-Z0-9]{8}$")
     name: str | None = Field(default=None, min_length=1, max_length=120)
     topic: str | None = Field(default=None, min_length=1, max_length=1000)
     research_questions: list[str] | None = None

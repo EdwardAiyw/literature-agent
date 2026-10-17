@@ -207,5 +207,7 @@ legend { color: #505057; font-size: 12px; padding: 0 6px 0 0; }
 .paper-actions button { justify-content: center; padding: 7px 4px; font-size: 11px; }
 .zotero-state { font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .zotero-state.failed { color: #e4002b; }
+.zotero-batch-panel { margin: 20px 0; overflow-wrap: anywhere; }
+.zotero-batch-panel .diagnostic-title { flex-wrap: wrap; gap: 12px; }
 .paper-row .zotero-state a { margin-top: 0; }
 @media (max-width: 800px) { .paper-actions { max-width: 230px; } }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add task/subscription-specific opt-in Zotero import into exact existing collections, read-only collection selection, durable destination snapshots, batch progress/retry and restart recovery independent of retrieval/mail.
+- Share one remote DOI index per batch attempt, preserve existing metadata/collections, verify target membership and block deletion/database replacement while import work is pending.
+- Attach UTF-8 Zotero identifier TXT files to daily digests, preserving actual DOI/PMID/arXiv/ISBN/ADS identifiers with one preferred identifier per paper, deduplication and missing-ID notices; offer downloads for existing runs without resending mail.
+
 - Vendor pinned MIT LocalJev with JSON Object cloud compatibility, internal authenticated Compose service, bounded resources and reproducible screening evaluation.
 - Pass effective task/Prompt context to Jev; version cache by deployment; bound screening workers and record intermediate counts and skipped ordinary calls. Active high-confidence screening skips duplicate model requests; Shadow retains ordinary decisions.
 - Record the failed real DeepSeek active-screening gate; retain production Shadow mode. Confirm the first server digest was accepted by SMTP without repeating the completed run.

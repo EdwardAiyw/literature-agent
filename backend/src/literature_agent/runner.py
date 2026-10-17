@@ -7,17 +7,22 @@ from .config import Settings
 from .db import Database
 from .email import render_digest, send_message
 from .graph import build_graph
+from .zotero_jobs import remember_target, reserve_automatic, process_batch
 
 
-def execute_run(settings: Settings, database: Database, run_id: str, task: dict) -> dict:
+def execute_run(settings: Settings, database: Database, run_id: str, task: dict, defer_import: bool = False) -> dict:
     current = database.get_run(run_id) or {}
     started_at = current.get("started_at") or datetime.now(timezone.utc).isoformat()
     database.update_run(run_id, status="running", current_node="query_planner", started_at=started_at)
+    remember_target(settings, database, run_id, task)
     try:
         graph = build_graph(settings, database, database.resolve_prompts(task))
         graph.invoke({"task": task, "run_id": run_id, "errors": []})
     except Exception as exc:
         database.update_run(run_id, status="failed", current_node="failed", error=f"{type(exc).__name__}: {exc}", finished_at=datetime.now(timezone.utc).isoformat())
+    batch = reserve_automatic(database, run_id)
+    if batch and not defer_import:
+        process_batch(settings, database, run_id, batch["id"])
     return database.get_run(run_id) or {}
 
 
@@ -41,8 +46,11 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
         )
     if not run:
         raise RuntimeError("The subscription already has an active run")
-    result = execute_run(settings, database, run["id"], task)
+    result = execute_run(settings, database, run["id"], task, defer_import=True)
+    batch = reserve_automatic(database, run["id"])
     if not send_email:
+        if batch:
+            process_batch(settings, database, run["id"], batch["id"])
         return result
 
     papers = database.list_papers(run["id"])
@@ -59,4 +67,6 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
         database.update_delivery(delivery["id"], status="failed", error=f"{type(exc).__name__}: {exc}")
     else:
         database.update_delivery(delivery["id"], status="sent", sent_at=datetime.now(timezone.utc).isoformat())
+    if batch:
+        process_batch(settings, database, run["id"], batch["id"])
     return {**(database.get_run(run["id"]) or result), "delivery": database.get_delivery(delivery["id"])}

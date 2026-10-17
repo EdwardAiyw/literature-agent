@@ -12,6 +12,7 @@ test("Zotero configuration and per-paper retry survive reopening results", async
   });
   const task = { id: "zotero-task", name: "Zotero workflow", topic: "RAG", research_questions: [], target_count: 1, language: "en", output_language: "zh", date_from: "", date_to: "", sources: ["crossref"], evidence_review: false, prompt_overrides: {}, origin: "user", created_at: new Date().toISOString() };
   const run = { id: "zotero-run", task_id: task.id, status: "completed", current_node: "complete", paper_count: 1, error: "", progress: 6, total_steps: 6 };
+  await page.route("**/api/runs/zotero-run/zotero-batches", (route) => route.fulfill({ json: [] }));
   let result: Record<string, unknown> | null = null;
   let attempts = 0;
   await page.route("**/api/tasks", (route) => route.fulfill({ json: [task] }));
@@ -80,7 +81,7 @@ async function destinationFixture(page: Page) {
   await page.route("**/api/tasks", (route) => route.fulfill({ json: [task] }));
   await page.route("**/api/tasks/destination-task/runs*", (route) => route.fulfill({ json: [run] }));
   await page.route("**/api/runs/destination-run", (route) => route.fulfill({ json: run }));
-  for (const suffix of ["events", "artifacts", "decisions", "decisions/summary"]) {
+  for (const suffix of ["events", "artifacts", "decisions", "decisions/summary", "zotero-batches"]) {
     await page.route(`**/api/runs/destination-run/${suffix}`, (route) => route.fulfill({ json: suffix.endsWith("summary") ? { total: 0 } : [] }));
   }
   await page.route("**/api/runs/destination-run/papers", async (route) => {

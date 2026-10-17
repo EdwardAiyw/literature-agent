@@ -10,7 +10,7 @@ Provide a local-first academic literature agent that automatically delivers a tr
 2. The scheduled agent retrieves, deduplicates, screens, ranks, and selects 10-20 papers.
 3. The agent generates Chinese summaries and recommendation reasons, then sends an email digest containing metadata, DOI, and original links.
 4. The user reviews the run, source diagnostics, results, and delivery status in the GUI.
-5. The user explicitly imports selected papers into Zotero from the workbench. The Web API connector deduplicates by DOI (exact title when DOI is absent) and reports per-paper results.
+5. The user explicitly imports selected papers into Zotero from the workbench or enables task-specific automatic import into an exact existing collection. The Web API connector deduplicates by DOI (exact title when DOI is absent) and reports per-paper results.
 
 ## Product boundaries
 
@@ -22,4 +22,4 @@ Tasks support Chinese, English, and bilingual retrieval. Original metadata remai
 
 ## Delivery policy
 
-The daily email contains titles, authors, sources, publication dates, DOI, original links, Chinese summaries, and recommendation reasons. It does not contain PDF attachments. Zotero is expected to import citations by DOI and use the user's own attachment-retrieval configuration when available.
+The daily email contains titles, authors, sources, publication dates, DOI, original links, Chinese summaries, and recommendation reasons. It attaches a UTF-8 identifier TXT when reliable DOI/PMID/arXiv/ISBN/ADS metadata exists, selecting one identifier per paper and reporting missing IDs. It does not contain PDF attachments. Zotero can import these identifiers and use the user's own attachment-retrieval configuration when available.

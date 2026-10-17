@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sqlite3
 import sys
@@ -338,6 +339,46 @@ class Database:
         rows = self.connection.execute("SELECT * FROM run_artifacts WHERE run_id = ? ORDER BY created_at", (run_id,)).fetchall()
         return [{**dict(row), "payload": json.loads(row["payload"])} for row in rows]
 
+    def list_zotero_batches(self, run_id: str | None = None) -> list[dict]:
+        rows = self.connection.execute(
+            "SELECT payload FROM run_artifacts WHERE node LIKE 'zotero_batch.%'" + (" AND run_id = ?" if run_id else "") + " ORDER BY created_at",
+            (run_id,) if run_id else (),
+        ).fetchall()
+        return [json.loads(row["payload"]) for row in rows]
+
+    def reserve_zotero_batch(self, run_id: str, destination: str, retry: bool = False) -> dict:
+        run = self.get_run(run_id)
+        if not run or run["status"] != "completed":
+            raise ValueError("Only completed runs can be imported")
+        node = "zotero_batch." + hashlib.sha256(destination.encode()).hexdigest()[:24]
+        current = self.get_run_artifact(run_id, node)
+        if current:
+            batch = current["payload"]
+            if not retry or batch["status"] in {"queued", "running"}:
+                return batch
+            for result in batch["results"].values():
+                if result["status"] == "failed":
+                    result.clear()
+                    result["status"] = "pending"
+            batch.update(status="queued", error="", updated_at=now())
+        else:
+            batch = {"id": node, "run_id": run_id, "destination": destination,
+                     "status": "queued", "error": "", "created_at": now(), "updated_at": now(),
+                     "results": {p["id"]: {"status": "skipped" if p.get("review") == "ignore" else "pending"}
+                                 for p in self.list_papers(run_id)}}
+        batch["counts"] = {status: sum(r["status"] == status for r in batch["results"].values())
+                           for status in ("imported", "existing", "failed", "skipped", "pending")}
+        self.save_run_artifact(run_id, node, batch)
+        return batch
+
+    def has_pending_zotero_batches(self) -> bool:
+        return any(b["status"] in {"queued", "running"} for b in self.list_zotero_batches())
+
+    def list_completed_zotero_targets(self) -> list[str]:
+        return [row["run_id"] for row in self.connection.execute(
+            "SELECT a.run_id FROM run_artifacts a JOIN runs r ON r.id=a.run_id WHERE a.node='zotero_target' AND r.status='completed'"
+        ).fetchall()]
+
     def list_papers(self, run_id: str) -> list[dict]:
         rows = self.connection.execute("SELECT * FROM papers WHERE run_id = ? ORDER BY json_extract(payload, '$.relevance_score') DESC", (run_id,)).fetchall()
         return [{**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]} for row in rows]
@@ -624,7 +665,9 @@ class Database:
         ).fetchall()
         return {
             "subscribed": subscription is not None,
-            "active_runs": [row["id"] for row in active_runs],
+            "active_runs": list(dict.fromkeys([row["id"] for row in active_runs] + [
+                b["run_id"] for b in self.list_zotero_batches() if b["status"] in {"queued", "running"}
+                and (self.get_run(b["run_id"]) or {}).get("task_id") == task_id])),
         }
 
     def _delete_task_data(self, task_id: str) -> None:

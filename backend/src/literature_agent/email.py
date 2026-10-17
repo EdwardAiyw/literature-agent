@@ -8,6 +8,13 @@ from email.utils import formataddr
 from typing import Any
 
 from .config import Settings
+from .identifiers import export_identifiers
+
+
+@dataclass(frozen=True)
+class DigestAttachment:
+    filename: str
+    text: str
 
 
 @dataclass(frozen=True)
@@ -15,6 +22,7 @@ class DigestMessage:
     subject: str
     html: str
     text: str
+    attachments: tuple[DigestAttachment, ...] = ()
 
 
 def _clean(value: Any) -> str:
@@ -67,6 +75,16 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
         lines.extend(["来源诊断："])
         for source, diagnostic in diagnostics.items():
             lines.append(f"- {source}: {diagnostic.get('status', '')}, {diagnostic.get('count', 0)} 条{('，' + diagnostic.get('error')) if diagnostic.get('error') else ''}")
+    exported = export_identifiers(papers)
+    attachment_notice = (f"Zotero 标识符：{len(exported.identifiers)} 个（已去重）。"
+                         "下载附件后，将全部内容粘贴到 Zotero 的“通过标识符添加条目”窗口。"
+                         "请先选中目标集合；已自动导入的条目无需再次粘贴。")
+    if not exported.identifiers:
+        attachment_notice = "本次没有可用的 Zotero 标识符，因此未附加标识符文件。"
+    if exported.missing:
+        attachment_notice += f"\n{len(exported.missing)} 篇缺少可靠标识符：\n" + "\n".join(exported.missing)
+    lines.extend(["", attachment_notice])
+    cards.append(f"<p style='white-space:pre-line'>{_clean(attachment_notice)}</p>")
     text = "\n".join(lines)
     html_body = (
         "<!doctype html><html><body style='font-family:Arial,sans-serif;color:#222;max-width:780px;margin:32px auto'>"
@@ -74,7 +92,8 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
         f"{''.join(cards)}"
         "</body></html>"
     )
-    return DigestMessage(subject=subject, html=html_body, text=text)
+    attachments = (DigestAttachment("zotero-identifiers.txt", exported.text),) if exported.identifiers else ()
+    return DigestMessage(subject=subject, html=html_body, text=text, attachments=attachments)
 
 
 def _smtp(settings: Settings):
@@ -96,6 +115,8 @@ def send_message(settings: Settings, recipient: str, message: DigestMessage, req
     email["To"] = recipient
     email.set_content(message.text)
     email.add_alternative(message.html, subtype="html")
+    for attachment in message.attachments:
+        email.add_attachment(attachment.text, subtype="plain", charset="utf-8", filename=attachment.filename)
     with _smtp(settings) as server:
         if settings.smtp_starttls and not settings.smtp_ssl:
             server.starttls()

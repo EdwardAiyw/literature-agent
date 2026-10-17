@@ -18,6 +18,8 @@ English version: [README.en.md](README.en.md)
 > - [发送反馈邮件](mailto:aiyuling.usm@gmail.com?subject=%5BLiterature%20Agent%20RC5%5D%20Feedback)：`aiyuling.usm@gmail.com`，建议附上脱敏后的截图、复现步骤、版本和错误信息
 > - [提交 GitHub Bug Report](https://github.com/EdwardAiyw/literature-agent/issues/new?template=bug_report.yml)
 
+当前源码另支持按任务自动导入 Zotero 指定集合及每日邮件标识符附件：在任务/订阅中“读取集合”、选择目标并开启自动导入；工作台可查看进度、重试失败条目或下载编号 TXT。附件每行一个真实 DOI、PMID、arXiv ID、ISBN 或 ADS 条码，可粘贴到 Zotero 的“通过标识符添加条目”窗口。缺少编号会在邮件中说明。该更新不在既有 RC5 安装包中，详见 [Zotero 使用说明](docs/ZOTERO.md)。
+
 ## 目录
 
 - [先看结论](#先看结论)
@@ -540,6 +542,8 @@ Crossref 会使用“文献来源”的联系邮箱，留空时使用已配置�
 当前面向 Windows。源码后端可以由开发者移植，但安装包和页面中的计划任务管理只支持 Windows。
 
 **会自动把论文导入 Zotero 吗？**
+
+当前源码/服务器可在任务或订阅中选择已有集合并开启自动导入；默认关闭。检索和邮件后独立执行导入，失败可单独重试，不重复检索或发邮件。每日邮件同时附有真实标识符 TXT，工作台可下载既有运行的编号文件。
 
 RC5 延续 RC4 的 Zotero Web API 导入及查重修复（旧 RC3 安装包不包含）。在“设置 → Zotero 文献库”填写个人或群组 Library ID、具有读写权限的 API Key，以及分类名称（或现有 Collection Key），点击“测试 Zotero 连接”并保存。然后在工作台逐篇点击“导入 Zotero”。同 DOI 复用已有条目；没有 DOI 时按完整标题匹配。每篇显示导入结果，失败可重试。
 

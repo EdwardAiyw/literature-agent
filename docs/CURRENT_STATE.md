@@ -50,6 +50,12 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Live source and delivery UAT in the source runtime confirmed five final papers from at least two sources, SMTP test mail, manual digest, and scheduled digest.
 - Earlier candidate installers passed the automated Sandbox bootstrap checks. RC3 still requires install/update, real delivery, scheduling, backup/restore, and uninstall acceptance before stable promotion.
 
+## Zotero task automation and identifier attachments (2026-10-17)
+
+- Source runtime adds opt-in exact-collection task/subscription imports, destination snapshots, shared batch DOI indexes, durable per-paper progress and failure retry without retrieval/mail. Worker restart resumes unfinished batches.
+- Daily digests attach UTF-8 identifier TXT when reliable IDs exist; the workbench exports the same identifiers for existing runs. No invented identifiers or PDF attachments.
+- Defaults remain off; task conversion preserves settings. Global credentials stay shared. Existing Windows RC5 assets remain immutable. See [Zotero configuration and APIs](ZOTERO.md).
+
 ## Zotero source-runtime integration (updated 2026-10-15)
 
 - Explicit per-paper Web API import for user/group libraries, DOI/title deduplication, target collection membership, persisted status and retry.

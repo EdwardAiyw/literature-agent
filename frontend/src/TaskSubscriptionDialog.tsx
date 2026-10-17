@@ -6,7 +6,7 @@ export type SubscriptionSchedule = { recipient: string; schedule_time: string; t
 type SubscriptionTask = {
   name: string; topic: string; research_questions: string[]; language: string; output_language: string;
   target_count: number; sources: string[]; date_from: string; date_to: string;
-  evidence_review: boolean; prompt_overrides: Record<string, string>;
+  zotero_auto_import?: boolean; zotero_collection_key?: string; evidence_review: boolean; prompt_overrides: Record<string, string>;
 };
 
 const languages: Record<string, string> = { zh: "中文", en: "英文", bilingual: "中英文" };
@@ -56,7 +56,7 @@ export default function TaskSubscriptionDialog({ task, recipient, busy, onClose,
         <dl><dt>检索范围</dt><dd>{task.date_from || "不限起始日期"} 至 {task.date_to || "不限结束日期"}</dd>
           <dt>语言与篇数</dt><dd>检索：{languages[task.language] || task.language} · 输出：{languages[task.output_language] || task.output_language} · 每次最多 {task.target_count} 篇</dd>
           <dt>文献来源</dt><dd>{task.sources.map((source) => sourceNames[source] || source).join("、")}</dd>
-          <dt>高级配置</dt><dd>{task.research_questions?.length || 0} 个研究问题 · 证据审查{task.evidence_review ? "已启用" : "未启用"} · {Object.keys(task.prompt_overrides || {}).length} 个 Prompt 覆盖</dd></dl>
+          <dt>Zotero</dt><dd>{task.zotero_auto_import ? `自动导入集合 ${task.zotero_collection_key}` : "自动导入未启用"} · 邮件附标识符 TXT</dd><dt>高级配置</dt><dd>{task.research_questions?.length || 0} 个研究问题 · 证据审查{task.evidence_review ? "已启用" : "未启用"} · {Object.keys(task.prompt_overrides || {}).length} 个 Prompt 覆盖</dd></dl>
       </div>
       <p className="section-lead">沿用以上研究配置和日期范围，保留任务历史。补充投递安排即可保存。</p>
       <label>收件人<input type="email" required maxLength={320} disabled={busy} value={schedule.recipient} onChange={(event) => setSchedule({ ...schedule, recipient: event.target.value })} /></label>

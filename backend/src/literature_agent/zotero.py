@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from threading import Lock
 from urllib.parse import unquote
 from uuid import uuid4
@@ -28,6 +29,11 @@ def destination_for(settings: Settings) -> str:
                        settings.zotero_collection_key or settings.zotero_collection_name], ensure_ascii=False)
 
 
+def task_settings(settings: Settings, task: dict) -> Settings:
+    key = task.get("zotero_collection_key", "")
+    return replace(settings, zotero_collection_key=key) if key else settings
+
+
 class ZoteroClient:
     def __init__(self, settings: Settings, client: httpx.Client):
         if not settings.zotero_library_id or not settings.zotero_api_key:
@@ -41,6 +47,9 @@ class ZoteroClient:
         self.settings = settings
         self.client = client
         self.library = f"/{'users' if settings.zotero_library_type == 'user' else 'groups'}/{settings.zotero_library_id}"
+        self._batch_dois: dict[str, dict] | None = None
+        self._batch_titles: dict[str, dict] | None = None
+        self._batch_collection: str | None = None
 
     @property
     def destination(self) -> str:
@@ -110,6 +119,8 @@ class ZoteroClient:
         return key
 
     def _collection(self) -> str:
+        if self._batch_collection:
+            return self._batch_collection
         if self.settings.zotero_collection_key:
             self._request("GET", self.library + "/collections/" + self.settings.zotero_collection_key)
             return self.settings.zotero_collection_key
@@ -117,6 +128,33 @@ class ZoteroClient:
             if collection.get("data", {}).get("name") == self.settings.zotero_collection_name:
                 return collection["key"]
         return self._created_key(self._request("POST", self.library + "/collections", json=[{"name": self.settings.zotero_collection_name}]))
+
+    def list_collections(self) -> list[dict]:
+        rows = {row["key"]: row.get("data", {}) for row in self._pages("/collections")}
+        def path(key: str) -> str:
+            names, visited = [], set()
+            while key and key in rows and key not in visited:
+                visited.add(key)
+                data = rows[key]
+                names.append(data.get("name") or key)
+                key = data.get("parentCollection") or ""
+            return " / ".join(reversed(names))
+        return sorted(({"key": key, "name": data.get("name", ""), "path": path(key)}
+                       for key, data in rows.items()), key=lambda row: (row["path"].casefold(), row["key"]))
+
+    def prepare_batch(self) -> None:
+        """One fresh library scan per attempt, including after an uncertain write."""
+        self._batch_collection = self._collection()
+        dois, titles = {}, {}
+        for item in self._pages("/items/top"):
+            data = item.get("data", {})
+            if data.get("itemType") in {"attachment", "note"} or data.get("deleted"):
+                continue
+            doi = normalize_doi(data.get("DOI", ""))
+            if doi:
+                dois.setdefault(doi, item)
+            titles.setdefault(data.get("title", "").strip().casefold(), item)
+        self._batch_dois, self._batch_titles = dois, titles
 
     def import_paper(self, paper: dict) -> dict:
         doi = normalize_doi(paper.get("doi", ""))
@@ -127,7 +165,12 @@ class ZoteroClient:
         # Zotero quick search does not search DOI metadata. Scan the library for
         # DOI matches; only DOI-less papers can use title search candidates.
         search = {} if doi else {"q": title, "qmode": "everything"}
-        for item in self._pages("/items/top", **search):
+        if self._batch_dois is not None:
+            cached = self._batch_dois.get(doi) if doi else self._batch_titles.get(title.casefold())
+            candidates = [cached] if cached else []
+        else:
+            candidates = self._pages("/items/top", **search)
+        for item in candidates:
             data = item.get("data", {})
             if data.get("itemType") in {"attachment", "note"} or data.get("deleted"):
                 continue
@@ -144,6 +187,8 @@ class ZoteroClient:
                 self._request("PATCH", self.library + "/items/" + key,
                               headers={"If-Unmodified-Since-Version": str(existing["version"])},
                               json={"collections": [*collections, collection]})
+                if self._batch_dois is not None:
+                    existing = self._json(self._request("GET", self.library + "/items/" + key))
             status = "existing"
         else:
             creators = []
@@ -166,6 +211,13 @@ class ZoteroClient:
             created = self._json(response).get("successful", {}).get("0", {})
             item_url = created.get("links", {}).get("alternate", {}).get("href", "") if isinstance(created, dict) else ""
             status = "imported"
+        if self._batch_dois is not None:
+            confirmed = self._json(self._request("GET", self.library + "/items/" + key)) if not existing else existing
+            if collection not in confirmed.get("data", {}).get("collections", []):
+                raise ZoteroError("Zotero 尚未确认目标集合成员关系，请重试。")
+            if doi:
+                self._batch_dois[doi] = confirmed
+            self._batch_titles[title.casefold()] = confirmed
         return {"status": status, "item_key": key, "collection_key": collection,
                 "library_id": self.settings.zotero_library_id, "library_type": self.settings.zotero_library_type,
                 "url": item_url or f"zotero://select/{'library' if self.settings.zotero_library_type == 'user' else 'groups/' + self.settings.zotero_library_id}/items/{key}",

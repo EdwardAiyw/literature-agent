@@ -7,6 +7,7 @@ from typing import Any, Callable
 from .config import Settings
 from .db import Database
 from .runner import execute_run, run_subscription
+from .zotero_jobs import reserve_automatic, process_batch
 
 
 class LocalRunWorker:
@@ -40,6 +41,12 @@ class LocalRunWorker:
 
     def recover(self) -> int:
         recovered = 0
+        for run_id in self.database.list_completed_zotero_targets():
+            reserve_automatic(self.database, run_id)
+        for batch in self.database.list_zotero_batches():
+            if batch["status"] in {"queued", "running"}:
+                self.submit_zotero(batch)
+                recovered += 1
         for run in self.database.list_recoverable_runs():
             task = self.database.get_task(run["task_id"])
             if not task:
@@ -55,6 +62,10 @@ class LocalRunWorker:
             else: self.submit_task(run["id"], task)
             recovered += 1
         return recovered
+
+    def submit_zotero(self, batch: dict) -> None:
+        self._submit(batch["run_id"] + ":" + batch["id"], process_batch,
+                     self._current_settings(), self.database, batch["run_id"], batch["id"])
 
     def close(self) -> None:
         self.executor.shutdown(wait=True, cancel_futures=False)

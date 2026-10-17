@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -29,7 +29,8 @@ from .sources import SOURCE_METADATA, build_sources
 from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
 from .scheduler import DailyScheduler
-from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for
+from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for, task_settings
+from .identifiers import export_identifiers
 
 config_manager = ConfigManager(Settings.from_env())
 settings = config_manager.get()
@@ -90,6 +91,7 @@ def health() -> dict:
 @app.post("/api/tasks", response_model=TaskRead)
 def create_task(payload: TaskCreate):
     _validate_prompt_overrides(payload.prompt_overrides)
+    _validate_zotero_target(payload.model_dump())
     return database.create_task(payload.model_dump())
 
 
@@ -119,6 +121,7 @@ def update_task(task_id: str, patch: TaskUpdate):
     values = {**current, **patch.model_dump(exclude_none=True)}
     validated = TaskCreate.model_validate(values).model_dump()
     _validate_prompt_overrides(validated["prompt_overrides"])
+    _validate_zotero_target(validated)
     return database.update_task(task_id, validated)
 
 
@@ -167,7 +170,17 @@ def start_run(task_id: str):
 
 
 def _task_payload(payload: dict) -> dict:
-    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides")} | {"origin": "subscription"}
+    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides", "zotero_auto_import", "zotero_collection_key")} | {"origin": "subscription"}
+
+
+def _validate_zotero_target(task: dict) -> None:
+    if not task.get("zotero_auto_import"):
+        return
+    try:
+        with httpx.Client(timeout=30) as client:
+            ZoteroClient(task_settings(settings, task), client)._collection()
+    except ZoteroError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 def _validate_prompt_overrides(overrides: dict[str, str]) -> None:
@@ -183,6 +196,7 @@ def _validate_prompt_overrides(overrides: dict[str, str]) -> None:
 def create_subscription(payload: SubscriptionCreate):
     values = payload.model_dump()
     _validate_prompt_overrides(values["prompt_overrides"])
+    _validate_zotero_target(values)
     task = database.create_task(_task_payload(values))
     return database.create_subscription(task["id"], values)
 
@@ -202,6 +216,7 @@ def subscribe_task(task_id: str, payload: TaskSubscriptionCreate):
     except ValidationError as exc:
         raise HTTPException(422, str(exc)) from exc
     _validate_prompt_overrides(values["prompt_overrides"])
+    _validate_zotero_target(values)
     outcome = database.subscribe_task(task_id, current, values)
     if outcome["status"] == "missing":
         raise HTTPException(404, "Task not found")
@@ -232,6 +247,7 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
     values.pop("updated_at", None)
     validated = SubscriptionCreate.model_validate(values).model_dump()
     _validate_prompt_overrides(validated["prompt_overrides"])
+    _validate_zotero_target(validated)
     updated = database.update_subscription(subscription_id, validated)
     database.update_task(current["task_id"], _task_payload(validated))
     return updated
@@ -314,11 +330,12 @@ def list_run_artifacts(run_id: str):
 
 @app.get("/api/runs/{run_id}/papers", response_model=list[PaperRead])
 def list_papers(run_id: str):
-    if not database.get_run(run_id):
+    run = database.get_run(run_id)
+    if not run:
         raise HTTPException(404, "Run not found")
     papers = database.list_papers(run_id)
     if settings.zotero_library_id and settings.zotero_api_key:
-        destination = destination_for(settings)
+        destination = destination_for(task_settings(settings, database.get_task(run["task_id"]) or {}))
         for paper in papers:
             paper["zotero"] = database.get_zotero_import(paper["id"], destination)
     return papers
@@ -336,6 +353,66 @@ def exclusive_import_operation(conflict_message: str):
         IMPORT_LOCK.release()
 
 
+@app.get("/api/zotero/collections")
+def list_zotero_collections():
+    try:
+        with httpx.Client(timeout=30) as client:
+            return ZoteroClient(settings, client).list_collections()
+    except ZoteroError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}/zotero-identifiers")
+def download_zotero_identifiers(run_id: str):
+    if not database.get_run(run_id):
+        raise HTTPException(404, "Run not found")
+    exported = export_identifiers(database.list_papers(run_id))
+    return Response(exported.text, media_type="text/plain; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="zotero-identifiers-{run_id}.txt"',
+        "X-Missing-Identifier-Count": str(len(exported.missing)),
+    })
+
+
+@app.get("/api/runs/{run_id}/zotero-batches")
+def list_zotero_batches(run_id: str):
+    if not database.get_run(run_id):
+        raise HTTPException(404, "Run not found")
+    return database.list_zotero_batches(run_id)
+
+
+@app.post("/api/runs/{run_id}/zotero-batches", status_code=202)
+def start_zotero_batch(run_id: str):
+    with exclusive_import_operation("Zotero 导入或数据库维护正在进行，请稍后重试。"):
+        run = database.get_run(run_id)
+        if not run:
+            raise HTTPException(404, "Run not found")
+        if run_worker is None:
+            raise HTTPException(503, "Run worker is not available")
+        task = database.get_task(run["task_id"]) or {}
+        if not task.get("zotero_collection_key"):
+            raise HTTPException(422, "请先为任务选择确切的 Zotero 集合。")
+        _validate_zotero_target({**task, "zotero_auto_import": True})
+        try:
+            batch = database.reserve_zotero_batch(run_id, destination_for(task_settings(settings, task)))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        run_worker.submit_zotero(batch)
+        return batch
+
+
+@app.post("/api/runs/{run_id}/zotero-batches/{batch_id}/retry", status_code=202)
+def retry_zotero_batch(run_id: str, batch_id: str):
+    with exclusive_import_operation("Zotero 导入或数据库维护正在进行，请稍后重试。"):
+        artifact = database.get_run_artifact(run_id, batch_id)
+        if not batch_id.startswith("zotero_batch.") or not artifact:
+            raise HTTPException(404, "Batch not found")
+        if run_worker is None:
+            raise HTTPException(503, "Run worker is not available")
+        batch = database.reserve_zotero_batch(run_id, artifact["payload"]["destination"], retry=True)
+        run_worker.submit_zotero(batch)
+        return batch
+
+
 @app.post("/api/papers/{paper_id}/zotero")
 def import_paper_to_zotero(paper_id: str):
     with exclusive_import_operation("Zotero 导入或数据库维护正在进行，请稍后重试。"):
@@ -346,7 +423,9 @@ def import_paper_to_zotero(paper_id: str):
             raise HTTPException(409, "已忽略的论文不能导入，请先修改审核状态。")
         with httpx.Client(timeout=30) as client:
             try:
-                zotero = ZoteroClient(settings, client)
+                run = database.get_run(paper["run_id"])
+                task = database.get_task(run["task_id"]) if run else {}
+                zotero = ZoteroClient(task_settings(settings, task or {}), client)
             except ZoteroError as exc:
                 raise HTTPException(400, str(exc)) from exc
             try:
@@ -677,7 +756,7 @@ def change_data_directory(payload: DataDirectoryRequest):
         target = Path(payload.path).expanduser().resolve()
         if target == settings.data_dir.resolve():
             return {"status": "ok", "path": str(target)}
-        if database.list_recoverable_runs():
+        if database.list_recoverable_runs() or database.has_pending_zotero_batches():
             raise HTTPException(409, "Cannot move data while a run is active")
         try:
             target.mkdir(parents=True, exist_ok=True)
@@ -759,7 +838,7 @@ def restore_backup(payload: BackupRestoreRequest):
             Database.validate_backup(source)
         except (OSError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        if database.list_recoverable_runs():
+        if database.list_recoverable_runs() or database.has_pending_zotero_batches():
             raise HTTPException(409, "Cannot restore while a run is active")
         safety = settings.data_dir / "backups" / f"before-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
         database.backup(safety)

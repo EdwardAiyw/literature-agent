@@ -12,6 +12,7 @@
 | 后端 | `http://127.0.0.1:8001` | FastAPI + 本地任务队列 |
 | 健康检查 | `http://127.0.0.1:8001/api/health` | 不暴露密钥 |
 | 运行时设置 | `http://127.0.0.1:8001/api/settings` | 查看配置状态 |
+| Zotero 自动批次与附件 | `/api/runs/{run_id}/zotero-batches`、`/zotero-identifiers` | 按任务集合导入、失败重试及 TXT 下载，详见 [Zotero 接口](ZOTERO.md) |
 | Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |
 | 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 只补收件人、执行时间及时区；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
 
