@@ -20,7 +20,7 @@ def test_all_sources_are_normalized_and_partially_failure_tolerant(tmp_path):
         <MedlineCitation><PMID>12345</PMID><Article>
           <ArticleTitle>PubMed paper</ArticleTitle>
           <Abstract><AbstractText Label="METHODS">A method.</AbstractText></Abstract>
-          <Journal><Title>Journal of Tests</Title><JournalIssue><PubDate><Year>2025</Year><Month>Jan</Month><Day>02</Day></PubDate></JournalIssue></Journal>
+          <Journal><Title>Journal of Tests</Title><ISSN>0028-0836</ISSN><JournalIssue><PubDate><Year>2025</Year><Month>Jan</Month><Day>02</Day></PubDate></JournalIssue></Journal>
           <AuthorList><Author><ForeName>Ada</ForeName><LastName>Lovelace</LastName></Author></AuthorList>
           <Language>eng</Language>
         </Article></MedlineCitation>
@@ -63,6 +63,7 @@ def test_all_sources_are_normalized_and_partially_failure_tolerant(tmp_path):
     )
     assert {item["source"] for item in records} == {"openalex", "arxiv", "pubmed", "crossref"}
     assert next(item for item in records if item["source"] == "pubmed")["doi"] == "10.1000/pubmed.1"
+    assert next(item for item in records if item["source"] == "pubmed")["issns"] == ["0028-0836"]
     assert diagnostics["openalex"]["status"] == "ok"
     assert diagnostics["pubmed"]["count"] == 1
 

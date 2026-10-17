@@ -20,6 +20,8 @@ For the original Chinese user guide, see [README.md](README.md).
 
 Current source also supports opt-in task/subscription imports into exact Zotero collections, durable batch status/retry, and UTF-8 identifier TXT attachments in daily digests. One real DOI, PMID, arXiv ID, ISBN or ADS bibcode is selected per paper and deduplicated; missing IDs are reported. Existing runs offer downloads without resending mail. These source updates are not included in the existing RC5 Windows installer. See [Zotero operations](docs/ZOTERO.md).
 
+Journal JIF display supports user-imported JCR CSV data matched by valid ISSN, with metric year/provenance in the workbench, digests and new Zotero journal items. No live JCR data source is configured; unmatched/preprint entries show missing/inapplicable instead of estimated factors. See [journal metrics](docs/JOURNAL_METRICS.md).
+
 ## Contents
 
 - [Changes in RC5](#changes-in-rc5)

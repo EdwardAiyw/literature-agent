@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add user-imported JCR JIF data with validated ISSN/year, atomic CSV imports, provenance, latest-year matching and explicit missing/inapplicable states in the workbench/digest. New Zotero journal items include journal/ISSN and available JIF provenance; existing user metadata and identifier TXT stay intact. No live JCR provider or model-estimated factors are introduced.
+
 - Add task/subscription-specific opt-in Zotero import into exact existing collections, read-only collection selection, durable destination snapshots, batch progress/retry and restart recovery independent of retrieval/mail.
 - Share one remote DOI index per batch attempt, preserve existing metadata/collections, verify target membership and block deletion/database replacement while import work is pending.
 - Attach UTF-8 Zotero identifier TXT files to daily digests, preserving actual DOI/PMID/arXiv/ISBN/ADS identifiers with one preferred identifier per paper, deduplication and missing-ID notices; offer downloads for existing runs without resending mail.

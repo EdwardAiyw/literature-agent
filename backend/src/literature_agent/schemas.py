@@ -473,6 +473,10 @@ class PaperRead(BaseModel):
     published_date: str
     source: str
     doi: str = ""
+    venue: str = ""
+    venue_type: str = ""
+    issns: list[str] = Field(default_factory=list)
+    journal_metric: dict | None = None
     official_url: str = ""
     open_access_url: str = ""
     relevance_score: float = 0.0
@@ -485,6 +489,12 @@ class PaperRead(BaseModel):
 
 class ReviewRequest(BaseModel):
     review: Literal["unreviewed", "read", "save", "background", "ignore"]
+
+
+class JournalMetricsImport(BaseModel):
+    csv: str = Field(min_length=1, max_length=15_000_000)
+    source: str = Field(min_length=1, max_length=200)
+    source_url: str = Field(default="", max_length=1000)
 
 
 class SettingsUpdate(BaseModel):

@@ -9,6 +9,7 @@ from typing import Any
 
 from .config import Settings
 from .identifiers import export_identifiers
+from .journal_metrics import format_jif
 
 
 @dataclass(frozen=True)
@@ -55,10 +56,14 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
         doi = paper.get("doi") or "未提供"
         url = paper.get("official_url") or ""
         summary = _summary_text(paper)
+        journal = paper.get("venue") or (paper.get("journal_metric") or {}).get("journal") or "未提供"
+        jif = format_jif(paper)
         lines.extend([
             f"{index}. {paper.get('title', 'Untitled')}",
             f"作者：{authors or '未提供'} | 来源：{paper.get('source', '')} | 日期：{paper.get('published_date', '')}",
             f"DOI：{doi}",
+            f"期刊/出版物：{journal}",
+            jif,
             f"原文：{url}",
             summary,
             "",
@@ -68,6 +73,7 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
             f"<h2 style='font-size:17px;margin:0 0 8px'>{index}. {_clean(paper.get('title', 'Untitled'))}</h2>"
             f"<p style='color:#555;margin:4px 0'>作者：{_clean(authors or '未提供')} · 来源：{_clean(paper.get('source', ''))} · 日期：{_clean(paper.get('published_date', ''))}</p>"
             f"<p style='margin:8px 0'>DOI：{_clean(doi)}<br>原文：<a href='{_clean(url)}'>{_clean(url or '未提供')}</a></p>"
+            f"<p>期刊/出版物：{_clean(journal)}<br>{_clean(jif)}</p>"
             f"<p style='white-space:pre-line;line-height:1.55'>{_clean(summary)}</p>"
             "</article>"
         )

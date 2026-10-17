@@ -218,13 +218,15 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
 
     def dedupe(state: GraphState) -> GraphState:
         started(state, "dedupe", "Normalizing and removing duplicate records")
-        seen: set[str] = set()
+        from .journal_metrics import merge_journal_metadata
+        seen: dict[str, dict] = {}
         records = []
         for record in state.get("records", []):
             identifier = canonical(record)
             if identifier in seen:
+                merge_journal_metadata(seen[identifier], record)
                 continue
-            seen.add(identifier)
+            seen[identifier] = record
             record["canonical_id"] = identifier
             records.append(record)
         completed(state, "dedupe", f"Kept {len(records)} unique record(s)", 3, {"unique_count": len(records)})

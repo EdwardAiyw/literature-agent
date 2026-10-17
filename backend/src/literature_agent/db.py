@@ -17,6 +17,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from .prompts import default_prompt_id
+from .journal_metrics import normalize_issn, metrics_applicable
 
 
 def upgrade_database(path: Path) -> None:
@@ -381,7 +382,44 @@ class Database:
 
     def list_papers(self, run_id: str) -> list[dict]:
         rows = self.connection.execute("SELECT * FROM papers WHERE run_id = ? ORDER BY json_extract(payload, '$.relevance_score') DESC", (run_id,)).fetchall()
-        return [{**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]} for row in rows]
+        return [self.with_journal_metric({**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]}) for row in rows]
+
+    def import_journal_metrics(self, records: list[dict]) -> int:
+        with self.connection:
+            self.connection.executemany(
+                """INSERT INTO journal_metrics VALUES (?, ?, ?, ?)
+                ON CONFLICT(issn, year) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at""",
+                [(r["issn"], r["year"], json.dumps(r, ensure_ascii=False), now()) for r in records],
+            )
+        return len(records)
+
+    def journal_metrics_status(self) -> dict:
+        row = self.connection.execute("SELECT count(*) AS records, max(year) AS latest_year, max(updated_at) AS updated_at FROM journal_metrics").fetchone()
+        return dict(row)
+
+    def with_journal_metric(self, paper: dict) -> dict:
+        # Resolve current imported data for display/email/export without
+        # rewriting historical paper payloads or model relevance decisions.
+        result = {**paper, "journal_metric": None}
+        if not metrics_applicable(paper):
+            return result
+        values = paper.get("issns") or []
+        if isinstance(values, str):
+            values = [values]
+        issns = list(dict.fromkeys(filter(None, (normalize_issn(str(v)) for v in values))))
+        if not issns:
+            return result
+        placeholders = ",".join("?" for _ in issns)
+        rows = self.connection.execute(f"SELECT payload FROM journal_metrics WHERE issn IN ({placeholders}) ORDER BY year DESC", issns).fetchall()
+        if not rows:
+            return result
+        records = [json.loads(row["payload"]) for row in rows]
+        latest = records[0]["year"]
+        records = [r for r in records if r["year"] == latest]
+        # Conflicting print/electronic matches are missing, never guessed.
+        if len({(r["journal"], r["jif"], r["source"], r["source_url"]) for r in records}) == 1:
+            result["journal_metric"] = {**records[0], "matched_by": "issn"}
+        return result
 
     def review_paper(self, paper_id: str, review: str) -> bool:
         result = self.connection.execute("UPDATE papers SET review = ? WHERE id = ?", (review, paper_id))
@@ -390,7 +428,7 @@ class Database:
 
     def get_paper(self, paper_id: str) -> dict | None:
         row = self.connection.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        return {**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]} if row else None
+        return self.with_journal_metric({**json.loads(row["payload"]), "id": row["id"], "run_id": row["run_id"], "review": row["review"]}) if row else None
 
     def get_zotero_import(self, paper_id: str, destination: str) -> dict | None:
         row = self.connection.execute("SELECT payload, updated_at FROM zotero_imports WHERE paper_id = ? AND destination = ?", (paper_id, destination)).fetchone()

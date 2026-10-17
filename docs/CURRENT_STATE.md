@@ -52,6 +52,8 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 
 ## Zotero task automation and identifier attachments (2026-10-17)
 
+- Source adds optional JCR CSV import and ISSN-based JIF/year/source display in workbench/mail/new Zotero items. Actual factors require user-supplied data; unavailable/preprint records do not receive guessed factors. Alembic `20261017_0004` adds `journal_metrics` without changing old paper payloads. See [configuration](JOURNAL_METRICS.md).
+
 - Source runtime adds opt-in exact-collection task/subscription imports, destination snapshots, shared batch DOI indexes, durable per-paper progress and failure retry without retrieval/mail. Worker restart resumes unfinished batches.
 - Daily digests attach UTF-8 identifier TXT when reliable IDs exist; the workbench exports the same identifiers for existing runs. No invented identifiers or PDF attachments.
 - Defaults remain off; task conversion preserves settings. Global credentials stay shared. Existing Windows RC5 assets remain immutable. See [Zotero configuration and APIs](ZOTERO.md).

@@ -11,6 +11,7 @@ from uuid import uuid4
 import httpx
 
 from .config import Settings
+from .journal_metrics import format_jif, normalize_issn
 
 
 IMPORT_LOCK = Lock()
@@ -202,6 +203,16 @@ class ZoteroClient:
                     "abstractNote": paper.get("abstract", ""), "date": paper.get("published_date", ""), "DOI": doi,
                     "url": paper.get("official_url") or paper.get("open_access_url", ""),
                     "collections": [collection], "tags": [{"tag": "Literature Agent"}, {"tag": "source:" + paper.get("source", "unknown")} ]}
+            if item["itemType"] == "journalArticle":
+                item["publicationTitle"] = paper.get("venue") or (paper.get("journal_metric") or {}).get("journal") or ""
+                issns = paper.get("issns") or []
+                if isinstance(issns, str):
+                    issns = [issns]
+                item["ISSN"] = next(filter(None, (normalize_issn(str(v)) for v in issns)), "")
+                if paper.get("journal_metric"):
+                    item["extra"] = format_jif(paper)
+                    if paper["journal_metric"].get("source_url"):
+                        item["extra"] += "\nJIF source: " + paper["journal_metric"]["source_url"]
             # A token identifies this creation attempt, not the citation forever.
             # A later user retry scans again before creating (including after a
             # lost response); deletion and re-import must use a fresh token.

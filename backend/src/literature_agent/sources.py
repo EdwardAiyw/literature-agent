@@ -219,7 +219,7 @@ class BaseSource:
 
 class SemanticScholarSource(BaseSource):
     name = "semantic_scholar"
-    fields = "paperId,title,abstract,authors,year,publicationDate,citationCount,externalIds,url,openAccessPdf,venue,fieldsOfStudy,publicationTypes"
+    fields = "paperId,title,abstract,authors,year,publicationDate,citationCount,externalIds,url,openAccessPdf,venue,journal,fieldsOfStudy,publicationTypes"
     minimum_request_interval = 1.1
     maximum_attempts = 4
 
@@ -255,7 +255,8 @@ class SemanticScholarSource(BaseSource):
                     "published_date": _date(item.get("publicationDate") or (f"{item['year']}-01-01" if item.get("year") else "")),
                     "source": self.name, "source_id": paper_id, "semantic_scholar_id": paper_id,
                     "external_ids": ids,
-                    "doi": _normalize_doi(ids.get("DOI")), "venue": _text(item.get("venue")),
+                    "doi": _normalize_doi(ids.get("DOI")), "venue": _text((item.get("journal") or {}).get("name") or item.get("venue")),
+                    "issns": [(item.get("journal") or {}).get("issn")] if (item.get("journal") or {}).get("issn") else [],
                     "official_url": item.get("url") or (f"https://www.semanticscholar.org/paper/{paper_id}" if paper_id else ""),
                     "open_access_url": oa.get("url", "") or "", "citation_count": item.get("citationCount"),
                     "language": "unknown", "topics": item.get("fieldsOfStudy") or [],
@@ -295,6 +296,8 @@ class OpenAlexSource(BaseSource):
                     "doi": doi,
                     "pmid": str((item.get("ids") or {}).get("pmid") or "").rstrip("/").rsplit("/", 1)[-1],
                     "venue": _text(venue.get("display_name")),
+                    "issns": list(dict.fromkeys([*(venue.get("issn") or []), *([venue["issn_l"]] if venue.get("issn_l") else [])])),
+                    "venue_type": _text(venue.get("type")),
                     "official_url": item.get("doi") or item.get("id", ""),
                     "open_access_url": (item.get("open_access") or {}).get("oa_url", "") or "",
                     "citation_count": item.get("cited_by_count"),
@@ -319,7 +322,7 @@ class CrossrefSource(BaseSource):
     name = "crossref"
 
     def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
-        params = {"query": query, "rows": min(limit, 100), "select": "DOI,title,author,published,container-title,URL,abstract"}
+        params = {"query": query, "rows": min(limit, 100), "select": "DOI,title,author,published,container-title,URL,abstract,ISSN,type"}
         user_agent = "LiteratureAgent/0.3"
         if self.email:
             params["mailto"] = self.email
@@ -340,6 +343,8 @@ class CrossrefSource(BaseSource):
                 "source_id": doi,
                 "doi": doi,
                 "venue": _text((item.get("container-title") or [""])[0]),
+                "issns": item.get("ISSN") or [],
+                "venue_type": _text(item.get("type")),
                 "official_url": item.get("URL", "") or (f"https://doi.org/{doi}" if doi else ""),
                 "open_access_url": "",
                 "language": "unknown",
@@ -504,6 +509,8 @@ class PubMedSource(BaseSource):
                     "pmid": pmid,
                     "doi": doi,
                     "venue": _text(citation.findtext(".//Journal/Title")),
+                    "issns": list(dict.fromkeys(filter(None, [citation.findtext(".//Journal/ISSN"), article.findtext(".//MedlineJournalInfo/ISSNLinking")]))),
+                    "venue_type": "journal",
                     "official_url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "",
                     "open_access_url": "",
                     "language": _text(citation.findtext(".//Language")) or "unknown",

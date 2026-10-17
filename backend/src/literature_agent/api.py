@@ -31,6 +31,8 @@ from .worker import LocalRunWorker
 from .scheduler import DailyScheduler
 from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for, task_settings
 from .identifiers import export_identifiers
+from .journal_metrics import parse_metrics_csv
+from .schemas import JournalMetricsImport
 
 config_manager = ConfigManager(Settings.from_env())
 settings = config_manager.get()
@@ -366,6 +368,28 @@ def list_zotero_collections():
             return ZoteroClient(settings, client).list_collections()
     except ZoteroError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/journal-metrics")
+def journal_metrics_status():
+    return database.journal_metrics_status()
+
+
+@app.get("/api/journal-metrics/template")
+def journal_metrics_template():
+    return Response("journal,issn,eissn,year,jif\n", media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="journal-metrics-template.csv"',
+    })
+
+
+@app.post("/api/journal-metrics/import")
+def import_journal_metrics(payload: JournalMetricsImport):
+    try:
+        records = parse_metrics_csv(payload.csv, payload.source, payload.source_url)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    database.import_journal_metrics(records)
+    return {"imported": len(records), **database.journal_metrics_status()}
 
 
 @app.get("/api/runs/{run_id}/zotero-identifiers")
