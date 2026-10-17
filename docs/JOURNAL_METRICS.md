@@ -35,3 +35,10 @@
 | `GET /api/runs/{id}/papers` | 新增 `venue`、`venue_type`、`issns`、可空 `journal_metric`；指标含 `jif/year/source/source_url/matched_by` |
 
 Alembic `20261017_0004` 新增 `journal_metrics` 表，以 ISSN/年份为联合主键，payload 保存期刊名、JIF 和来源。原有数据不变；升级前自动备份，网页数据库备份包含指标表。服务器更新仍应备份数据库及配置/密钥，见 [部署手册](SERVER_DEPLOYMENT.md)。指标表不包含账号密钥。
+
+## 2026-10-17 验证与部署
+
+- 实现提交 `ca5a4bb`；[GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/39001635800) 三项作业通过，后端 **199 项测试**、前端构建及 LocalJev 检查通过。
+- 本机全量后端 198 项通过，最后跨源 ISSN 合并变更后 47 项受影响测试通过；最终全量由 CI 的 199 项覆盖。Edge 的 JIF、服务器设置及 Zotero 相关 **13 项回归**通过，含导入后已完成运行刷新、JIF=0、年份/来源、预印本不适用和移动端布局。邮件、CSV、迁移及 Zotero 字段使用合成指标测试，不代表真实 JCR 数据验收。
+- 服务器已部署 `literature-agent:ca5a4bb`，迁移到 `20261017_0004`。备份后验证原 13 张业务表内容哈希不变（另有 Alembic 版本表按预期更新），新指标表为空；配置、密钥和 LocalJev 环境哈希不变。
+- 原每日 07:00 Asia/Hong_Kong、Daily Digest 自动导入和 LocalJev Shadow 保留，调度恢复运行。部署没有发送邮件、重新检索、上传合成指标或写 Zotero。实际数值仍需用户在网页导入已有 JCR 数据。既有 RC5 Windows 安装包保持原样。

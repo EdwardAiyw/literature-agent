@@ -53,6 +53,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 ## Zotero task automation and identifier attachments (2026-10-17)
 
 - Source adds optional JCR CSV import and ISSN-based JIF/year/source display in workbench/mail/new Zotero items. Actual factors require user-supplied data; unavailable/preprint records do not receive guessed factors. Alembic `20261017_0004` adds `journal_metrics` without changing old paper payloads. See [configuration](JOURNAL_METRICS.md).
+- JIF update `ca5a4bb` deployed to server after backup; 13 existing business-table hashes/settings/secrets preserved, metric table empty pending user data. CI passed 199 backend tests/build/LocalJev checks; 13 affected Edge cases passed. Existing daily schedule/automatic Zotero target/Shadow retained; no mail, retrieval or Zotero writes during this update.
 
 - Source runtime adds opt-in exact-collection task/subscription imports, destination snapshots, shared batch DOI indexes, durable per-paper progress and failure retry without retrieval/mail. Worker restart resumes unfinished batches.
 - Daily digests attach UTF-8 identifier TXT when reliable IDs exist; the workbench exports the same identifiers for existing runs. No invented identifiers or PDF attachments.
