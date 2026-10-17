@@ -4,9 +4,9 @@
 
 Literature Agent is a self-hosted literature search and daily email assistant for Windows or a Linux server. Enter a research topic and it searches several public scholarly sources, removes duplicates, ranks relevance, and produces concise research briefs. You can also create a daily subscription that runs automatically and sends an HTML and plain-text digest to your inbox.
 
-The application runs locally on your computer. It does not require a Literature Agent account, does not download or send PDFs, and does not bypass paywalls. Paper records include DOI and source links so that you can open and verify the original work.
+The application runs on your own computer or Linux server. It does not require a Literature Agent account, does not download or send PDFs, and does not bypass paywalls. Paper records include DOI and source links so that you can open and verify the original work.
 
-> **Release status (October 15, 2026)**
+> **Current status (updated October 17, 2026)**
 >
 > [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) is published as a prerelease with task-to-daily conversion, relevance filtering and source rate-limit repairs, retaining default Prompt v2, Zotero and LocalJev. The 150 backend tests, 27 Edge regressions, frontend build, GitHub CI, Windows Release and packaged checks passed. The publicly downloaded installer matches its SHA-256 checksum. Full manual installer acceptance remains required before stable promotion.
 
@@ -18,12 +18,11 @@ The application runs locally on your computer. It does not require a Literature 
 
 For the original Chinese user guide, see [README.md](README.md).
 
-Current source also supports opt-in task/subscription imports into exact Zotero collections, durable batch status/retry, and UTF-8 identifier TXT attachments in daily digests. One real DOI, PMID, arXiv ID, ISBN or ADS bibcode is selected per paper and deduplicated; missing IDs are reported. Existing runs offer downloads without resending mail. These source updates are not included in the existing RC5 Windows installer. See [Zotero operations](docs/ZOTERO.md).
-
-Live runs automatically look up explicitly published journal JIF values on publisher websites and include the metric year and source link in the workbench, daily digests and new Zotero journal items. Coverage is partial; missing values stay unknown, preprints/conference papers are inapplicable, and lookup failures do not prevent mail. Existing JCR CSV imports remain available. Disable automatic lookup in Settings, or set its initial default with `JOURNAL_METRICS_AUTO=false`. See [journal metrics](docs/JOURNAL_METRICS.md).
+**Source and server features were updated on October 17, 2026; the downloadable Windows installer remains RC5.** Automatic JIF lookup, task-specific Zotero imports, identifier attachments and persistent server scheduling have been validated and deployed. These additions are not included in the existing RC5 installer.
 
 ## Contents
 
+- [October 17 additions and rollout status](#october-17-additions-and-rollout-status)
 - [Changes in RC5](#changes-in-rc5)
 - [What it does](#what-it-does)
 - [Requirements](#requirements)
@@ -41,6 +40,25 @@ Live runs automatically look up explicitly published journal JIF values on publi
 - [Testing](#testing)
 - [Contributing and security](#contributing-and-security)
 - [License](#license)
+
+## October 17 additions and rollout status
+
+| Addition | User-visible behavior |
+| --- | --- |
+| JIF in literature digests | Live runs automatically query publisher websites; papers in the workbench, daily email and new Zotero journal items include JIF, metric year and source link without requiring a CSV upload |
+| Metric controls and diagnostics | Enable/disable automatic lookup in Settings, inspect cache coverage or import existing JCR CSV data; missing, insufficient-metadata and inapplicable records are identified, and lookup failure never blocks mail |
+| Exact-collection Zotero automation | Select an existing collection per task/subscription and opt in (off by default); track durable batches, retry failures and recover after restart without repeating searches or mail |
+| Identifier TXT attachments | Daily emails attach deduplicated real DOI/PMID/arXiv/ISBN/ADS identifiers, one per line, with missing-ID notices; paste into Zotero's identifier dialog or download identifiers for an existing run |
+| Persistent server execution | Linux Docker runs searches, mail and imports while your computer is off; manage schedules/settings and run tasks through the SSH-protected webpage |
+| Cloud LocalJev connection | An independent server service is connected; production stays in Shadow mode, with ordinary-model decisions retained until active screening passes its quality gate |
+
+**Rollout:** server image `5e2defc` is deployed and scheduling resumed, preserving tasks, configuration, credentials and Zotero targets. GitHub `main` contains the additions and documentation. Existing RC5 Windows assets/tags/checksums remain unchanged; use an upgraded server or current source for these features.
+
+**Validation:** [latest code CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/39003945482) passed **235 backend tests**, frontend build and LocalJev checks; **15 affected Edge regressions** passed locally. Three real Frontiers journals were checked from both desktop and server networks. Exact-collection Zotero imports also passed [real validation](docs/ZOTERO_VALIDATION_2026-10-17.md).
+
+Public JIF coverage is partial: publishers may throttle, block or challenge requests. Values are never guessed or replaced with citation counts/CiteScore. Preprints, conference papers and records with insufficient journal metadata may have no JIF to display. Historical mail is not resent and existing Zotero metadata is not overwritten in bulk.
+
+Guides: [JIF sources and controls](docs/JOURNAL_METRICS.md) · [Zotero automation and attachments](docs/ZOTERO.md) · [server deployment and web management](docs/SERVER_DEPLOYMENT.md). The initial JIF default can also be set with `JOURNAL_METRICS_AUTO=false`; saved webpage settings take precedence.
 
 ## Changes in RC5
 
@@ -63,7 +81,8 @@ RC4 assets and tags remain available, but do not contain these conversion, relev
 - Optionally performs an evidence review that flags claims not supported by the available source material.
 - Shows per-source success, cache, partial, rate-limit and failure states with result counts.
 - Provides four generic default v2 Prompts with retained v1/custom versions and task overrides.
-- Imports individual citations to Zotero with DOI/title deduplication and destination-specific status.
+- Imports individual citations to Zotero, with opt-in task-specific collection imports and batch progress in current source/server deployments.
+- Adds identifier TXT attachments and verified publisher JIF/year/source to daily digests in current source/server deployments.
 - Lets you mark papers for deep reading, saving, background, or ignoring.
 - Converts existing tasks to daily subscriptions and sends HTML and plain-text digests.
 - Keeps task history, run details, paper records, and delivery records locally.
@@ -313,13 +332,17 @@ The development frontend runs at <http://127.0.0.1:5175>; the backend runs at <h
 
 ## Zotero citation import
 
+Current source/server deployments also offer exact-collection automatic imports, durable batch retries and identifier TXT attachments. Configure credentials first, then select a collection and enable automation for each task/subscription. See the [new feature table](#october-17-additions-and-rollout-status).
+
 RC5 retains RC4's explicit per-paper Zotero import and deduplication repairs; the older RC3 installer does not include them. In Settings, enter a user/group Library ID, a read/write API key, and a collection name or existing Collection Key, then test and save the connection. Keys are stored in Windows Credential Manager.
 
 DOI matching scans paginated top-level library items because Zotero quick search does not search DOI metadata. DOI-less papers use exact title matching. Existing items keep their metadata; only collection membership is added. Large libraries may take longer to check. Saved destination changes refresh statuses even for completed runs, and switching back restores that destination's records. Import and database replacement are mutually exclusive (HTTP 409 on conflict). Imports contain citation metadata only; the desktop client receives them through Zotero sync. See [Zotero configuration and troubleshooting](docs/ZOTERO.md).
 
 ## Testing
 
-Local validation passed 150 backend tests, 27 Edge regressions and the frontend production build. [RC5 CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) and [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) passed, including the full backend/browser suites. An anonymous download matched both `SHA256SUMS.txt` and the GitHub asset digest. Packaged checks cover version, isolated database, Prompt v2 catalog, Zotero settings, frontend and task conversion without search or email side effects. Full manual install/upgrade, real Zotero sync, scheduling, restore and uninstall acceptance remain open. See the [public validation report](docs/VALIDATION_2026-10-15.md).
+As of October 17, 2026, current source passed **235 backend tests**, frontend build, LocalJev checks and **15 affected Edge regressions**; the server is deployed and read-only production UI checks passed. These affected browser cases are not a full-suite count. See [rollout and real-data validation](#october-17-additions-and-rollout-status).
+
+For the **October 15 RC5 Windows installer**, historical validation passed 150 backend tests, 27 Edge regressions and the frontend production build. [RC5 CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439) and [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) passed, including the full backend/browser suites. An anonymous download matched both `SHA256SUMS.txt` and the GitHub asset digest. Packaged checks cover version, isolated database, Prompt v2 catalog, Zotero settings, frontend and task conversion without search or email side effects. Full manual install/upgrade, real Zotero sync, scheduling, restore and uninstall acceptance remain open. See the [public validation report](docs/VALIDATION_2026-10-15.md).
 
 Run the backend tests, build the frontend, and execute browser regression tests:
 
