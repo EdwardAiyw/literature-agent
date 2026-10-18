@@ -80,6 +80,10 @@ jobs:
             if (@($prompts | Where-Object builtin).Count -ne 8 -or @($prompts | Where-Object { $_.active -and $_.version -eq "v2" }).Count -ne 4) { throw "Packaged Prompt v2 catalog check failed" }
             $settings = Invoke-RestMethod "http://127.0.0.1:8012/api/settings"
             if ($settings.version -ne $version -or $settings.zotero_collection_name -ne "Literature Agent") { throw "Packaged Zotero settings check failed" }
+            if ($settings.journal_metrics_auto -ne $true) { throw "Packaged automatic JIF default check failed" }
+            $env:PACKAGED_SMOKE_DB = Join-Path $env:LITERATURE_AGENT_DATA_DIR "literature_agent_v2.db"
+            python -c "import os,sqlite3; c=sqlite3.connect(os.environ['PACKAGED_SMOKE_DB']); assert c.execute('SELECT version_num FROM alembic_version').fetchone()[0]=='20261018_0006'; assert c.execute('SELECT count(*) FROM digest_history').fetchone()[0]==0"
+            if ($LASTEXITCODE -ne 0) { throw "Packaged digest history migration check failed" }
             $page = Invoke-WebRequest "http://127.0.0.1:8012/"
             if ($page.StatusCode -ne 200 -or $page.Content -notmatch 'src="/assets/') { throw "Packaged frontend check failed" }
             $taskBody = @{ name = "Packaged conversion smoke"; topic = "retrieval augmented generation"; sources = @("openalex"); date_from = "2023-01-01"; date_to = "2026-10-15"; target_count = 5; origin = "test" } | ConvertTo-Json
@@ -87,6 +91,11 @@ jobs:
             $schedule = @{ recipient = "smoke@example.org"; schedule_time = "08:00"; timezone = "Asia/Hong_Kong" } | ConvertTo-Json
             $subscription = Invoke-RestMethod "http://127.0.0.1:8012/api/tasks/$($task.id)/subscription" -Method Post -ContentType "application/json" -Body $schedule
             if ($subscription.task_id -ne $task.id -or $subscription.date_from -ne "2023-01-01" -or $subscription.date_to -ne "2026-10-15" -or $subscription.target_count -ne 5) { throw "Packaged task conversion did not preserve research settings" }
+            if ($subscription.date_to_mode -ne "today" -or $subscription.zotero_auto_import -ne $false) { throw "Packaged subscription policy check failed" }
+            $fixed = Invoke-RestMethod "http://127.0.0.1:8012/api/subscriptions/$($subscription.id)" -Method Patch -ContentType "application/json" -Body '{"date_to_mode":"fixed","target_count":10}'
+            if ($fixed.date_to_mode -ne "fixed" -or $fixed.target_count -ne 10) { throw "Packaged fixed cutoff check failed" }
+            $dynamic = Invoke-RestMethod "http://127.0.0.1:8012/api/subscriptions/$($subscription.id)" -Method Patch -ContentType "application/json" -Body '{"date_to_mode":"today"}'
+            if ($dynamic.date_to_mode -ne "today" -or $dynamic.target_count -ne 10) { throw "Packaged running-day cutoff check failed" }
             $runs = Invoke-RestMethod "http://127.0.0.1:8012/api/tasks/$($task.id)/runs"
             $deliveries = Invoke-RestMethod "http://127.0.0.1:8012/api/deliveries"
             if (@($runs).Count -ne 0 -or @($deliveries).Count -ne 0) { throw "Packaged conversion unexpectedly started a run or delivery" }
