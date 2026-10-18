@@ -19,6 +19,8 @@
 
 - Post-RC5 source: single-user Linux Docker runtime, internal scheduling, persistent file secrets, SSH web management and subscription editing; see [server deployment](SERVER_DEPLOYMENT.md).
 
+- Post-RC5 source (2026-10-18): durable delivery-history filtering, cross-source identities, dynamic subscription cutoffs and restart-safe snapshots; see [daily selection](DAILY_DEDUPLICATION.md).
+
 ## Post-Beta
 
 - Released in RC4 (2026-10-15): explicit Zotero Web API citation import with paginated DOI metadata deduplication, per-destination status and database replacement locking.

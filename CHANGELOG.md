@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Merge cross-source paper identities and exclude each subscription's successful delivery history before model screening. Backfill durable `digest_history` snapshots independently of run deletion; do not consume papers for failed/test/no-send mail.
+- Add running-day/fixed subscription cutoffs and restart-safe configuration snapshots; preserve legacy fixed-date behavior. Show history exclusion statistics and explain empty digests without reusing delivered papers.
+- Rewrite Chinese/English READMEs around runtime choices, daily selection and source quickstart; retain detailed Windows steps in a separate user guide.
+
 - Automatically enrich selected papers with DOI journal metadata and explicitly published publisher JIF/year/source before digest creation and automatic Zotero import. Add bounded public HTTPS lookup, shared caches, a settings toggle and run diagnostics; preserve delivery on lookup failure and user-imported metrics on same-year conflicts. Validate three real Frontiers journals; other publishers may block access or lack supported formats. Retain atomic JCR CSV imports, existing Zotero metadata and identifier-only TXT. No model-estimated factors or substitute citation metrics.
 
 - Add task/subscription-specific opt-in Zotero import into exact existing collections, read-only collection selection, durable destination snapshots, batch progress/retry and restart recovery independent of retrieval/mail.

@@ -15,13 +15,13 @@
 | 期刊影响因子 | `/api/journal-metrics`、`/import`、`/template`、`PUT /api/settings/journal_metrics` | 默认查询官网 JIF，邮件附年份/来源；支持 JCR CSV 补充，见 [指标说明](JOURNAL_METRICS.md) |
 | Zotero 自动批次与附件 | `/api/runs/{run_id}/zotero-batches`、`/zotero-identifiers` | 按任务集合导入、失败重试及 TXT 下载，详见 [Zotero 接口](ZOTERO.md) |
 | Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |
-| 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 只补收件人、执行时间及时区；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
+| 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 补收件人、执行时间、时区及可选截止日期策略；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
 
 V2 工作流是：创建任务 -> 检索 -> 去重 -> 相关性筛选 -> 文献总结 -> 可选证据审查 -> 结果查看。Jev 是类型化决策层，不替代生成式 LLM。
 
 ## 2. 安装依赖
 
-要求 Python 3.12+、Node.js 18+。PowerShell 执行：
+要求 Python 3.12+、Node.js 22。PowerShell 执行：
 
 ```powershell
 cd D:\jianguoyun\1usm-onedrive\PhD\literature-agent
@@ -96,6 +96,8 @@ Invoke-RestMethod http://127.0.0.1:8001/api/settings |
 ```
 
 真实 Shadow 测试预期：`live=True`、`llm_configured=True`、`jev_enabled=True`、`jev_configured=True`、`jev_shadow_mode=True`。
+
+每日订阅支持 `date_to_mode: today | fixed`，新订阅默认运行当天，旧订阅保留固定日期。`dedupe` artifact 展示历史排除数；成功投递身份保存在 `digest_history`。详见 [接口与发送边界](DAILY_DEDUPLICATION.md)。
 
 ## 5. 数据库与迁移
 

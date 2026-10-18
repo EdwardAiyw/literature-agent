@@ -1,5 +1,12 @@
 # Current State
 
+## Daily digest duplicate repair (2026-10-18)
+
+- Shared source workflow now merges cross-source paper identities and excludes each subscription's successful delivery history before model screening. SMTP failures/no-send do not consume papers; independent subscriptions and manual tasks retain their own behavior.
+- `date_to_mode` adds running-day/fixed cutoff selection, preserving legacy fixed dates and storing restart-safe execution snapshots. Migration `20261018_0006` backfills durable delivery snapshots. See [behavior, limits and validation](DAILY_DEDUPLICATION.md).
+- Server image `literature-agent:digest-0aaced276934` is deployed, healthy and scheduling normally. The approved existing subscription now tracks through the running day at 07:00 Asia/Hong_Kong. All 15 preexisting business tables and configuration hashes were preserved before the explicit subscription update; 3 historical digests/150 papers were backfilled. The deployment itself did not send mail. A subsequent authorized replacement run on 2026-10-18 selected 10 papers, SMTP accepted its digest at 08:47 Asia/Hong_Kong, and all 10 Zotero imports completed. The existing subscription now targets at most 10 papers daily at 07:00; this is a per-subscription setting. Windows RC5 assets remain unchanged.
+- Windows and final Linux image: 245 backend tests passed on each. Frontend build and 9 affected Edge cases passed. Real-data isolated replay reduced the Oct18 selected list from 50 records to 44 identities and excluded 35 previously delivered identities, leaving 9 unseen; this does not predict future retrieval yield.
+
 ## Legacy implementation
 
 The existing `literature-digest` project is an independent script-oriented system. It currently provides:

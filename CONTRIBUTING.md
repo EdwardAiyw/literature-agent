@@ -1,6 +1,6 @@
 # Contributing and beta feedback
 
-Literature Agent is a Windows desktop application. Please read [README.md](README.md) for setup and [TEST_GUIDE.md](TEST_GUIDE.md) for the acceptance checklist.
+Literature Agent is a single-user Windows application with an optional Linux server runtime. Please read [README.md](README.md) for setup and [TEST_GUIDE.md](TEST_GUIDE.md) for the acceptance checklist.
 
 For a bug, use the GitHub bug report template. Include the version, Windows and browser versions, reproduction steps, expected and actual results, and a run ID if relevant. Remove API keys, SMTP credentials, email addresses, paper content you cannot share, and personal data from screenshots and logs.
 

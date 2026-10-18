@@ -15,7 +15,7 @@ flowchart LR
   API --> G[LangGraph run]
   G --> P[Query planner]
   P --> R[Source retrieval]
-  R --> D[Deduplicate]
+  R --> D[Merge identities and exclude delivered history]
   D --> C[Relevance screener]
   C --> S[Structured summarizer]
   S --> E{Evidence review enabled?}
@@ -60,18 +60,21 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 - JIF enrichment runs after selected papers are saved and before run completion, email rendering and automatic Zotero import. Crossref fills missing DOI journal metadata; OpenAlex locates ISSN-verified publisher homepages; explicit publisher JIF/year evidence populates `journal_metrics`. `journal_metric_lookups` (migration `20261017_0005`) caches DOI/ISSN results for 30 days on success or 24 hours on failure/missing. Network requests use at most two concurrent slots and a 60-second run deadline without holding a SQLite lock. Lookup failure never fails delivery. Latest-year reads preserve manual same-year data; conflicting print/electronic matches return no metric. New runs may update journal metadata, never ranking/evidence; historical papers are not automatically enriched. Settings use `PUT /api/settings/journal_metrics`; records/status/template/import use `/api/journal-metrics`. No model estimates or substitute citation metrics. See [API, source limits and validation](JOURNAL_METRICS.md).
 - `zotero_target` snapshots automatic destinations before retrieval; completed runs reserve one `zotero_batch.<destination hash>` artifact per destination. Worker startup repairs the completion/enqueue gap and resumes pending batches without retrieval or mail. Each attempt shares a fresh remote DOI/title index; confirmed writes update it, uncertain writes end the attempt so retry rechecks remotely. Library mismatch fails safely. Exact collection membership is checked after import.
 - Successful subscription retrieval durably reserves import before SMTP, then attempts mail and import independently. Digests attach a UTF-8 one-identifier-per-paper TXT with deduplication and missing-ID notices; existing runs expose the same export without sending mail. See [Zotero interfaces and operations](ZOTERO.md).
-- A subscription cannot start a second active run or run twice in its configured local calendar day.
+- Normal subscription dispatch and API manual execution share active-run exclusion and a local-calendar-day guard. A controlled operator rerun can bypass only the day guard while retaining history filtering.
+- Shared normalized DOI/PMID/versionless arXiv/source IDs and conservative title/author matching merge candidates before model screening. Subscription runs then exclude successful-delivery identities; one-off tasks only merge current candidates. Identity aliases survive merges; incomplete metadata may still evade matching.
+- Migration `20261018_0006` adds `digest_history`: delivery-owned paper identity snapshots, backfilled from all successful digests, retained independently of run deletion and deleted with the subscription. SMTP success and identity persistence share a local transaction, with an SMTP-accepted-before-commit crash window. Failed/test/no-send deliveries do not consume papers.
+- `subscription_snapshot` captures delivery configuration and effective dates before execution/recovery. New subscriptions default to `date_to_mode=today`; legacy missing fields read as `fixed`. Running-day cutoffs derive from run start in the subscription time zone. Targets are configurable upper bounds. See [selection/date interfaces](DAILY_DEDUPLICATION.md).
 - Task promotion uses an immediate SQLite transaction to attach one subscription and change task ownership without duplicating the task or rewriting its run history. A re-read detects stale task snapshots and duplicate conversions across API/database connections. Manual runs do not count as daily-subscription executions; active runs still block overlapping execution and subscription deletion.
 
 ## Convert an existing task to a daily subscription
 
-`POST /api/tasks/{task_id}/subscription` accepts scheduling details only:
+`POST /api/tasks/{task_id}/subscription` accepts scheduling details and an optional cutoff policy:
 
 ```json
 {"recipient":"reader@example.org","schedule_time":"08:00","timezone":"Asia/Hong_Kong"}
 ```
 
-The optional `enabled` field defaults to `true`. Research configuration comes from the current persisted task, including fixed publication dates and explicit Prompt overrides. Success returns HTTP 201 with the existing task ID and a new subscription ID. HTTP 404 means the task is missing; HTTP 409 means it was already converted (includes `subscription_id`) or changed during conversion; HTTP 422 means schedule/task/Prompt validation failed. Conversion neither enqueues a run nor sends mail nor registers OS tasks. The existing Windows due-subscription check/worker handles future execution. `DELETE /api/subscriptions/{id}` returns HTTP 409 while the associated task is queued, running or paused.
+The optional `enabled` field defaults to `true`. Research configuration comes from the current persisted task, including the saved start date and explicit Prompt overrides. The optional `date_to_mode` defaults to `today`; choose `fixed` to retain the saved cutoff. Success returns HTTP 201 with the existing task ID and a new subscription ID. HTTP 404 means the task is missing; HTTP 409 means it was already converted (includes `subscription_id`) or changed during conversion; HTTP 422 means schedule/task/Prompt validation failed. Conversion neither enqueues a run nor sends mail nor registers OS tasks. The existing Windows due-subscription check/worker handles future execution. `DELETE /api/subscriptions/{id}` returns HTTP 409 while the associated task is queued, running or paused.
 
 ## Single-user server runtime
 
