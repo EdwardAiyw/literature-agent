@@ -10,6 +10,20 @@ from .graph import build_graph
 from .zotero_jobs import remember_target, reserve_automatic, process_batch
 
 
+def subscription_snapshot(database: Database, run: dict, subscription: dict, task: dict) -> tuple[dict, dict]:
+    saved = database.get_run_artifact(run["id"], "subscription_snapshot")
+    if saved:
+        return saved["payload"]["subscription"], saved["payload"]["task"]
+    subscription, task = dict(subscription), dict(task)
+    if subscription.get("date_to_mode", "fixed") == "today":
+        instant = datetime.fromisoformat(run["started_at"].replace("Z", "+00:00"))
+        task["date_to"] = instant.astimezone(ZoneInfo(subscription["timezone"])).date().isoformat()
+    if task.get("date_from") and task.get("date_to") and task["date_from"] > task["date_to"]:
+        raise ValueError("Subscription start date is after the effective end date")
+    database.save_run_artifact(run["id"], "subscription_snapshot", {"subscription": subscription, "task": task})
+    return subscription, task
+
+
 def execute_run(settings: Settings, database: Database, run_id: str, task: dict, defer_import: bool = False) -> dict:
     current = database.get_run(run_id) or {}
     started_at = current.get("started_at") or datetime.now(timezone.utc).isoformat()
@@ -46,6 +60,11 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
         )
     if not run:
         raise RuntimeError("The subscription already has an active run")
+    try:
+        subscription, task = subscription_snapshot(database, run, subscription, task)
+    except Exception as exc:
+        database.update_run(run["id"], status="failed", current_node="failed", error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
+        raise
     result = execute_run(settings, database, run["id"], task, defer_import=True)
     batch = reserve_automatic(database, run["id"])
     if not send_email:
@@ -56,7 +75,8 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
     papers = database.list_papers(run["id"])
     retrieval = database.get_run_artifact(run["id"], "retrieval") or {}
     diagnostics = retrieval.get("payload", {}).get("sources", {})
-    message = render_digest(subscription, papers, diagnostics)
+    dedupe = database.get_run_artifact(run["id"], "dedupe") or {}
+    message = render_digest(subscription, papers, diagnostics, dedupe.get("payload", {}))
     delivery = database.create_delivery(subscription["id"], run["id"], "digest", subscription["recipient"], message.subject)
     if result.get("status") != "completed":
         database.update_delivery(delivery["id"], status="failed", error=result.get("error", "Run failed"))
@@ -66,7 +86,7 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
     except Exception as exc:
         database.update_delivery(delivery["id"], status="failed", error=f"{type(exc).__name__}: {exc}")
     else:
-        database.update_delivery(delivery["id"], status="sent", sent_at=datetime.now(timezone.utc).isoformat())
+        database.mark_digest_sent(delivery["id"], papers)
     if batch:
         process_batch(settings, database, run["id"], batch["id"])
     return {**(database.get_run(run["id"]) or result), "delivery": database.get_delivery(delivery["id"])}

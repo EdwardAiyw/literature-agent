@@ -42,13 +42,24 @@ def _summary_text(paper: dict) -> str:
     return f"研究问题：{problem}\n主要发现：{findings_text}\n推荐理由：{reason}"
 
 
-def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str, dict] | None = None) -> DigestMessage:
+def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str, dict] | None = None, dedupe: dict | None = None) -> DigestMessage:
     topic = subscription.get("topic", "文献订阅")
     subject = f"[Literature Agent] {topic} · {len(papers)} 篇文献"
     lines = [f"Literature Agent 日报", f"主题：{topic}", f"论文数量：{len(papers)}", ""]
     cards: list[str] = []
+    if dedupe is not None:
+        stats = (f"本次新增：{len(papers)} 篇；合并重复记录：{dedupe.get('merged_count', 0)} 条；"
+                 f"排除历史已推送：{dedupe.get('history_excluded_count', 0)} 篇。目标篇数为上限，不足时按实际数量发送。")
+        if dedupe.get("history_missing_papers"):
+            stats += f"历史投递中有 {dedupe['history_missing_papers']} 条缺少论文记录，无法完整检查其重复情况。"
+        lines.extend([stats, ""])
+        cards.append(f"<p>{_clean(stats)}</p>")
     if not papers:
         notice = "本次没有找到符合相关性要求的文献。请查看来源诊断、检索式和日期范围后重试。"
+        if dedupe and dedupe.get("unique_count") and dedupe.get("remaining_count") == 0:
+            notice = "本次无新增文献：取得的候选论文均已向该订阅推送。"
+        if diagnostics and any(d.get("status") in {"failed", "partial", "rate_limited"} for d in diagnostics.values()):
+            notice += "部分来源检索异常，本次结果不代表所有来源都没有新增论文，请查看来源诊断。"
         lines.extend([notice, ""])
         cards.append(f"<p>{notice}</p>")
     for index, paper in enumerate(papers, start=1):
@@ -87,6 +98,9 @@ def render_digest(subscription: dict, papers: list[dict], diagnostics: dict[str,
         lines.extend(["来源诊断："])
         for source, diagnostic in diagnostics.items():
             lines.append(f"- {source}: {diagnostic.get('status', '')}, {diagnostic.get('count', 0)} 条{('，' + diagnostic.get('error')) if diagnostic.get('error') else ''}")
+        cards.append("<h2 style='font-size:17px'>来源诊断</h2>" + "".join(
+            f"<p>{_clean(source)}：{_clean(d.get('status', ''))}，{_clean(d.get('count', 0))} 条 {_clean(d.get('error', ''))}</p>"
+            for source, d in diagnostics.items()))
     exported = export_identifiers(papers)
     attachment_notice = (f"Zotero 标识符：{len(exported.identifiers)} 个（已去重）。"
                          "下载附件后，将全部内容粘贴到 Zotero 的“通过标识符添加条目”窗口。"

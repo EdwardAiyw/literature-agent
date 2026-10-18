@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Mail, X } from "lucide-react";
 
-export type SubscriptionSchedule = { recipient: string; schedule_time: string; timezone: string };
+export type SubscriptionSchedule = { recipient: string; schedule_time: string; timezone: string; date_to_mode: "today" | "fixed" };
 
 type SubscriptionTask = {
   name: string; topic: string; research_questions: string[]; language: string; output_language: string;
@@ -16,7 +16,7 @@ export default function TaskSubscriptionDialog({ task, recipient, busy, onClose,
   task: SubscriptionTask; recipient: string; busy: boolean; onClose: () => void;
   onSave: (schedule: SubscriptionSchedule) => Promise<void>;
 }) {
-  const [schedule, setSchedule] = useState<SubscriptionSchedule>({ recipient, schedule_time: "08:00", timezone: "Asia/Hong_Kong" });
+  const [schedule, setSchedule] = useState<SubscriptionSchedule>({ recipient, schedule_time: "08:00", timezone: "Asia/Hong_Kong", date_to_mode: "today" });
   const [error, setError] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const busyRef = useRef(busy);
@@ -31,7 +31,7 @@ export default function TaskSubscriptionDialog({ task, recipient, busy, onClose,
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busyRef.current) closeRef.current();
       if (event.key !== "Tab") return;
-      const controls = Array.from(formRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)") || []);
+      const controls = Array.from(formRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)") || []);
       const first = controls[0], last = controls[controls.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -58,7 +58,8 @@ export default function TaskSubscriptionDialog({ task, recipient, busy, onClose,
           <dt>文献来源</dt><dd>{task.sources.map((source) => sourceNames[source] || source).join("、")}</dd>
           <dt>Zotero</dt><dd>{task.zotero_auto_import ? `自动导入集合 ${task.zotero_collection_key}` : "自动导入未启用"} · 邮件附标识符 TXT</dd><dt>高级配置</dt><dd>{task.research_questions?.length || 0} 个研究问题 · 证据审查{task.evidence_review ? "已启用" : "未启用"} · {Object.keys(task.prompt_overrides || {}).length} 个 Prompt 覆盖</dd></dl>
       </div>
-      <p className="section-lead">沿用以上研究配置和日期范围，保留任务历史。补充投递安排即可保存。</p>
+      <p className="section-lead">沿用研究配置和起始日期，保留任务历史。每日排除本订阅已成功推送的论文，不足目标篇数时按实际数量发送。</p>
+      <label>截止日期策略<select disabled={busy} value={schedule.date_to_mode} onChange={(event) => setSchedule({ ...schedule, date_to_mode: event.target.value as "today" | "fixed" })}><option value="today">截止到运行当天</option><option value="fixed">沿用任务截止日期</option></select></label>
       <label>收件人<input type="email" required maxLength={320} disabled={busy} value={schedule.recipient} onChange={(event) => setSchedule({ ...schedule, recipient: event.target.value })} /></label>
       <div className="schedule-fields"><label>每日执行时间<input type="time" required disabled={busy} value={schedule.schedule_time} onChange={(event) => setSchedule({ ...schedule, schedule_time: event.target.value })} /></label>
         <label>时区<input required maxLength={80} disabled={busy} value={schedule.timezone} onChange={(event) => setSchedule({ ...schedule, timezone: event.target.value })} /></label></div>

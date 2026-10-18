@@ -205,6 +205,7 @@ class TaskSubscriptionCreate(BaseModel):
     schedule_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     timezone: str = Field(default="Asia/Hong_Kong", min_length=1, max_length=80)
     enabled: bool = True
+    date_to_mode: Literal["today", "fixed"] = "today"
 
     @field_validator("recipient")
     @classmethod
@@ -218,6 +219,7 @@ class TaskSubscriptionCreate(BaseModel):
 
 
 class SubscriptionCreate(ZoteroTaskConfig):
+    date_to_mode: Literal["today", "fixed"] = "today"
     name: str = Field(min_length=1, max_length=120)
     topic: str = Field(min_length=1, max_length=1000)
     research_questions: list[str] = Field(default_factory=list)
@@ -271,7 +273,7 @@ class SubscriptionCreate(ZoteroTaskConfig):
 
     @model_validator(mode="after")
     def validate_subscription_dates(self):
-        if self.date_from and self.date_to and self.date_from > self.date_to:
+        if self.date_to_mode == "fixed" and self.date_from and self.date_to and self.date_from > self.date_to:
             raise ValueError("date_from must be before or equal to date_to")
         return self
 
@@ -282,6 +284,7 @@ class SubscriptionCreate(ZoteroTaskConfig):
 
 
 class SubscriptionUpdate(BaseModel):
+    date_to_mode: Literal["today", "fixed"] | None = None
     zotero_auto_import: bool | None = None
     zotero_collection_key: str | None = Field(default=None, pattern=r"^$|^[A-Z0-9]{8}$")
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -344,6 +347,7 @@ class SubscriptionUpdate(BaseModel):
 
 
 class SubscriptionRead(SubscriptionCreate):
+    date_to_mode: Literal["today", "fixed"] = "fixed"
     id: str
     task_id: str
     created_at: datetime

@@ -120,7 +120,7 @@ class Database:
         row = self.connection.execute("SELECT * FROM subscriptions WHERE id = ?", (subscription_id,)).fetchone()
         if not row:
             return None
-        return {**json.loads(row["payload"]), "id": row["id"], "task_id": row["task_id"], "enabled": bool(row["enabled"]), "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        return {"date_to_mode": "fixed", **json.loads(row["payload"]), "id": row["id"], "task_id": row["task_id"], "enabled": bool(row["enabled"]), "created_at": row["created_at"], "updated_at": row["updated_at"]}
 
     def subscribe_task(self, task_id: str, expected_task: dict, payload: dict) -> dict:
         """Atomically promote a task, retaining its ID/history and guarding duplicate/stale requests."""
@@ -183,6 +183,7 @@ class Database:
             ).fetchone()
             run_ids = [row["id"] for row in self.connection.execute("SELECT id FROM runs WHERE task_id = ?", (task_id,))]
             self.connection.execute("DELETE FROM deliveries WHERE subscription_id = ?", (subscription_id,))
+            self.connection.execute("DELETE FROM digest_history WHERE subscription_id = ?", (subscription_id,))
             if run_ids and not shared_task:
                 placeholders = ",".join("?" for _ in run_ids)
                 self.connection.execute(f"DELETE FROM zotero_imports WHERE paper_id IN (SELECT id FROM papers WHERE run_id IN ({placeholders}))", run_ids)
@@ -227,6 +228,23 @@ class Database:
         else:
             rows = self.connection.execute("SELECT * FROM deliveries ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [dict(row) for row in rows]
+
+    def delivered_papers(self, subscription_id: str) -> tuple[list[dict], int]:
+        rows = self.connection.execute("SELECT papers, missing_papers FROM digest_history WHERE subscription_id=?", (subscription_id,)).fetchall()
+        return ([paper for row in rows for paper in json.loads(row["papers"])],
+                sum(row["missing_papers"] for row in rows))
+
+    def mark_digest_sent(self, delivery_id: str, papers: list[dict]) -> None:
+        delivery = self.get_delivery(delivery_id)
+        if not delivery or delivery["kind"] != "digest":
+            raise ValueError("Digest delivery not found")
+        from .paper_identity import member
+        snapshots = [{**member(p), "identity_members": p.get("identity_members", [])} for p in papers]
+        with self.connection:
+            timestamp = now()
+            self.connection.execute("UPDATE deliveries SET status='sent', sent_at=?, error='' WHERE id=?", (timestamp, delivery_id))
+            self.connection.execute("INSERT OR IGNORE INTO digest_history VALUES (?, ?, ?, ?, ?, 0)",
+                (delivery_id, delivery["subscription_id"], delivery["run_id"], json.dumps(snapshots, ensure_ascii=False), timestamp))
 
     def create_run(self, task_id: str, total_steps: int, trigger_kind: str = "manual", subscription_id: str | None = None) -> dict:
         run_id = str(uuid4())
@@ -715,6 +733,7 @@ class Database:
         try:
             self.connection.execute("BEGIN")
             for task_id in candidates:
+                self.connection.execute("DELETE FROM digest_history WHERE subscription_id IN (SELECT id FROM subscriptions WHERE task_id = ?)", (task_id,))
                 self.connection.execute(
                     "DELETE FROM deliveries WHERE subscription_id IN (SELECT id FROM subscriptions WHERE task_id = ?)",
                     (task_id,),

@@ -175,7 +175,10 @@ def start_run(task_id: str):
 
 
 def _task_payload(payload: dict) -> dict:
-    return {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides", "zotero_auto_import", "zotero_collection_key")} | {"origin": "subscription"}
+    task = {key: payload[key] for key in ("name", "topic", "research_questions", "language", "output_language", "date_from", "date_to", "target_count", "sources", "evidence_review", "prompt_overrides", "zotero_auto_import", "zotero_collection_key")} | {"origin": "subscription"}
+    if payload.get("date_to_mode") == "today":
+        task["date_to"] = ""
+    return task
 
 
 def _validate_zotero_target(task: dict) -> None:

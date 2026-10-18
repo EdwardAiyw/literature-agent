@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import re
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 from datetime import date, datetime, timezone
@@ -16,6 +16,7 @@ from .decisions import JevDecisionProvider
 from .llm import ModelProvider, fallback, fallback_evidence_review, fallback_query_plan, fallback_screen
 from .prompts import prompt_for
 from .sources import search_sources
+from .paper_identity import merge_records, PaperIndex, strong_ids, member
 
 
 class GraphState(TypedDict, total=False):
@@ -125,11 +126,12 @@ def fixture_records(topic: str) -> list[dict]:
 
 
 def canonical(record: dict) -> str:
-    if record.get("doi"):
-        return "doi:" + record["doi"].lower().strip().removeprefix("https://doi.org/")
-    if record.get("source_id"):
-        return record["source"] + ":" + record["source_id"].lower().strip()
-    return "title:" + re.sub(r"[^\w]+", "", record.get("title", "").lower(), flags=re.UNICODE)
+    identifiers = strong_ids(record)
+    for prefix in ("doi:", "pmid:", "arxiv:", "source:"):
+        values = sorted(i for i in identifiers if i.startswith(prefix))
+        if values:
+            return values[0].removeprefix("source:")
+    return "metadata:" + hashlib.sha256(json.dumps(member(record), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def build_graph(settings: Settings, database: Database, prompts: list[dict]):
@@ -218,18 +220,23 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
 
     def dedupe(state: GraphState) -> GraphState:
         started(state, "dedupe", "Normalizing and removing duplicate records")
-        from .journal_metrics import merge_journal_metadata
-        seen: dict[str, dict] = {}
-        records = []
-        for record in state.get("records", []):
-            identifier = canonical(record)
-            if identifier in seen:
-                merge_journal_metadata(seen[identifier], record)
-                continue
-            seen[identifier] = record
-            record["canonical_id"] = identifier
-            records.append(record)
-        completed(state, "dedupe", f"Kept {len(records)} unique record(s)", 3, {"unique_count": len(records)})
+        original = state.get("records", [])
+        records = merge_records(original)
+        unique_count = len(records)
+        excluded, missing = 0, 0
+        run = database.get_run(state["run_id"]) or {}
+        if run.get("trigger_kind") == "subscription" and run.get("subscription_id"):
+            history, missing = database.delivered_papers(run["subscription_id"])
+            index = PaperIndex(history)
+            fresh = [p for p in records if not index.find(p)]
+            excluded = len(records) - len(fresh)
+            records = fresh
+        for record in records:
+            record["canonical_id"] = canonical(record)
+        completed(state, "dedupe", f"Kept {len(records)} candidate(s); excluded {excluded} previously delivered", 3,
+                  {"unique_count": unique_count, "merged_count": len(original) - unique_count,
+                   "history_excluded_count": excluded, "remaining_count": len(records),
+                   "history_missing_papers": missing})
         return {"node": "dedupe", "records": records, "errors": state.get("errors", [])}
 
     def screen(state: GraphState) -> GraphState:

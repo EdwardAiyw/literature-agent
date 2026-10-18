@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from .config import Settings
 from .db import Database
-from .runner import execute_run, run_subscription
+from .runner import execute_run, run_subscription, subscription_snapshot
 from .zotero_jobs import reserve_automatic, process_batch
 
 
@@ -37,6 +37,14 @@ class LocalRunWorker:
         self._submit(run_id, execute_run, self._current_settings(), self.database, run_id, task)
 
     def submit_subscription(self, run_id: str, subscription: dict) -> None:
+        run = self.database.get_run(run_id)
+        task = self.database.get_task(subscription["task_id"])
+        if run and task:
+            try:
+                subscription_snapshot(self.database, run, subscription, task)
+            except Exception as exc:
+                self.database.update_run(run_id, status="failed", current_node="failed", error=str(exc))
+                raise
         self._submit(run_id, run_subscription, self._current_settings(), self.database, subscription, True, run_id)
 
     def recover(self) -> int:
