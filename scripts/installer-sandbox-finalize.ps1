@@ -35,7 +35,8 @@ try {
     Add-Result "Five papers from two sources" ([bool]$qualifyingRun) $(if ($qualifyingRun) { $qualifyingRun } else { "not found" })
 
     $scheduler = Invoke-RestMethod -Uri "$baseUrl/api/scheduler"
-    Add-Result "Windows scheduled tasks" (@($scheduler.tasks).Count -eq 2) "$(@($scheduler.tasks).Count) tasks"
+    $taskNames = @($scheduler.tasks | ForEach-Object name)
+    Add-Result "Windows scheduled tasks" (("Literature Agent Local" -in $taskNames) -and ("Literature Agent Daily" -in $taskNames)) "$($taskNames -join ', ')"
 
     $backup = Invoke-RestMethod -Uri "$baseUrl/api/backups" -Method Post -ContentType "application/json" -Body "{}"
     $backupExists = Test-Path -LiteralPath $backup.path
@@ -43,7 +44,8 @@ try {
     if ($backupExists) {
         $restoreBody = @{ path = $backup.path } | ConvertTo-Json
         $restore = Invoke-RestMethod -Uri "$baseUrl/api/backups/restore" -Method Post -ContentType "application/json" -Body $restoreBody
-        Add-Result "Restore" ($restore.status -eq "restored") $restore.status
+        $safetyExists = $restore.safety_backup -and (Test-Path -LiteralPath $restore.safety_backup)
+        Add-Result "Restore" ($restore.status -eq "ok" -and $safetyExists) "status=$($restore.status); safety_backup=$safetyExists"
     }
 } catch {
     Add-Result "Runtime final checks" $false $_.Exception.Message.Replace("|", "/")

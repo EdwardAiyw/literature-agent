@@ -2,6 +2,8 @@
 
 本验收只在临时 Windows Sandbox 中运行，不会读取宿主机的 Literature Agent 数据目录或 Windows 凭据。关闭 Sandbox 后，Sandbox 内部数据会被 Windows 删除；只有 `C:\LiteratureAgentResults` 中的结果会同步回宿主机。
 
+2026-10-18 的 RC6 全新安装、RC5 覆盖升级、计划任务执行、恢复及卸载已通过隔离检查，详见 [实际验收记录](INSTALLER_RC6_VALIDATION_2026-10-18.md)。本页人工确认项仅在实际完成后勾选。恢复接口成功返回 `status=ok`，并提供 `safety_backup`；请使用当前仓库中的 finalizer。
+
 ## 1. 自动启动阶段
 
 打开 Sandbox 后等待两个窗口出现：Literature Agent 页面和本说明。脚本会自动完成 SHA-256 校验、当前用户静默安装、首次启动、首页 HTTP 检查和重复启动检查。

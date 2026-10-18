@@ -1,6 +1,6 @@
 # Literature Agent 0.3.0-rc.6
 
-RC6 将 RC5 之后的源码功能纳入 Windows 安装包，并支持同版本 Linux 服务器部署。此版本仍为 prerelease；完整人工安装、覆盖升级、计划任务、恢复及卸载验收尚未全部完成。
+RC6 将 RC5 之后的源码功能纳入 Windows 安装包，并支持同版本 Linux 服务器部署。此版本仍为 prerelease。已通过 26 项 Sandbox 安装生命周期检查、本机覆盖升级和安装版真实五篇检索；首次设置、自然调度触发和外部邮箱到达仍需人工验收，详见 [安装验收](INSTALLER_RC6_VALIDATION_2026-10-18.md)。
 
 ## 主要变化
 

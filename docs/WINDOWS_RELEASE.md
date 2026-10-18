@@ -2,7 +2,7 @@
 
 面向非技术用户的逐步说明、字段解释和故障排查见[Windows 使用指南](WINDOWS_USER_GUIDE.md)。本页保留为发布与维护速查。
 
-当前公开预发布版为 [`v0.3.0-rc.6`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6)，包含历史推送去重、动态截止日期、自动 Zotero 集合导入、标识符附件和官网 JIF。对应源码还支持单独部署 Linux 服务器。完整人工安装、覆盖升级、计划任务、恢复与卸载验收尚未全部完成，因此保留 prerelease 状态。
+当前公开预发布版为 [`v0.3.0-rc.6`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6)，包含历史推送去重、动态截止日期、自动 Zotero 集合导入、标识符附件和官网 JIF。对应源码还支持单独部署 Linux 服务器。26 项 Sandbox 安装生命周期检查、本机覆盖升级和安装版真实五篇检索已通过。首次设置、自然调度触发及外部邮箱到达仍待人工验收，因此保留 prerelease 状态。详见 [安装验收记录](INSTALLER_RC6_VALIDATION_2026-10-18.md)。
 
 [GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086374846) 与 [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086375057) 均通过：245 项后端测试、前端构建、32 项 Edge 回归及打包程序检查。安装包为 **29,146,628 字节**，公开匿名重新下载后的 SHA-256 为 `d0d553e64a0356953e3a4b83b8cf536efa2c6394408aacc08b261b2517641515`，与同一 Release 的 `SHA256SUMS.txt` 和 GitHub 资产摘要一致。详见 [RC6 发布记录](RELEASE_RC6.md)；历史资产验证保留在 [项目状态](CURRENT_STATE.md)。
 

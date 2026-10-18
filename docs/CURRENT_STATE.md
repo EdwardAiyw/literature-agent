@@ -6,7 +6,7 @@
 - Linux image `literature-agent:rc6-ebda008` is deployed and healthy with a running, error-free 60-second scheduler. Upgrade preserved all 17 table hashes and configuration hashes. Backup: `/opt/literature-agent/backups/rc6-20261018T012736Z`; previous image retained for rollback. Final isolated image passed 245 backend tests.
 - Existing subscription remains enabled at 07:00 Asia/Hong_Kong, target at most 10 papers, running-day cutoff and original Zotero target. LocalJev remains Shadow. This upgrade did not retrieve, email or import papers again. Windows and Linux deploy separately; their data does not synchronize.
 - Windows Release passed 245 backend tests, 32 Edge cases, frontend build and packaged runtime checks. The publicly re-downloaded installer is 29,146,628 bytes; its SHA-256 matches the checksum file and GitHub asset digest.
-- RC6 remains a prerelease pending full manual installation, upgrade, scheduling, restore and uninstall acceptance. Historical RC5 assets and dated validation results remain unchanged.
+- RC6 passed 26 Sandbox lifecycle checks, an actual 0.3.0-to-RC6 desktop upgrade with all 17 tables/settings preserved, and an installed-binary live run yielding five papers from three sources with loopback SMTP receipt. It remains a prerelease pending clean-system onboarding, natural trigger execution and external inbox receipt. See [installer validation](INSTALLER_RC6_VALIDATION_2026-10-18.md). Historical RC5 assets and dated validation results remain unchanged.
 
 ## Daily digest duplicate repair (2026-10-18)
 
