@@ -1,6 +1,6 @@
 # Literature Agent V2 配置与测试手册
 
-本文是源码开发、API 调试和 Jev 审计的高级运行手册。普通 Windows 用户无需安装依赖或编辑 `.env`，请使用根目录 [`README.md`](../README.md) 的安装版页面操作。源码模式默认使用 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。
+本文是源码开发、API 调试和 Jev 审计的高级运行手册。普通 Windows 用户无需安装依赖或编辑 `.env`，请使用 [RC6 Windows 使用指南](WINDOWS_USER_GUIDE.md) 的安装版页面操作。源码模式默认使用 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。
 
 服务器部署另见 [Linux 服务器运行与本机网页管理](SERVER_DEPLOYMENT.md)：`LITERATURE_AGENT_SERVER=true` 启用内部调度与持久文件密钥库，`LITERATURE_AGENT_SCHEDULER_PAUSED=true` 暂停新每日调度。网页版可编辑订阅，`PATCH /api/subscriptions/{id}` 保留未提交字段；服务器数据目录替换和恢复需停服处理。
 

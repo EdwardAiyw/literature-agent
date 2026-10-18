@@ -1,10 +1,18 @@
 # Current State
 
+## RC6 synchronized release and deployment (2026-10-18)
+
+- Version `0.3.0-rc.6` uses immutable tag `v0.3.0-rc.6`, commit `ebda008d2efec3aae5413343a7328adba1e52202`. Windows packaging includes the daily history/date, automatic Zotero and JIF features previously available only in source. See [release and validation](RELEASE_RC6.md).
+- Linux image `literature-agent:rc6-ebda008` is deployed and healthy with a running, error-free 60-second scheduler. Upgrade preserved all 17 table hashes and configuration hashes. Backup: `/opt/literature-agent/backups/rc6-20261018T012736Z`; previous image retained for rollback. Final isolated image passed 245 backend tests.
+- Existing subscription remains enabled at 07:00 Asia/Hong_Kong, target at most 10 papers, running-day cutoff and original Zotero target. LocalJev remains Shadow. This upgrade did not retrieve, email or import papers again. Windows and Linux deploy separately; their data does not synchronize.
+- Windows Release passed 245 backend tests, 32 Edge cases, frontend build and packaged runtime checks. The publicly re-downloaded installer is 29,146,628 bytes; its SHA-256 matches the checksum file and GitHub asset digest.
+- RC6 remains a prerelease pending full manual installation, upgrade, scheduling, restore and uninstall acceptance. Historical RC5 assets and dated validation results remain unchanged.
+
 ## Daily digest duplicate repair (2026-10-18)
 
 - Shared source workflow now merges cross-source paper identities and excludes each subscription's successful delivery history before model screening. SMTP failures/no-send do not consume papers; independent subscriptions and manual tasks retain their own behavior.
 - `date_to_mode` adds running-day/fixed cutoff selection, preserving legacy fixed dates and storing restart-safe execution snapshots. Migration `20261018_0006` backfills durable delivery snapshots. See [behavior, limits and validation](DAILY_DEDUPLICATION.md).
-- Server image `literature-agent:digest-0aaced276934` is deployed, healthy and scheduling normally. The approved existing subscription now tracks through the running day at 07:00 Asia/Hong_Kong. All 15 preexisting business tables and configuration hashes were preserved before the explicit subscription update; 3 historical digests/150 papers were backfilled. The deployment itself did not send mail. A subsequent authorized replacement run on 2026-10-18 selected 10 papers, SMTP accepted its digest at 08:47 Asia/Hong_Kong, and all 10 Zotero imports completed. The existing subscription now targets at most 10 papers daily at 07:00; this is a per-subscription setting. Windows RC5 assets remain unchanged.
+- The initial repair used server image `literature-agent:digest-0aaced276934`, later superseded by RC6 above. The approved existing subscription now tracks through the running day at 07:00 Asia/Hong_Kong. All 15 preexisting business tables and configuration hashes were preserved before the explicit subscription update; 3 historical digests/150 papers were backfilled. The deployment itself did not send mail. A subsequent authorized replacement run on 2026-10-18 selected 10 papers, SMTP accepted its digest at 08:47 Asia/Hong_Kong, and all 10 Zotero imports completed. The existing subscription now targets at most 10 papers daily at 07:00; this is a per-subscription setting. Windows RC5 assets remain unchanged.
 - Windows and final Linux image: 245 backend tests passed on each. Frontend build and 9 affected Edge cases passed. Real-data isolated replay reduced the Oct18 selected list from 50 records to 44 identities and excluded 35 previously delivered identities, leaving 9 unseen; this does not predict future retrieval yield.
 
 ## Legacy implementation
@@ -127,7 +135,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 
 - Source supports single-user Linux Docker operation, persistent file secrets, internal daily dispatch and SSH-only web management. Desktop scheduling and credential storage remain unchanged.
 - Web subscription editing includes timing and enabled state, retains research settings and history, and supports manual server execution.
-- Deployment, migration, environment variables, data ownership and rollback are documented in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md). These changes are not in the immutable RC5 Windows installer.
+- Deployment, migration, environment variables, data ownership and rollback are documented in [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md). These changes are not in the immutable RC5 Windows installer; RC6 source includes this runtime, deployed separately on Linux.
 - Validation: 156 tests passed on Windows and in the Ubuntu runtime container, 29 Edge regressions passed, and GitHub CI passed. Staging verified restart persistence, model/SMTP connectivity without mail, and actual remote desktop/mobile subscription editing. See [server validation](SERVER_VALIDATION_2026-10-15.md).
 - Production cutover completed on 2026-10-16 (Asia/Hong_Kong): all 14 tables verified, desktop active run cancelled at user request, both desktop scheduled tasks disabled, server scheduling enabled and one fresh due subscription run started. The first server search completed with 50 papers; SMTP accepted its digest at 08:09 Asia/Hong_Kong. Inbox receipt is unverified. Server is the authoritative task/configuration store.
 

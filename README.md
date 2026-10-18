@@ -2,21 +2,21 @@
 
 把研究主题变成可追踪的每日文献邮件。
 
-[English](README.en.md) · [Windows 下载](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) · [服务器部署](docs/SERVER_DEPLOYMENT.md) · [使用指南](docs/WINDOWS_USER_GUIDE.md) · [反馈](https://github.com/EdwardAiyw/literature-agent/issues)
+[English](README.en.md) · [Windows 下载](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) · [服务器部署](docs/SERVER_DEPLOYMENT.md) · [使用指南](docs/WINDOWS_USER_GUIDE.md) · [反馈](https://github.com/EdwardAiyw/literature-agent/issues)
 
 Literature Agent 是面向个人研究者的开源文献助手。输入研究主题、日期和来源后，它会检索论文、合并跨来源记录、筛选相关文献、生成研究摘要，并保留结果、运行过程和邮件投递记录。支持 Windows 本机使用和自有 Linux 服务器常驻运行。
 
 ## 版本与使用方式
 
-**截至 2026-10-18，最新源码和已升级服务器包含历史推送去重、动态日期、自动 Zotero 集合导入及官网 JIF 查询；公开 Windows 安装包仍为 RC5。**
+**截至 2026-10-18，RC6 Windows 安装包、对应源码和已升级服务器均包含历史推送去重、动态日期、自动 Zotero 集合导入及官网 JIF 查询。**
 
 | 使用方式 | 适合谁 | 功能范围 |
 | --- | --- | --- |
-| [Windows RC5 安装包](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) | 希望直接安装的测试用户 | 工作台、每日邮件、任务转订阅、Prompt v2、逐篇 Zotero 导入、来源诊断 |
+| [Windows RC6 安装包](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) | 希望直接安装的测试用户 | 每日历史去重、动态日期、自动 Zotero 集合导入、官网 JIF，以及既有工作台和 Prompt v2 |
 | 最新 `main` 源码 | 开发者与需要新增功能的用户 | 包含下文全部已实现能力 |
 | [Linux Docker 部署](docs/SERVER_DEPLOYMENT.md) | 希望电脑关机后仍每日运行的用户 | 自行构建源码镜像，通过 SSH 隧道管理网页 |
 
-RC5 是预发布测试版，完整人工安装验收尚未完成。它不包含服务器模式、历史推送去重、动态截止日期、自动集合导入、标识符附件和自动 JIF。源码更新不会更新已下载的安装包；已有标签和资产保持不变。
+RC6 是预发布测试版，完整人工安装、覆盖升级、计划任务、恢复和卸载验收尚未全部完成。Windows 与 Linux 使用同一版本源码，分别安装或部署；更新 GitHub 不会自动升级已安装程序。旧 RC5 标签和资产保持不变。
 
 ## 能做什么
 
@@ -34,7 +34,7 @@ RC5 是预发布测试版，完整人工安装验收尚未完成。它不包含�
 
 ### Windows 安装版
 
-1. 从 [RC5 Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) 下载 `Literature-Agent-0.3.0-rc.5-Windows-x64.exe` 和 `SHA256SUMS.txt`，核对校验值。
+1. 从 [RC6 Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) 下载 `Literature-Agent-0.3.0-rc.6-Windows-x64.exe` 和 `SHA256SUMS.txt`，核对校验值。
 2. 安装并启动，打开 <http://127.0.0.1:8001>。无需 Python 或 Node.js。
 3. 在“设置”选择数据目录，填写模型服务、SMTP 邮箱和来源，测试并保存。
 4. 注册 Windows 自动任务，完成首次设置后执行一次小规模检索。
@@ -123,7 +123,7 @@ npm run dev
 
 ## 验证与开发
 
-2026-10-18 的去重修复通过 Windows/Linux **245 项后端测试**、前端构建及 **9 项相关 Edge 回归**。真实补发选出 10 篇，按当前身份规则核对未与历史重复，SMTP 接受成功，10 篇 Zotero 自动导入完成。这是本次运行的验证，不代表未来检索都能凑齐目标数量。详见 [验证记录](docs/DAILY_DEDUPLICATION.md)。
+RC6 发布通过 Windows/Linux **245 项后端测试**、前端构建、Windows **32 项完整 Edge 回归**及打包程序检查；公开安装包重新下载校验一致，详见 [RC6 发布记录](docs/RELEASE_RC6.md)。真实补发选出 10 篇，按当前身份规则核对未与历史重复，SMTP 接受成功，10 篇 Zotero 自动导入完成。这是本次运行的验证，不代表未来检索都能凑齐目标数量。详见 [验证记录](docs/DAILY_DEDUPLICATION.md)。
 
 ```powershell
 cd backend

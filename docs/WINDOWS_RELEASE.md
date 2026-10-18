@@ -1,8 +1,10 @@
-# Windows 产品使用说明
+# Windows 发布与维护
 
-面向非技术用户的逐步说明、字段解释和故障排查见根目录 [`README.md`](../README.md)。本页保留为发布与维护速查。
+面向非技术用户的逐步说明、字段解释和故障排查见[Windows 使用指南](WINDOWS_USER_GUIDE.md)。本页保留为发布与维护速查。
 
-当前公开预发布版为 [`v0.3.0-rc.5`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5)，在 Prompt v2、LocalJev 和 Zotero 之外，纳入任务转每日订阅、相关性门槛、检索条件展示和来源限流处理。[GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748173439)、[Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/38748181058) 和打包检查均通过。安装包为 29,033,921 字节，公开重新下载后的 SHA-256 为 `7e648d48a12397001a1b04aab39a4a58212e69293fb365ead5b2d4a269c6a0af`，与 Release 的 `SHA256SUMS.txt` 和 GitHub 资产摘要一致；RC4/RC3 历史资产信息保留在 [项目状态](CURRENT_STATE.md)。
+当前公开预发布版为 [`v0.3.0-rc.6`](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6)，包含历史推送去重、动态截止日期、自动 Zotero 集合导入、标识符附件和官网 JIF。对应源码还支持单独部署 Linux 服务器。完整人工安装、覆盖升级、计划任务、恢复与卸载验收尚未全部完成，因此保留 prerelease 状态。
+
+[GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086374846) 与 [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086375057) 均通过：245 项后端测试、前端构建、32 项 Edge 回归及打包程序检查。安装包为 **29,146,628 字节**，公开匿名重新下载后的 SHA-256 为 `d0d553e64a0356953e3a4b83b8cf536efa2c6394408aacc08b261b2517641515`，与同一 Release 的 `SHA256SUMS.txt` 和 GitHub 资产摘要一致。详见 [RC6 发布记录](RELEASE_RC6.md)；历史资产验证保留在 [项目状态](CURRENT_STATE.md)。
 
 ## 安装
 
@@ -32,7 +34,7 @@
 
 ## 更新与卸载
 
-本仓库已公开，可直接从 RC5 Release 下载。设置页“检查更新”当前使用 GitHub 稳定版入口，候选版可能无法被发现，请使用 README 的直接下载链接。先完成活动运行、备份并退出正在运行的程序，再校验新版安装包并覆盖安装；数据目录和 Windows 凭据会保留。
+本仓库已公开，可直接从 RC6 Release 下载。设置页“检查更新”当前使用 GitHub 稳定版入口，候选版可能无法被发现，请使用 README 的直接下载链接。先完成活动运行、备份并退出正在运行的程序，再校验新版安装包并覆盖安装；数据目录和 Windows 凭据会保留。
 
 从 Windows“已安装的应用”卸载时会移除程序文件和计划任务，但保留用户数据和凭据。确认不再需要后，可由用户手动删除数据目录和 Windows 凭据管理器中以 `LiteratureAgent/` 开头的条目。
 
@@ -49,15 +51,15 @@ npm run build
 npm run test:e2e
 
 cd ..
-.\scripts\build-windows-release.ps1 -Version 0.3.0-rc.5
+.\scripts\build-windows-release.ps1 -Version 0.3.0-rc.6
 ```
 
-构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，启动打包后的程序检查版本、数据库隔离、Prompt v2、Zotero、前端及任务转换无检索/投递副作用，再把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
+构建脚本会生成安装包和 `release/SHA256SUMS.txt`。推送 `v*` 标签时，GitHub Actions 会在干净的 Windows runner 上运行后端测试、前端构建及 Edge Playwright 回归测试，然后构建，启动打包后的程序检查版本、数据库隔离、Prompt v2、Zotero、自动 JIF 默认值、推送历史迁移、前端、固定/当天日期策略切换及任务转换无检索/投递副作用，再把 runner 生成的安装包与校验文件上传到对应 Release；发布页应以该次工作流生成的校验文件为准。
 
-稳定版发布前还要使用 RC5 安装包在 Windows Sandbox 中运行：
+稳定版发布前还要使用 RC6 安装包在 Windows Sandbox 中运行：
 
 ```powershell
-.\scripts\run-installer-sandbox.ps1 -Version 0.3.0-rc.5
+.\scripts\run-installer-sandbox.ps1 -Version 0.3.0-rc.6
 ```
 
 按 [`INSTALLER_SANDBOX_TEST.md`](INSTALLER_SANDBOX_TEST.md) 完成首次设置、五篇两来源、邮件、计划任务、备份恢复、重复启动和卸载。Sandbox 未完成时只能发布为 prerelease 候选版。

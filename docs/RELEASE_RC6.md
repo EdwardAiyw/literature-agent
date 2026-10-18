@@ -22,3 +22,15 @@ RC6 将 RC5 之后的源码功能纳入 Windows 安装包，并支持同版本 L
 发布工作流必须通过后端全量测试、前端构建、完整 Edge 回归与打包程序检查。打包检查包含版本、数据库隔离、迁移版本/推送历史表、Prompt v2、JIF 默认值、Zotero 配置、日期策略切换及转换无投递副作用。真实文献补发和 Zotero 导入验收见 [去重记录](DAILY_DEDUPLICATION.md)。
 
 本版本不提供多用户登录、PDF 下载或严格恰好一次的 SMTP 投递保证。
+
+## 2026-10-18 发布验证
+
+- 不可变标签 `v0.3.0-rc.6` 指向 `ebda008d2efec3aae5413343a7328adba1e52202`。文档后续同步不改变该标签或安装包。
+- [GitHub CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086374846) 与 [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/39086375057) 成功；Windows 后端 **245 passed**、Edge 全量 **32 passed**、前端构建和打包程序检查全部通过。最终 Linux 镜像隔离后端 **245 passed**。
+- [Windows x64 安装包](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.6/Literature-Agent-0.3.0-rc.6-Windows-x64.exe)：**29,146,628 字节**。公开匿名重新下载，SHA-256 与 [SHA256SUMS.txt](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.6/SHA256SUMS.txt) 和 GitHub 资产摘要三方一致。
+
+```text
+d0d553e64a0356953e3a4b83b8cf536efa2c6394408aacc08b261b2517641515
+```
+
+- 服务器镜像 `literature-agent:rc6-ebda008` 已上线，健康版本为 `0.3.0-rc.6`，调度无错误。全部 17 张表及配置哈希保留，备份位于 `/opt/literature-agent/backups/rc6-20261018T012736Z`。保留每日 07:00 Asia/Hong_Kong、最多 10 篇、当天截止策略、Zotero 目标和 LocalJev Shadow；升级没有重复检索、发送邮件或导入。

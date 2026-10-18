@@ -7,7 +7,7 @@ Provide a local-first academic literature agent that automatically delivers a tr
 ## Primary workflow
 
 1. Configure a daily subscription: topic, optional research questions, language policy, date range, target count, sources, recipient, and schedule.
-2. The scheduled agent retrieves, deduplicates, excludes papers successfully delivered by that subscription, screens, ranks, and selects up to the configured target (default 10). Fewer qualifying papers produce fewer results; empty results produce an explanatory notice.
+2. The scheduled agent retrieves, deduplicates, excludes papers successfully delivered by that subscription, screens, ranks, and selects up to the configured target (task creation defaults to 10; subscription creation requires an explicit target). Fewer qualifying papers produce fewer results; empty results produce an explanatory notice.
 3. The agent generates Chinese summaries and recommendation reasons, then sends an email digest containing metadata, DOI, and original links.
 4. The user reviews the run, source diagnostics, results, and delivery status in the GUI.
 5. The user explicitly imports selected papers into Zotero from the workbench or enables task-specific automatic import into an exact existing collection. The Web API connector deduplicates by DOI (exact title when DOI is absent) and reports per-paper results.

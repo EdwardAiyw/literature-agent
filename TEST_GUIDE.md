@@ -6,9 +6,9 @@
 
 日常使用方法见 [README.md](README.md)。开发者自动化测试不能替代本手册中的人工验收。
 
-RC5 安装版与源码版的相关性回归检查：以目标 50 篇检索时，低于 40% 或建议忽略的候选不应为了凑数进入结果；没有合格候选应显示空结果，并能核对筛除数量、实际检索式与日期。真实来源全部为空时不得出现 Fixture 文献。中英文检索必须有独立英文查询。这些修复自 RC5 起纳入安装包；RC4 保留修复前行为。
+RC6 安装版与源码版的相关性回归检查：以目标 50 篇检索时，低于 40% 或建议忽略的候选不应为了凑数进入结果；没有合格候选应显示空结果，并能核对筛除数量、实际检索式与日期。真实来源全部为空时不得出现 Fixture 文献。中英文检索必须有独立英文查询。这些修复自 RC5 起纳入安装包；RC4 保留修复前行为。
 
-RC5 安装版与源码版的来源限流回归检查：Crossref 应携带已配置联系邮箱；429 应显示“暂时限流”，有先前结果时显示“部分可用（限流）”且结果保留。重试和冷却应遵守 Retry-After，按真实请求次数扣减预算，不缓存不完整的整次检索；设置页不得把被限流来源标为测试通过。使用隔离数据目录运行 `backend/tests/test_sources.py`、`backend/tests/test_product_settings.py` 和 `frontend/tests/source-diagnostics.spec.ts`。匿名 Semantic Scholar 的真实 429 不算连接修复成功；真实来源复测结果见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，应与模拟回归结果分别判断。
+RC6 安装版与源码版的来源限流回归检查：Crossref 应携带已配置联系邮箱；429 应显示“暂时限流”，有先前结果时显示“部分可用（限流）”且结果保留。重试和冷却应遵守 Retry-After，按真实请求次数扣减预算，不缓存不完整的整次检索；设置页不得把被限流来源标为测试通过。使用隔离数据目录运行 `backend/tests/test_sources.py`、`backend/tests/test_product_settings.py` 和 `frontend/tests/source-diagnostics.spec.ts`。匿名 Semantic Scholar 的真实 429 不算连接修复成功；真实来源复测结果见 [公开验证报告](docs/VALIDATION_2026-10-15.md)，应与模拟回归结果分别判断。
 
 ## 1. 测试结果怎么填写
 
@@ -30,7 +30,7 @@ RC5 安装版与源码版的来源限流回归检查：Crossref 应携带已配�
 | --- | --- |
 | 测试日期 | YYYY-MM-DD |
 | 测试人员 |  |
-| Literature Agent 版本 | 当前候选版 `0.3.0-rc.5` |
+| Literature Agent 版本 | 当前候选版 `0.3.0-rc.6` |
 | Windows 版本 | 例如 Windows 11 23H2 |
 | 测试方式 | Windows 安装包 / 源码开发模式 |
 | 浏览器 | Edge / Chrome / 其他 |
@@ -131,12 +131,12 @@ D:\LiteratureAgentTestData
 3. 执行以下命令，文件名换成本轮版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.5-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.6-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 将输出与 `SHA256SUMS.txt` 对照。
 
-预期结果：两串 SHA-256 完全一致；使用本轮 RC5 Release 的校验文件，不沿用旧安装包哈希。
+预期结果：两串 SHA-256 完全一致；使用本轮 RC6 Release 的校验文件，不沿用旧安装包哈希。
 
 - [ ] T-01 通过
 
@@ -398,6 +398,16 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.5-Windows-x64.exe -Algorithm SHA256
 预期结果：列表出现名称完整、中文无乱码的新订阅，主题、时间和目标篇数正确。
 
 - [ ] T-20 通过
+
+### RC6 每日选文专项检查
+
+使用隔离数据目录和模拟 SMTP/来源完成以下检查，避免为验证重复发送真实订阅：
+
+- 同一 DOI 的大小写、URL 和来源别名，以及 PMID、去版本号 arXiv 的跨来源记录合并。
+- 同一订阅的成功历史在模型筛选前排除；独立订阅不互相消耗，失败邮件、测试邮件与 no-send 不写入成功历史。
+- 不足目标篇数时不补旧论文；全部已推送或没有合格候选时展示空结果原因并发送说明。
+- 新订阅默认 `today`，旧订阅保留 `fixed`；按时区推进截止日，排队后修改和重启不改变已有运行快照。
+- 自动 Zotero 集合目标、批次重试和 JIF 默认设置可读取；重试导入不重发邮件。
 
 ### T-20a 将当前任务转为每日任务（RC5 起）
 

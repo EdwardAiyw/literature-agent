@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-rc.6 - 2026-10-18
 
 - Merge cross-source paper identities and exclude each subscription's successful delivery history before model screening. Backfill durable `digest_history` snapshots independently of run deletion; do not consume papers for failed/test/no-send mail.
 - Add running-day/fixed subscription cutoffs and restart-safe configuration snapshots; preserve legacy fixed-date behavior. Show history exclusion statistics and explain empty digests without reusing delivered papers.

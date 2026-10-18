@@ -2,21 +2,21 @@
 
 Turn a research topic into a traceable daily literature digest.
 
-[中文](README.md) · [Windows download](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) · [Server deployment](docs/SERVER_DEPLOYMENT.md) · [Issues](https://github.com/EdwardAiyw/literature-agent/issues)
+[中文](README.md) · [Windows download](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) · [Server deployment](docs/SERVER_DEPLOYMENT.md) · [Issues](https://github.com/EdwardAiyw/literature-agent/issues)
 
 Literature Agent is an open-source assistant for individual researchers. It searches scholarly sources, merges duplicate records, screens relevance, generates research briefs, and records results and email deliveries. Run it on a Windows computer or your own Linux server. The UI and linked operational guides are primarily in Chinese.
 
 ## Choose a runtime
 
-**As of October 18, 2026, current source and upgraded servers include delivery-history filtering, dynamic publication cutoffs, automatic Zotero collection imports, and publisher JIF lookup. The downloadable Windows installer remains RC5.**
+**As of October 18, 2026, the RC6 Windows installer, matching source, and upgraded server include delivery-history filtering, dynamic publication cutoffs, automatic Zotero collection imports, and publisher JIF lookup.**
 
 | Runtime | Audience | Available features |
 | --- | --- | --- |
-| [Windows RC5 installer](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5) | Test users wanting an installer | Workbench, daily email, task conversion, Prompt v2, per-paper Zotero import, source diagnostics |
+| [Windows RC6 installer](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) | Test users wanting an installer | Delivery-history filtering, dynamic cutoffs, automatic Zotero collection imports, publisher JIF, and the existing workbench and Prompt v2 |
 | Current `main` source | Developers and users needing newer features | All implemented capabilities below |
 | [Linux Docker deployment](docs/SERVER_DEPLOYMENT.md) | Users needing unattended daily operation | Self-built source image, web access through SSH |
 
-RC5 is a prerelease with full manual installer acceptance still open. It does not include server mode, delivery-history filtering, dynamic cutoffs, automatic collection imports, identifier attachments, or automatic JIF. Source updates do not update an existing installer. Published tags and assets remain unchanged.
+RC6 is a prerelease: full manual installation, upgrade, scheduling, restore, and uninstall acceptance remains open. Windows and Linux share the versioned source but require separate installation or deployment. Updating GitHub does not upgrade installed applications. Historical RC5 tags and assets remain unchanged.
 
 ## Capabilities
 
@@ -34,7 +34,7 @@ Scores and summaries support reading decisions. Verify the original paper before
 
 ### Windows installer
 
-1. Download `Literature-Agent-0.3.0-rc.5-Windows-x64.exe` and `SHA256SUMS.txt` from the [RC5 release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.5), then verify the checksum.
+1. Download `Literature-Agent-0.3.0-rc.6-Windows-x64.exe` and `SHA256SUMS.txt` from the [RC6 release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6), then verify the checksum.
 2. Install and launch; open <http://127.0.0.1:8001>. Python and Node.js are not required for the installer.
 3. In Settings, select a data directory and configure/test your OpenAI-compatible model, SMTP mailbox, and sources.
 4. Register Windows scheduled tasks, finish onboarding, and run a small search.
@@ -122,7 +122,7 @@ Vite serves <http://127.0.0.1:5175> and proxies `/api` to port `8001`. See the [
 
 ## Validation and development
 
-The October 18 deduplication repair passed **245 backend tests on Windows and Linux**, the frontend build, and **9 affected Edge regressions**. A real replacement digest selected 10 papers with no overlap under the current identity rules; SMTP accepted it and all 10 Zotero imports completed. This validates that run, not universal source availability or future quotas. See the [validation record](docs/DAILY_DEDUPLICATION.md).
+The RC6 release passed **245 backend tests on Windows and Linux**, the frontend build, **32 full Edge regressions**, and packaged runtime checks. A public installer re-download matched the checksum file and GitHub asset digest; see the [RC6 release record](docs/RELEASE_RC6.md). A real replacement digest selected 10 papers with no overlap under the current identity rules; SMTP accepted it and all 10 Zotero imports completed. This validates that run, not universal source availability or future quotas. See the [validation record](docs/DAILY_DEDUPLICATION.md).
 
 ```powershell
 cd backend
