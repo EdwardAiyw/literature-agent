@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make Obsidian a built-in desktop Settings feature with vault discovery, saved local/server connections, sync-now, independent task controls, status and open-index actions; reject desktop actions on the server.
+- Support packaged `--sync-obsidian CONFIG`, automatic source/EXE task selection and task removal on uninstall; preserve the existing explicit-config CLI and destination-specific note mappings. Published RC6 binaries remain unchanged.
+
 - Add source-only Obsidian sync for successful server digests via read-only SSH snapshots, linked daily/paper Markdown notes, identity reuse and preserved personal annotations.
 - Add an independent Windows login/15-minute sync task, catch-up after offline periods and local status reporting. Published RC6 assets are unchanged.
 

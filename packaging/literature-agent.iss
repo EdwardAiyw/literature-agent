@@ -34,5 +34,6 @@ Name: "{group}\卸载 Literature Agent"; Filename: "{uninstallexe}"
 Filename: "{app}\LiteratureAgent.exe"; Description: "启动 Literature Agent"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-obsidian-sync.ps1"" -Unregister"; Flags: runhidden; RunOnceId: "RemoveObsidianTask"
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-windows-task.ps1"" -Unregister"; Flags: runhidden; RunOnceId: "RemoveDailyTask"
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-local-startup.ps1"" -Unregister"; Flags: runhidden; RunOnceId: "RemoveStartupTask"

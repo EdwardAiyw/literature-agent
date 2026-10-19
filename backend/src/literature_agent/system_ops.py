@@ -23,10 +23,10 @@ def _powershell(script: str, timeout: int = 60) -> subprocess.CompletedProcess[s
     )
 
 
-def scheduler_status() -> dict:
+def scheduler_status(task_names=TASK_NAMES) -> dict:
     if os.name != "nt":
         return {"supported": False, "tasks": []}
-    names = ",".join("'" + name.replace("'", "''") + "'" for name in TASK_NAMES)
+    names = ",".join("'" + name.replace("'", "''") + "'" for name in task_names)
     command = (
         f"Get-ScheduledTask -TaskName {names} -ErrorAction SilentlyContinue | "
         "ForEach-Object { $i = $_ | Get-ScheduledTaskInfo; [pscustomobject]@{ "

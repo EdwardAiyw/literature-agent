@@ -25,7 +25,7 @@ RC6 remains a prerelease. All 26 Sandbox lifecycle checks passed, the existing W
 - Schedule HTML/plain-text digests in each subscription's time zone, with DOI and original links.
 - Merge current-search duplicates and exclude papers already successfully emailed by that subscription, including older papers not yet delivered.
 - Import citations individually or automatically into an exact Zotero collection, with durable progress/retry and identifier TXT attachments.
-- Export successful server digests to Obsidian as linked daily/paper notes while preserving personal annotations. This [source-only SSH sync helper](docs/OBSIDIAN.md) includes Windows scheduling and catch-up; it is not bundled in the RC6 installer.
+- Connect Obsidian from Settings: discover vaults, save a local/server source, sync now, manage automatic sync, inspect status, and open linked daily/paper notes while preserving annotations. This [built-in feature on `main`](docs/OBSIDIAN.md) supports Windows scheduling and offline catch-up; the published RC6 installer does not include this entry yet.
 - Look up verifiable publisher JIF values with year/source, or import JCR CSV data. Lookup failure does not block delivery.
 - Manage models, SMTP, sources, backups, subscriptions, and versioned Prompts from the UI; optionally inspect LocalJev decisions.
 

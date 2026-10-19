@@ -9,7 +9,9 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone as datetime_timezone
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
@@ -137,14 +139,11 @@ def export_snapshot(snapshot, vault: Path, folder: str, state_path: Path, timezo
     return {"deliveries": len(snapshot["deliveries"]), "paper_visits": count, "unique_notes": len(state["papers"]), "days": len(state["days"])}
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True)
-    args = parser.parse_args()
-    config = json.loads(args.config.read_text(encoding="utf-8-sig"))
-    state_path = args.config.parent / "state.json"
+@contextmanager
+def config_lock(config_path: Path):
     # OS releases this lock even if the process crashes. Keep one sync per config.
-    lock = open(args.config.parent / "sync.lock", "a+b")
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(config_path.parent / "sync.lock", "a+b")
     try:
         if os.name == "nt":
             import msvcrt
@@ -156,24 +155,58 @@ def main():
         else:
             import fcntl
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        since_date = datetime.fromisoformat(config["since"])
-        if since_date.tzinfo is None:
-            raise ValueError("since must include a UTC offset")
-        since = since_date.astimezone(datetime_timezone.utc).isoformat()
+        yield
+    finally:
+        lock.close()
+
+
+def snapshot_script() -> Path:
+    root = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[3]
+    return root / "scripts" / "obsidian-snapshot.py"
+
+
+def sync(config_path: Path):
+    with config_lock(config_path):
+        try:
+            return _sync(config_path)
+        except Exception as error:
+            atomic_write(config_path.parent / "last-sync.json", json.dumps({"at": datetime.now().astimezone().isoformat(), "status": "error", "error": str(error)}, ensure_ascii=False, indent=2))
+            raise
+
+
+def _sync(config_path: Path):
+    config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    since_date = datetime.fromisoformat(config["since"])
+    if since_date.tzinfo is None:
+        raise ValueError("since must include a UTC offset")
+    since = since_date.astimezone(datetime_timezone.utc).isoformat()
+    script = snapshot_script()
+    if config.get("mode", "ssh") == "local":
+        import runpy
+        snapshot = runpy.run_path(str(script))["snapshot"](config["database"], config["subscription_id"], since)
+    else:
         if not re.fullmatch(r"[a-zA-Z0-9_.@:-]+", config["ssh_target"]) or config["ssh_target"].startswith("-"):
             raise ValueError("Invalid SSH target")
         remote = shlex.join(["python3", "-", config["database"], config["subscription_id"], since])
-        script = Path(__file__).resolve().parents[3] / "scripts" / "obsidian-snapshot.py"
         result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=15", config["ssh_target"], remote],
-                                input=script.read_bytes(), capture_output=True, timeout=120, check=True)
-        outcome = export_snapshot(json.loads(result.stdout), Path(config["vault"]), config.get("folder", "Literature Agent"), state_path, config.get("timezone", "Asia/Hong_Kong"))
-        atomic_write(args.config.parent / "last-sync.json", json.dumps({"at": datetime.now().astimezone().isoformat(), "status": "ok", **outcome}, ensure_ascii=False, indent=2))
-        print(json.dumps(outcome))
-    except Exception as error:
-        atomic_write(args.config.parent / "last-sync.json", json.dumps({"at": datetime.now().astimezone().isoformat(), "status": "error", "error": str(error)}, ensure_ascii=False, indent=2))
-        raise
-    finally:
-        lock.close()
+                                input=script.read_bytes(), capture_output=True, timeout=120, check=True,
+                                **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
+        snapshot = json.loads(result.stdout)
+    root = str((Path(config["vault"]).resolve() / config.get("folder", "Literature Agent")).resolve())
+    state_path = config_path.parent / "state.json"
+    if state_path.exists() and json.loads(state_path.read_text(encoding="utf-8")).get("root") != root:
+        state_path = config_path.parent / ("state-" + hashlib.sha256(root.encode()).hexdigest()[:16] + ".json")
+    outcome = export_snapshot(snapshot, Path(config["vault"]), config.get("folder", "Literature Agent"), state_path, config.get("timezone", "Asia/Hong_Kong"))
+    atomic_write(config_path.parent / "last-sync.json", json.dumps({"at": datetime.now().astimezone().isoformat(), "status": "ok", **outcome}, ensure_ascii=False, indent=2))
+    return outcome
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, required=True)
+    args = parser.parse_args(argv)
+    print(json.dumps(sync(args.config)))
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 # Current State
 
-## Obsidian source integration (2026-10-19)
+## Obsidian product integration on main (2026-10-19)
 
-- Added a separate SSH/read-only SQLite → Markdown exporter and Windows login/15-minute scheduling helper; no server or installed RC6 binary upgrade is required. The immutable RC6 installer does not contain these helpers.
+- Built-in desktop Settings now discovers vaults and saves local/server connections, with sync-now, automatic task registration/removal, status and open-index controls at `/api/obsidian`. Server mode refuses desktop writes. Source CLI remains compatible; the launcher, registration helper and uninstall hooks support future packaged builds. The immutable published RC6 installer does not contain the new UI/command.
 - User-selected RAG_Agent vault received the October 19 successful 10-paper digest, daily index and existing Zotero links. The independent scheduled task executed successfully with result 0; repeated export reused all 10 notes. Personal annotations outside managed blocks are preserved. See [configuration, validation and limits](OBSIDIAN.md).
+- Product validation passed 258 backend tests, the frontend build and two new Edge regressions. A development PyInstaller EXE exported a local fixture and the real server digest; a temporary packaged sync task executed with result 0 and was removed. This is not a new published installer or an upgrade of installed RC6.
 
 ## RC6 synchronized release and deployment (2026-10-18)
 

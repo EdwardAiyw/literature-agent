@@ -45,9 +45,13 @@ def main() -> int:
     _configure_logging()
     parser = argparse.ArgumentParser(description="Literature Agent for Windows")
     parser.add_argument("--run-due", action="store_true")
+    parser.add_argument("--sync-obsidian", type=str, metavar="CONFIG")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
+    if args.sync_obsidian:
+        from .obsidian import main as obsidian_main
+        return obsidian_main(["--config", args.sync_obsidian])
     if args.run_due:
         from .daily import main as daily_main
         sys.argv = [sys.argv[0], "--run-due"]

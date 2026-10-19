@@ -33,6 +33,8 @@ from .zotero import IMPORT_LOCK, ZoteroClient, ZoteroError, destination_for, tas
 from .identifiers import export_identifiers
 from .journal_metrics import parse_metrics_csv
 from .schemas import JournalMetricsImport
+from . import obsidian_service
+from .obsidian_service import ObsidianConfig
 
 config_manager = ConfigManager(Settings.from_env())
 settings = config_manager.get()
@@ -826,6 +828,43 @@ def get_scheduler_status():
     if server_mode():
         return daily_scheduler.status() if daily_scheduler else {"mode": "internal", "running": False, "supported": False, "tasks": []}
     return scheduler_status()
+
+
+@app.get("/api/obsidian")
+def get_obsidian_status():
+    return obsidian_service.status(settings.data_dir)
+
+
+def require_obsidian_desktop():
+    if not obsidian_service.supported():
+        raise HTTPException(409, "请在 Windows 本机版设置 Obsidian 连接，服务器无法直接访问电脑文库")
+
+
+@app.put("/api/obsidian")
+def save_obsidian_config(payload: ObsidianConfig):
+    require_obsidian_desktop()
+    try:
+        obsidian_service.save(settings.data_dir, payload)
+        return {"status": "ok"}
+    except (OSError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/obsidian/{action}")
+def obsidian_action(action: str):
+    require_obsidian_desktop()
+    try:
+        if action == "sync":
+            return obsidian_service.sync_now(settings.data_dir)
+        if action in {"register", "disable"}:
+            obsidian_service.schedule(settings.data_dir, action)
+        elif action == "open":
+            obsidian_service.open_index(settings.data_dir)
+        else:
+            raise ValueError("Unsupported Obsidian action")
+        return {"status": "ok"}
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/update")

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][string]$Config,
+    [string]$Config,
     [string]$TaskName = 'Literature Agent Obsidian Sync',
     [ValidateRange(5,1440)][int]$IntervalMinutes = 15,
     [switch]$Unregister
@@ -11,10 +11,16 @@ if ($Unregister) {
     return
 }
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$packagedApp = Join-Path $projectRoot 'LiteratureAgent.exe'
 $python = Join-Path $projectRoot 'backend\.venv\Scripts\pythonw.exe'
-if (-not (Test-Path -LiteralPath $python)) { throw "Create backend/.venv and install backend first." }
+if (-not $Config) { throw 'A sync config path is required.' }
+if (-not (Test-Path -LiteralPath $python) -and -not (Test-Path -LiteralPath $packagedApp)) { throw "Create backend/.venv and install backend first." }
 $configPath = (Resolve-Path -LiteralPath $Config).Path
-$action = New-ScheduledTaskAction -Execute $python -Argument "-m literature_agent.obsidian --config `"$configPath`"" -WorkingDirectory (Join-Path $projectRoot 'backend')
+if (Test-Path -LiteralPath $packagedApp) {
+    $action = New-ScheduledTaskAction -Execute $packagedApp -Argument "--sync-obsidian `"$configPath`"" -WorkingDirectory $projectRoot
+} else {
+    $action = New-ScheduledTaskAction -Execute $python -Argument "-m literature_agent.obsidian --config `"$configPath`"" -WorkingDirectory (Join-Path $projectRoot 'backend')
+}
 $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
 $login = New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited

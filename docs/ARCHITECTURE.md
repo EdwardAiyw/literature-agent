@@ -42,7 +42,7 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 
 ## State invariants
 
-The source-only Obsidian helper is a separate Windows process: Task Scheduler → SSH/stdin stdlib snapshot → read-only server SQLite transaction → local Markdown managed blocks. It selects only successful digest deliveries for one subscription after an explicit timestamp, without a 100-record cap; shared paper identities and an external state map reuse note paths. Atomic replacements preserve annotations outside the managed block. It does not mutate server data or trigger retrieval/email/Zotero writes. See [setup and operational limits](OBSIDIAN.md).
+Obsidian is a built-in desktop Settings feature on `main`: `/api/obsidian` persists validated connections, discovers existing vaults and exposes sync/status/open/register/disable controls. A separate Windows task invokes either the source module or packaged `--sync-obsidian CONFIG`; local mode reads SQLite directly, SSH mode sends a stdlib read-only snapshot script. Only successful digest deliveries after an explicit timestamp are exported without a 100-record cap. Shared paper identities and destination-specific state reuse Markdown paths; atomic managed-block replacements preserve personal annotations. Config saves and sync share an OS lock. Server mode refuses desktop actions; no retrieval, email or Zotero writes are triggered. The published RC6 binary predates this entry. See [API, setup and limits](OBSIDIAN.md).
 
 - Every paper has a stable canonical identifier.
 - Every run records its current node, progress, status, timestamps, and errors.
