@@ -12,11 +12,14 @@ import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import datetime, timezone as datetime_timezone
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 from .paper_identity import matches, members, strong_ids
+from .email import render_digest
+from .journal_metrics import format_jif, with_metric_records
 
 START = "<!-- literature-agent:start -->"
 END = "<!-- literature-agent:end -->"
@@ -24,7 +27,7 @@ END = "<!-- literature-agent:end -->"
 
 def atomic_write(path: Path, content: str):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="", dir=path.parent, delete=False) as handle:
         temporary = Path(handle.name)
         handle.write(content)
     try:
@@ -57,7 +60,7 @@ def managed_write(root: Path, relative: str, body: str, frontmatter: str = ""):
 
 
 def text(value) -> str:
-    value = str(value or "").replace(START, "").replace(END, "")
+    value = str(value if value is not None else "").replace(START, "").replace(END, "")
     return re.sub(r"([\\`*_{}\[\]<>|#])", r"\\\1", value)
 
 
@@ -70,8 +73,10 @@ def link(label, url):
 def paper_body(paper):
     lines = [f"# {text(paper.get('title'))}", "", f"作者：{text('；'.join(paper.get('authors') or []))}",
              f"发表日期：{text(paper.get('published_date'))}", f"来源：{text(paper.get('source'))}",
-             f"期刊/会议：{text(paper.get('venue'))}", ""]
+             f"期刊/会议：{text(paper.get('venue') or (paper.get('journal_metric') or {}).get('journal'))}",
+             f"DOI：{text(paper.get('doi') or '未提供')}", text(format_jif(paper)), ""]
     urls = [("原文", paper.get("official_url")), ("开放版本", paper.get("open_access_url"))]
+    urls.append(("影响因子来源", (paper.get("journal_metric") or {}).get("source_url")))
     for identity in sorted(strong_ids(paper)):
         if identity.startswith("doi:"):
             urls.append(("DOI", "https://doi.org/" + quote(identity[4:], safe="/")))
@@ -82,17 +87,67 @@ def paper_body(paper):
             library = "library" if destination[0] == "user" else "groups/" + quote(str(destination[1]), safe="")
             urls.append(("Zotero", f"zotero://select/{library}/items/{quote(str(key), safe='')}"))
     lines += [" · ".join(filter(None, (link(label, url) for label, url in urls if url))), ""]
-    summary = paper.get("summary") or {}
+    summary = dict(paper.get("summary") or {})
+    if not summary.get("relevance_reason"):
+        summary["relevance_reason"] = (paper.get("screening") or {}).get("relevance_reason")
     for key, label in [("research_problem", "研究问题"), ("method", "方法"), ("main_findings", "主要发现"),
                        ("limitations", "局限"), ("relevance_reason", "与研究主题的关系"), ("research_use", "研究用途"),
                        ("recommended_action", "建议"), ("confidence", "摘要置信度"), ("evidence_warnings", "证据提示")]:
         value = summary.get(key)
-        if value:
+        if value is not None and value != "" and value != []:
             rendered = "\n".join("- " + text(v) for v in value) if isinstance(value, list) else text(value)
             lines.extend([f"## {label}", "", rendered, ""])
     if paper.get("abstract"):
         lines += ["## 原始摘要", "", text(paper["abstract"]), ""]
     return "\n".join(lines)
+
+
+def prepare_email(delivery: dict, metrics: list[dict]):
+    """Use a sent snapshot, or clearly reconstruct older mail with shared rendering."""
+    if delivery.get("email_archive"):
+        return {**delivery["email_archive"], "provenance": "发送时正文快照"}
+    delivery["papers"] = [with_metric_records(p, metrics) if "journal_metric" not in p else p for p in delivery["papers"]]
+    subscription = delivery.get("subscription") or {"topic": re.sub(r" · \d+ 篇文献$", "", delivery["subject"]).removeprefix("[Literature Agent] ")}
+    return {**asdict(render_digest(subscription, delivery["papers"], delivery.get("diagnostics"), delivery.get("dedupe"))),
+            "subject": delivery["subject"], "provenance": "按历史运行记录重建（原始邮件正文未留存，指标可能已更新）"}
+
+
+def asset_write(root: Path, relative: str, content: str, state: dict):
+    """Keep exact TXT content; refuse to replace an unrelated or edited asset."""
+    path = safe_path(root, relative)
+    hashes = state.setdefault("assets", {})
+    checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    if path.exists():
+        current = hashlib.sha256(path.read_bytes()).hexdigest()
+        if current == checksum:
+            hashes[relative] = checksum
+            return
+        if current != hashes.get(relative):
+            raise ValueError(f"Attachment has personal changes; preserved file: {path}")
+    atomic_write(path, content)
+    hashes[relative] = checksum
+
+
+def export_email(root: Path, folder: str, day: str, delivery: dict, archive: dict, state: dict):
+    suffix = hashlib.sha256(delivery["id"].encode()).hexdigest()[:16]
+    stem = f"{day} -- {suffix}"
+    email_path = f"Emails/{stem}.md"
+    plain_path = f"Attachments/{stem} -- email.txt"
+    asset_write(root, plain_path, archive["text"], state)
+    paths = [plain_path]
+    lines = [f"# {text(archive['subject'])}", "", f"发送时间：{text(delivery['sent_at'])}",
+             f"正文来源：{text(archive['provenance'])}", "", f"[[{folder}/{plain_path}|邮件正文 TXT]]", ""]
+    for index, attachment in enumerate(archive.get("attachments") or []):
+        # Original attachment names are labels only, never filesystem paths.
+        path = f"Attachments/{stem} -- attachment-{index + 1}.txt"
+        asset_write(root, path, attachment["text"], state)
+        paths.append(path)
+        lines.append(f"[[{folder}/{path}|{text(attachment['filename'])}]]")
+    body = archive["text"].replace(START, "&lt;!-- literature-agent:start --&gt;").replace(END, "&lt;!-- literature-agent:end --&gt;")
+    fence = "`" * max(3, 1 + max((len(m) for m in re.findall(r"`+", body)), default=0))
+    lines += ["", "## 邮件正文", "", fence + "text", body, fence]
+    managed_write(root, email_path, "\n".join(lines))
+    return email_path, paths
 
 
 def export_snapshot(snapshot, vault: Path, folder: str, state_path: Path, timezone="Asia/Hong_Kong"):
@@ -109,6 +164,8 @@ def export_snapshot(snapshot, vault: Path, folder: str, state_path: Path, timezo
     for delivery in snapshot["deliveries"]:
         day = datetime.fromisoformat(delivery["sent_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(timezone)).date().isoformat()
         notes = []
+        archive = prepare_email(delivery, snapshot.get("journal_metrics", []))
+        email_path, attachments = export_email(root, folder, day, delivery, archive, state)
         for paper in delivery["papers"]:
             record = next((r for r in state["papers"] if matches(r["identity"], paper) or (r.get("paper_id") and r["paper_id"] == paper.get("id"))), None)
             if record is None:
@@ -125,11 +182,13 @@ def export_snapshot(snapshot, vault: Path, folder: str, state_path: Path, timezo
             managed_write(root, record["path"], paper_body(paper), frontmatter)
             notes.append(record["path"])
             count += 1
-        state["days"].setdefault(day, {})[delivery["id"]] = {"subject": delivery["subject"], "notes": notes, "run_id": delivery["run_id"]}
+        state["days"].setdefault(day, {})[delivery["id"]] = {"subject": delivery["subject"], "notes": notes, "run_id": delivery["run_id"], "email_path": email_path, "attachments": attachments}
     for day, deliveries in state["days"].items():
         lines = [f"# {day} 每日论文", ""]
         for delivery in deliveries.values():
             lines += [f"## {text(delivery['subject'])}", ""]
+            if delivery.get("email_path"):
+                lines += [f"[[{folder}/{delivery['email_path'][:-3]}|邮件正文与附件]]", ""]
             titles = {r["path"]: re.sub(r"[\[\]|\r\n]", " ", str(r["identity"].get("title", "Paper"))) for r in state["papers"]}
             lines += [f"- [[{folder}/{path[:-3]}|{titles[path]}]]" for path in delivery["notes"]] or ["本次没有新的合格论文。"]
             lines.append("")

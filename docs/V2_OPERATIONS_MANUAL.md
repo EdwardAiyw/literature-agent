@@ -6,6 +6,8 @@
 
 Obsidian 已在最新源码设置页内置文库连接、立即同步、启停独立 Windows 自动任务和状态查询；通过 `/api/obsidian` 操作。高级配置、`LITERATURE_AGENT_OBSIDIAN_CONFIG` 复用已有配置、补齐历史、状态文件和停用命令见 [Obsidian 同步](OBSIDIAN.md)。服务器不需要重启，已发布 RC6 安装包未内置新入口。
 
+邮件归档会读取成功投递对应的 `email_digest.<delivery_id>` 运行产物，导出完整正文和标识符 TXT；旧记录通过共享渲染器重建并标明来源。同步器只读服务器数据；新发送快照的采集需要服务器使用更新后的发送模块。部署和验证结果见 [Obsidian 指南](OBSIDIAN.md#2026-10-19-实机验证)。
+
 ## 1. 组件与地址
 
 | 组件 | 地址 | 说明 |

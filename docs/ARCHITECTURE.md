@@ -42,6 +42,8 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 
 ## State invariants
 
+Daily sending persists an `email_digest.<delivery_id>` run artifact before SMTP, including the rendered text/HTML, attachments and enriched paper snapshot. Obsidian exports successful delivery snapshots into `Emails/` and exact UTF-8 TXT into `Attachments/`; older deliveries are explicitly reconstructed through the shared digest renderer, retrieval/dedupe artifacts and shared JIF resolution. Paper notes include JIF provenance and daily notes link the complete email. Asset hashes prevent overwriting hand-edited attachments; note annotations remain outside managed blocks.
+
 Obsidian is a built-in desktop Settings feature on `main`: `/api/obsidian` persists validated connections, discovers existing vaults and exposes sync/status/open/register/disable controls. A separate Windows task invokes either the source module or packaged `--sync-obsidian CONFIG`; local mode reads SQLite directly, SSH mode sends a stdlib read-only snapshot script. Only successful digest deliveries after an explicit timestamp are exported without a 100-record cap. Shared paper identities and destination-specific state reuse Markdown paths; atomic managed-block replacements preserve personal annotations. Config saves and sync share an OS lock. Server mode refuses desktop actions; no retrieval, email or Zotero writes are triggered. The published RC6 binary predates this entry. See [API, setup and limits](OBSIDIAN.md).
 
 - Every paper has a stable canonical identifier.

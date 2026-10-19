@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timezone
+from dataclasses import asdict
 from zoneinfo import ZoneInfo
 
 from .config import Settings
@@ -82,6 +83,10 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
         database.update_delivery(delivery["id"], status="failed", error=result.get("error", "Run failed"))
         return {**result, "delivery": database.get_delivery(delivery["id"])}
     try:
+        database.save_run_artifact(run["id"], "email_digest." + delivery["id"], {
+            **asdict(message), "papers": papers, "topic": subscription.get("topic", ""),
+            "diagnostics": diagnostics, "dedupe": dedupe.get("payload", {}),
+        })
         send_message(settings, subscription["recipient"], message)
     except Exception as exc:
         database.update_delivery(delivery["id"], status="failed", error=f"{type(exc).__name__}: {exc}")

@@ -17,7 +17,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from .prompts import default_prompt_id
-from .journal_metrics import normalize_issn, metrics_applicable
+from .journal_metrics import normalize_issn, metrics_applicable, with_metric_records
 
 
 def upgrade_database(path: Path) -> None:
@@ -444,34 +444,19 @@ class Database:
     def with_journal_metric(self, paper: dict) -> dict:
         # Resolve current imported data for display/email/export without
         # rewriting historical paper payloads or model relevance decisions.
-        result = {**paper, "journal_metric": None, "journal_metric_status": "not_found"}
         if not metrics_applicable(paper):
-            result["journal_metric_status"] = "not_applicable"
-            return result
+            return with_metric_records(paper, [])
         values = paper.get("issns") or []
         if isinstance(values, str):
             values = [values]
         issns = list(dict.fromkeys(filter(None, (normalize_issn(str(v)) for v in values))))
         if not issns:
-            result["journal_metric_status"] = "insufficient_metadata"
-            return result
+            return with_metric_records(paper, [])
         lookups = [self.get_metric_lookup("issn:" + issn) for issn in issns]
-        if any(v and v.get("status") == "failed" for v in lookups):
-            result["journal_metric_status"] = "failed"
         placeholders = ",".join("?" for _ in issns)
         rows = self.connection.execute(f"SELECT payload FROM journal_metrics WHERE issn IN ({placeholders}) ORDER BY year DESC", issns).fetchall()
-        if not rows:
-            return result
         records = [json.loads(row["payload"]) for row in rows]
-        latest = records[0]["year"]
-        records = [r for r in records if r["year"] == latest]
-        # Conflicting print/electronic matches are missing, never guessed.
-        if len({(r["journal"], r["jif"], r["source"], r["source_url"]) for r in records}) == 1:
-            result["journal_metric"] = {**records[0], "matched_by": "issn"}
-            result["journal_metric_status"] = "matched"
-        else:
-            result["journal_metric_status"] = "conflict"
-        return result
+        return with_metric_records(paper, records, any(v and v.get("status") == "failed" for v in lookups))
 
     def review_paper(self, paper_id: str, review: str) -> bool:
         result = self.connection.execute("UPDATE papers SET review = ? WHERE id = ?", (review, paper_id))

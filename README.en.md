@@ -26,6 +26,7 @@ RC6 remains a prerelease. All 26 Sandbox lifecycle checks passed, the existing W
 - Merge current-search duplicates and exclude papers already successfully emailed by that subscription, including older papers not yet delivered.
 - Import citations individually or automatically into an exact Zotero collection, with durable progress/retry and identifier TXT attachments.
 - Connect Obsidian from Settings: discover vaults, save a local/server source, sync now, manage automatic sync, inspect status, and open linked daily/paper notes while preserving annotations. This [built-in feature on `main`](docs/OBSIDIAN.md) supports Windows scheduling and offline catch-up; the published RC6 installer does not include this entry yet.
+- Archive complete digest text, source diagnostics, deduplication counts, JIF provenance and identifier TXT attachments into the vault. New sends retain the original render snapshot; older reconstructed digests are labeled explicitly.
 - Look up verifiable publisher JIF values with year/source, or import JCR CSV data. Lookup failure does not block delivery.
 - Manage models, SMTP, sources, backups, subscriptions, and versioned Prompts from the UI; optionally inspect LocalJev decisions.
 

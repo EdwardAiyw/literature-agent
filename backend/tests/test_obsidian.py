@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from literature_agent.obsidian import END, START, export_snapshot
+from literature_agent.email import render_digest
+from literature_agent.journal_metrics import with_metric_records
 
 
 def delivery(papers, **extra):
@@ -78,3 +80,49 @@ def test_remote_snapshot_filters_sent_digest_and_has_no_history_limit(tmp_path):
     assert len(result["deliveries"]) == 105
     assert result["deliveries"][0]["papers"][0]["title"] == "Paper"
     assert db.read_bytes() == before
+
+
+def test_email_content_metrics_diagnostics_and_attachments_are_exported(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    state = tmp_path / "state.json"
+    paper = {"id": "p1", "title": "Journal article", "authors": ["Alice"], "doi": "10.1234/a", "issns": ["0028-0836"], "venue_type": "journal", "summary": {"research_problem": "Problem", "main_findings": ["Finding"], "confidence": 0}, "screening": {"relevance_reason": "Screened reason"}}
+    metric = {"issn": "0028-0836", "journal": "Test journal", "year": 2025, "jif": "0", "source": "Publisher", "source_kind": "publisher", "source_url": "https://example.org/metric"}
+    snapshot = delivery([paper])
+    snapshot["journal_metrics"] = [metric]
+    snapshot["deliveries"][0].update(subscription={"topic": "My topic"}, diagnostics={"openalex": {"status": "partial", "count": 12, "error": "Rate limit"}}, dedupe={"merged_count": 3, "history_excluded_count": 7})
+    expected = render_digest({"topic": "My topic"}, [with_metric_records(paper, [metric])], snapshot["deliveries"][0]["diagnostics"], snapshot["deliveries"][0]["dedupe"])
+    export_snapshot(snapshot, vault, "Literature Agent", state)
+    root = vault / "Literature Agent"
+    assert next((root / "Attachments").glob("* -- email.txt")).read_bytes() == expected.text.encode("utf-8")
+    assert next((root / "Attachments").glob("* -- attachment-1.txt")).read_bytes() == expected.attachments[0].text.encode("utf-8")
+    note = next((root / "Papers").glob("*.md")).read_text(encoding="utf-8")
+    assert "2025" in note and "https://example.org/metric" in note and "## 摘要置信度\n\n0" in note
+    assert "Screened reason" in note
+    email = next((root / "Emails").glob("*.md")).read_text(encoding="utf-8")
+    assert "按历史运行记录重建" in email and "Rate limit" in email
+    assert "邮件正文与附件" in (root / "Daily/2026-10-19.md").read_text(encoding="utf-8")
+    export_snapshot(snapshot, vault, "Literature Agent", state)
+    assert len(list((root / "Attachments").glob("*.txt"))) == 2
+
+
+def test_sent_email_snapshot_survives_later_changes_and_preserves_personal_notes(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    state = tmp_path / "state.json"
+    snapshot = delivery([])
+    snapshot["deliveries"][0]["email_archive"] = {"subject": "Original mail", "text": "Original body\n```\n", "attachments": [{"filename": "../../identifier.txt", "text": "10.1234/sent\n"}]}
+    export_snapshot(snapshot, vault, "Literature Agent", state)
+    root = vault / "Literature Agent"
+    email = next((root / "Emails").glob("*.md"))
+    email.write_text(email.read_text(encoding="utf-8") + "\nPersonal mail annotation\n", encoding="utf-8")
+    snapshot["deliveries"][0]["subscription"] = {"topic": "Changed topic"}
+    export_snapshot(snapshot, vault, "Literature Agent", state)
+    content = email.read_text(encoding="utf-8")
+    assert "发送时正文快照" in content and "Original body" in content and "Personal mail annotation" in content
+    assert not (vault / "identifier.txt").exists()
+    attachment = next((root / "Attachments").glob("* -- attachment-1.txt"))
+    attachment.write_text("Personal attachment edits", encoding="utf-8")
+    with pytest.raises(ValueError, match="personal changes"):
+        export_snapshot(snapshot, vault, "Literature Agent", state)
+    assert attachment.read_text() == "Personal attachment edits"

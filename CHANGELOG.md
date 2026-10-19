@@ -2,13 +2,14 @@
 
 ## Unreleased
 
+- Sync complete email text and identifier attachments into Obsidian, with source diagnostics, deduplication statistics and shared JIF provenance in paper notes; label reconstructed historical messages explicitly.
+- Persist rendered mail/attachment/paper snapshots before SMTP for successful-delivery export and protect hand-edited TXT assets with stored hashes.
+
 - Make Obsidian a built-in desktop Settings feature with vault discovery, saved local/server connections, sync-now, independent task controls, status and open-index actions; reject desktop actions on the server.
 - Support packaged `--sync-obsidian CONFIG`, automatic source/EXE task selection and task removal on uninstall; preserve the existing explicit-config CLI and destination-specific note mappings. Published RC6 binaries remain unchanged.
 
 - Add source-only Obsidian sync for successful server digests via read-only SSH snapshots, linked daily/paper Markdown notes, identity reuse and preserved personal annotations.
 - Add an independent Windows login/15-minute sync task, catch-up after offline periods and local status reporting. Published RC6 assets are unchanged.
-
-## Unreleased
 
 - Correct the Sandbox finalizer to validate the actual restore success response and safety backup, and check scheduled task names explicitly. Published RC6 installer assets remain unchanged.
 - Record 26 passing Sandbox lifecycle checks, the data-preserving desktop upgrade, and real installed-binary retrieval with loopback SMTP receipt.

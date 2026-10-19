@@ -125,6 +125,23 @@ def test_snapshot_recovers_original_date_timezone_and_recipient(runtime):
     assert runner.subscription_snapshot(db, another, {**sub, 'date_to_mode': 'fixed'}, {**task, 'date_to': '2026-10-15'})[1]['date_to'] == '2026-10-15'
 
 
+def test_mail_snapshot_is_persisted_before_smtp_and_matches_sent_content(runtime, monkeypatch):
+    db, task, sub, settings = runtime
+    observed = []
+    def capture(settings, recipient, message):
+        delivery = db.list_deliveries(sub['id'])[0]
+        archive = db.get_run_artifact(delivery['run_id'], 'email_digest.' + delivery['id'])['payload']
+        assert delivery['status'] == 'pending'
+        assert archive['text'] == message.text and archive['html'] == message.html
+        assert archive['subject'] == message.subject
+        assert archive['attachments'] == [{'filename': a.filename, 'text': a.text} for a in message.attachments]
+        assert len(archive['papers']) == 1
+        observed.append(archive)
+    monkeypatch.setattr(runner, 'send_message', capture)
+    result = run_day(db, sub, settings, 16)
+    assert result['delivery']['status'] == 'sent' and len(observed) == 1
+
+
 def test_history_snapshot_survives_record_changes_and_deletion_and_is_atomic(runtime):
     db, task, sub, settings = runtime
     result = run_day(db, sub, settings, 16)

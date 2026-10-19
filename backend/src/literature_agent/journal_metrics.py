@@ -76,6 +76,28 @@ def merge_journal_metadata(primary: dict, duplicate: dict) -> None:
             primary[key] = duplicate[key]
 
 
+def with_metric_records(paper: dict, records: list[dict], lookup_failed: bool = False) -> dict:
+    """Shared display/email/export resolution without changing saved papers."""
+    result = {**paper, "journal_metric": None, "journal_metric_status": "failed" if lookup_failed else "not_found"}
+    if not metrics_applicable(paper):
+        result["journal_metric_status"] = "not_applicable"
+        return result
+    values = paper.get("issns") or []
+    issns = set(filter(None, (normalize_issn(str(v)) for v in ([values] if isinstance(values, str) else values))))
+    if not issns:
+        result["journal_metric_status"] = "insufficient_metadata"
+        return result
+    records = [r for r in records if r.get("issn") in issns]
+    if records:
+        latest = max(r["year"] for r in records)
+        records = [r for r in records if r["year"] == latest]
+        if len({(r["journal"], r["jif"], r["source"], r["source_url"]) for r in records}) == 1:
+            result.update(journal_metric={**records[0], "matched_by": "issn"}, journal_metric_status="matched")
+        else:
+            result["journal_metric_status"] = "conflict"
+    return result
+
+
 def format_jif(paper: dict) -> str:
     if not metrics_applicable(paper):
         return "期刊影响因子：不适用（预印本或非期刊文献）"
