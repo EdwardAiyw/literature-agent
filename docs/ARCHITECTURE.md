@@ -42,6 +42,8 @@ The packaged launcher binds only to `127.0.0.1`, serves the built React applicat
 
 ## State invariants
 
+The source-only Obsidian helper is a separate Windows process: Task Scheduler → SSH/stdin stdlib snapshot → read-only server SQLite transaction → local Markdown managed blocks. It selects only successful digest deliveries for one subscription after an explicit timestamp, without a 100-record cap; shared paper identities and an external state map reuse note paths. Atomic replacements preserve annotations outside the managed block. It does not mutate server data or trigger retrieval/email/Zotero writes. See [setup and operational limits](OBSIDIAN.md).
+
 - Every paper has a stable canonical identifier.
 - Every run records its current node, progress, status, timestamps, and errors.
 - Every completed node writes a run event and one structured artifact.

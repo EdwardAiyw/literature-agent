@@ -18,6 +18,8 @@
 
 ### 可选项目
 
+如需把服务器每日推送自动归档到 Obsidian，可另外配置 [Obsidian 源码同步工具](OBSIDIAN.md)。它使用独立的登录/定时任务，未内置于 RC6 安装版。
+
 - Semantic Scholar API Key：可提高该来源的可用额度和稳定性。
 - OpenAlex API Key：没有也可以使用公开接口。
 - PubMed API Key 和联系邮箱：有助于使用 NCBI 服务。

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add source-only Obsidian sync for successful server digests via read-only SSH snapshots, linked daily/paper Markdown notes, identity reuse and preserved personal annotations.
+- Add an independent Windows login/15-minute sync task, catch-up after offline periods and local status reporting. Published RC6 assets are unchanged.
+
+## Unreleased
+
 - Correct the Sandbox finalizer to validate the actual restore success response and safety backup, and check scheduled task names explicitly. Published RC6 installer assets remain unchanged.
 - Record 26 passing Sandbox lifecycle checks, the data-preserving desktop upgrade, and real installed-binary retrieval with loopback SMTP receipt.
 

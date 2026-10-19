@@ -25,6 +25,7 @@ RC6 是预发布测试版。已通过 26 项 Sandbox 安装生命周期检查，
 - **每日邮件**：按订阅时区运行，发送 HTML/纯文本摘要、DOI 与原文链接，记录投递结果。
 - **持续选文**：合并本次重复记录，排除本订阅之前成功推送的论文，也可继续补充未推送过的历史文献。
 - **Zotero**：逐篇导入，或指定已有集合自动导入；支持进度、失败重试和邮件标识符 TXT。
+- **Obsidian（源码工具）**：通过 SSH 把成功推送同步为论文笔记和每日索引，保留个人批注；支持 Windows 登录及定时补齐。配置见 [Obsidian 连接](docs/OBSIDIAN.md)，未包含在 RC6 安装包内。
 - **期刊指标**：查询可核实的官网 JIF 并标注年份、来源，也可导入已有 JCR CSV；查询失败不阻断邮件。
 - **运行管理**：页面配置模型、SMTP、来源、备份、订阅和 Prompt 版本；可选 LocalJev 决策审计。
 
@@ -142,6 +143,7 @@ npm run test:e2e
 | 安装与排错 | [Windows 指南](docs/WINDOWS_USER_GUIDE.md) · [服务器部署与回退](docs/SERVER_DEPLOYMENT.md) |
 | 每日选文 | [历史去重与日期](docs/DAILY_DEDUPLICATION.md) |
 | Zotero 与 JIF | [导入和附件](docs/ZOTERO.md) · [期刊指标](docs/JOURNAL_METRICS.md) |
+| Obsidian | [文库连接、自动同步与排错](docs/OBSIDIAN.md) |
 | Prompt 与 LocalJev | [Prompt 系统](docs/PROMPT_SYSTEM.md) · [LocalJev](docs/LOCALJEV.md) · [质量验证](docs/LOCALJEV_CLOUD_VALIDATION_2026-10-16.md) |
 | 开发与运维 | [架构](docs/ARCHITECTURE.md) · [运行手册](docs/V2_OPERATIONS_MANUAL.md) · [Windows 发布](docs/WINDOWS_RELEASE.md) |
 | 进展与验收 | [当前状态](docs/CURRENT_STATE.md) · [更新日志](CHANGELOG.md) · [测试指南](TEST_GUIDE.md) |

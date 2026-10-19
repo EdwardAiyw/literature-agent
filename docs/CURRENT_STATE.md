@@ -1,5 +1,10 @@
 # Current State
 
+## Obsidian source integration (2026-10-19)
+
+- Added a separate SSH/read-only SQLite → Markdown exporter and Windows login/15-minute scheduling helper; no server or installed RC6 binary upgrade is required. The immutable RC6 installer does not contain these helpers.
+- User-selected RAG_Agent vault received the October 19 successful 10-paper digest, daily index and existing Zotero links. The independent scheduled task executed successfully with result 0; repeated export reused all 10 notes. Personal annotations outside managed blocks are preserved. See [configuration, validation and limits](OBSIDIAN.md).
+
 ## RC6 synchronized release and deployment (2026-10-18)
 
 - Version `0.3.0-rc.6` uses immutable tag `v0.3.0-rc.6`, commit `ebda008d2efec3aae5413343a7328adba1e52202`. Windows packaging includes the daily history/date, automatic Zotero and JIF features previously available only in source. See [release and validation](RELEASE_RC6.md).
