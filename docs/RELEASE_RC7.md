@@ -23,4 +23,20 @@ RC7 将文献来源管理做成产品设置，Windows 安装版和 Linux 服务�
 - DOAJ、DataCite、HAL、Europe PMC 各完成一次 HTTP 200、两条记录的真实 API 验证。Google Scholar 和 CORE 的授权真实检索尚未提供用户密钥，以模拟接口及公开样例验证；在页面测试自己的权限及额度。
 - RC7 干净系统首次设置、自然调度及外部邮箱收件仍需人工验收；不复用历史 RC6 的实机检索作为本版检索验收。升级验证不触发新的检索、邮件或 Zotero 导入。
 
-来源覆盖、API 和凭据规则见 [SOURCES.md](SOURCES.md)，Obsidian 见 [OBSIDIAN.md](OBSIDIAN.md)，服务器操作见 [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md)。最终发布、安装校验和部署证据将在完成后记录于本页。
+来源覆盖、API 和凭据规则见 [SOURCES.md](SOURCES.md)，Obsidian 见 [OBSIDIAN.md](OBSIDIAN.md)，服务器操作见 [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md)。
+
+## 2026-11-01 发布与升级验证
+
+- 不可变标签 `v0.3.0-rc.7` 指向 `e75abade0862ecd39337948b65ca23052f8a87af`。[源码 CI](https://github.com/EdwardAiyw/literature-agent/actions/runs/41310862092) 成功；发布检查脚本由后续提交 `ec4cc8a` 修正 PowerShell 数组计数并补充失败诊断，标签未移动。
+- [Windows Release](https://github.com/EdwardAiyw/literature-agent/actions/runs/41312375669) 使用该标签源码构建并成功发布：**299 项后端测试、36 项完整 Edge 回归、前端构建、安装包构建和打包程序检查全部通过**。早期一次订阅编辑超时未在本机 10 轮重复或后续完整回归中复现；没有跳过测试。
+- [公开安装包](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.7/Literature-Agent-0.3.0-rc.7-Windows-x64.exe) **29,420,269 字节**。匿名重新下载后，SHA-256 与同一 Release 的 `SHA256SUMS.txt`、GitHub 资产摘要三方一致：
+
+```text
+95d593ce0d43e65f55e60830b8a7b0c59b558fb14882246fde3c31f50af86885
+```
+
+- 本机覆盖安装返回 0，注册表及运行健康接口均为 RC7。原 D 盘安装位置、E 盘数据目录保留；17 张表内容、设置、bootstrap 及 Windows 凭据哈希一致。Local/Daily 任务继续停用，既有 Obsidian 任务保持原配置与状态；安装版通过用户环境变量复用已有 Obsidian 配置及笔记映射。备份：`D:/codex/backups/literature-agent/pre-rc7-20261101`。
+- 服务器运行镜像 `literature-agent:rc7-e75abad`，健康且内部调度正常。17 张表及设置、密钥、Compose、LocalJev 配置哈希保留，恢复原调度开关，既有订阅来源不自动扩大。备份：`/opt/literature-agent/backups/rc7-20261101T132509Z`；保留旧镜像。最终 Linux 镜像隔离通过 **298 项后端测试，1 项 Windows 文件锁检查跳过**。
+- 真实安装版与正式服务器均通过桌面/390px 手机页面验证：9 个已添加来源、Google Scholar/CORE 添加配置入口、空白密码框、无横向溢出、无页面错误。只读验证没有触发配置写入、检索、发信或 Zotero 导入。
+
+本机完整证据保存在 `D:/codex/validation/literature-agent/rc7-20261101/`；服务器部署报告为 `/opt/literature-agent/validation/rc7-e75abad/deployment.json`。历史 RC6 安装与检索记录保持原样。

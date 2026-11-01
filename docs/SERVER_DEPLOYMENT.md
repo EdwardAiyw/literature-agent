@@ -1,6 +1,6 @@
 # Linux 服务器部署与本机网页管理
 
-RC6 源码支持单用户 Linux 服务器模式。每日检索和邮件在服务器运行，本机只打开管理网页；本机关机不会影响服务器任务。Windows 安装包和 Linux 镜像来自同版本源码，分别部署，不进行数据库双向同步。
+RC7 支持单用户 Linux 服务器模式。每日检索和邮件在服务器运行，本机只打开管理网页；本机关机不会影响服务器任务。Windows 安装包和 Linux 镜像来自同版本源码，分别部署，不进行数据库双向同步。
 
 ## 使用网页
 
@@ -22,6 +22,7 @@ ssh -N -T -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -o ServerAliv
 - “每日订阅 → Zotero 导入”：读取已有集合并选择确切目标，按任务开启自动导入；完成后在工作台查看进度/失败重试。每日邮件附可粘贴到 Zotero 的标识符 TXT；已完成运行可直接下载文件，无需重发。详见 [Zotero 说明](ZOTERO.md)。
 - “设置 → 期刊影响因子（JIF）”：默认自动查询官网 JIF，随文献邮件附指标年份和来源；可关闭自动查询，也可导入已有 JCR CSV 补充。公开来源可能拒绝访问，查询失败仍推送文献。指标/缓存随 SQLite 备份，详见 [来源覆盖与使用说明](JOURNAL_METRICS.md)。
 - “设置”：修改模型、邮箱、来源、Zotero、Jev 和请求预算；空白密钥保留已有值。
+- “设置 → 文献来源”：添加、配置、逐个测试、启停或移除 11 种连接，保存逐来源上限和新任务默认选择。Google Scholar 通过 SerpApi，CORE 通过官方 API，均需自己的密钥；详见 [来源配置](SOURCES.md)。既有订阅的来源选择不会因升级而自动扩大。
 - “设置 → 后台自动运行”展示常驻调度状态。无需注册 Windows 计划任务。
 - 页面备份保存在服务器数据卷；目录切换和备份恢复须停服后由运维执行。
 
@@ -29,7 +30,13 @@ ssh -N -T -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -o ServerAliv
 
 每日选文会在筛选前排除本订阅已成功推送的论文，不足目标篇数时按实际数量发送。新订阅默认截止到运行当天；已有订阅保留固定日期策略，可在页面切换。数据库当前升级到 `20261018_0006`，包含独立推送历史及旧邮件回填。详见 [去重、日期策略和部署验收](DAILY_DEDUPLICATION.md)。
 
-## 已验证的 RC6 部署（2026-10-18）
+## 当前 RC7 部署（2026-11-01）
+
+- 运行镜像 `literature-agent:rc7-e75abad`，源码标签 `v0.3.0-rc.7` / 提交 `e75abade0862ecd39337948b65ca23052f8a87af`。健康接口返回 `0.3.0-rc.7`，worker 和 60 秒内部调度正常、无错误。
+- 备份位于 `/opt/literature-agent/backups/rc7-20261101T132509Z`；保留旧镜像 `literature-agent:obsidian-mail-821aac8f09e5`。17 张表及设置、密钥、Compose、LocalJev 配置哈希一致，已有订阅、时间、目标篇数及 Zotero 选择均保留。验证报告：`/opt/literature-agent/validation/rc7-e75abad/deployment.json`。
+- 最终镜像在无网络、无生产数据和密钥的隔离容器中通过 **298 项后端测试**，跳过 1 项 Windows 文件锁检查。正式网页桌面/390px 手机来源配置入口检查通过，无页面异常及写操作。升级没有触发检索、发邮件或 Zotero 导入。
+
+## 历史 RC6 部署（2026-10-18）
 
 - 运行镜像 `literature-agent:rc6-ebda008`，来自不可变标签 `v0.3.0-rc.6` / 提交 `ebda008d2efec3aae5413343a7328adba1e52202`。健康接口返回 `0.3.0-rc.6`，内部调度正常、无错误。
 - 升级前备份位于 `/opt/literature-agent/backups/rc6-20261018T012736Z`，保留上一镜像 `literature-agent:digest-0aaced276934`。升级前后 17 张表内容及设置、密钥、LocalJev 配置哈希一致；验证报告位于 `/opt/literature-agent/validation/rc6-ebda008/deployment.json`。
@@ -104,6 +111,7 @@ Compose 只发布 `127.0.0.1:18081`，使用 SSH 访问。应用没有多用户�
 | `LOCALJEV_IMAGE` | 独立 LocalJev 固定镜像标签 |
 | `LOCALJEV_DEPLOYMENT` | 传给应用的 `LITERATURE_AGENT_JEV_DEPLOYMENT`，隔离决策缓存版本 |
 | `JOURNAL_METRICS_AUTO=true` | 自动查询 JIF 的初始默认值；网页设置优先，Compose 自定义覆盖可传入容器 |
+| `SERPAPI_API_KEY`、`CORE_API_KEY` | Google Scholar/CORE 的可选初始密钥；推荐在网页保存，来源仍须显式添加并启用 |
 
 Linux 服务器密钥库是受文件权限保护的明文 JSON，不是 Windows 凭据库加密；备份与 SSH 账号同样需要保护。设置接口仅返回密钥是否已配置。数据目录应由单个 API 实例写配置，不支持多个 API 副本并行修改密钥。
 

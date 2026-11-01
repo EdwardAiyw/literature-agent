@@ -5,7 +5,8 @@
 - Settings now owns source connections: add/configure/test/enable/remove, saved credentials, per-source budgets and defaults. Eleven adapters are supported: nine open sources plus optional Google Scholar via SerpApi and CORE. Existing tasks/subscriptions retain their selections; disabled sources are skipped before cache lookup or HTTP requests.
 - New adapters share pacing, actual-request budgets, caching and partial-result handling. Publication-date filtering preserves year/month precision; identifiers flow through existing cross-source deduplication. Four real API probes returned HTTP 200 and two normalized records each. See [source coverage and limits](SOURCES.md).
 - Validation passed locally: 299 backend tests, frontend production build and 36 full Edge regressions. Google Scholar and CORE require user keys; authenticated live checks are pending. SerpApi's public sample and mocked provider contracts were checked; there is no claim of a successful authenticated search for these services.
-- This is a source change; the installed/published RC6 application and Linux deployment have not been upgraded by this work.
+- RC7 is published and installed locally; the server uses `literature-agent:rc7-e75abad`. Immutable tag `v0.3.0-rc.7` points to `e75abade0862ecd39337948b65ca23052f8a87af`. Windows Release passed 299 backend/36 Edge tests and packaged checks; the final Linux image passed 298 tests with one Windows-only skip. Public installer re-download matches both checksum sources.
+- Desktop and server upgrades each preserved all 17 table contents and saved configuration; desktop credentials and scheduled-task state were retained, and the server scheduler is healthy. Existing subscription choices remain intact. No retrieval/email/Zotero run was triggered. Backups, SHA-256, workflows and remaining acceptance limits are in [RC7 release evidence](RELEASE_RC7.md).
 
 ## Obsidian product integration on main (2026-10-19)
 

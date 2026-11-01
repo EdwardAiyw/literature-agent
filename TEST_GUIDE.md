@@ -30,7 +30,7 @@ RC6 安装版与源码版的来源限流回归检查：Crossref 应携带已配�
 | --- | --- |
 | 测试日期 | YYYY-MM-DD |
 | 测试人员 |  |
-| Literature Agent 版本 | 当前候选版 `0.3.0-rc.6` |
+| Literature Agent 版本 | 当前候选版 `0.3.0-rc.7` |
 | Windows 版本 | 例如 Windows 11 23H2 |
 | 测试方式 | Windows 安装包 / 源码开发模式 |
 | 浏览器 | Edge / Chrome / 其他 |
@@ -104,7 +104,7 @@ D:\LiteratureAgentTestData
 | 目标数量 | `5` |
 | 起始日期 | 留空 |
 | 结束日期 | 留空 |
-| 文献来源 | 五个来源全部选择 |
+| 文献来源 | 从设置页已启用的来源中选择；默认连接见 [来源说明](docs/SOURCES.md) |
 | 证据审查 | 开启 |
 
 `YYYYMMDD` 换成测试当天日期，例如 `20260924`，避免与以前的任务混淆。
@@ -131,12 +131,12 @@ D:\LiteratureAgentTestData
 3. 执行以下命令，文件名换成本轮版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.6-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.7-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 将输出与 `SHA256SUMS.txt` 对照。
 
-预期结果：两串 SHA-256 完全一致；使用本轮 RC6 Release 的校验文件，不沿用旧安装包哈希。
+预期结果：两串 SHA-256 完全一致；使用本轮 RC7 Release 的校验文件，不沿用旧安装包哈希。
 
 - [ ] T-01 通过
 
@@ -233,9 +233,9 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.6-Windows-x64.exe -Algorithm SHA256
 
 ### T-09 文献来源
 
-操作：可选密钥可以留空；填写 PubMed 联系邮箱后，点击“测试来源”，再点击“保存”。
+操作：在“设置 → 文献来源”配置 PubMed 联系邮箱、每日请求上限与默认选择，保存后逐个“测试连接”。通过“添加来源”打开 Google Scholar/CORE 配置；没有真实密钥时只检查填写入口，不宣称连接成功。关闭一个来源后，确认新任务选项更新，刷新页面后配置仍保留；重新启用后恢复选择入口。
 
-预期结果：页面分别给出来源测试结果。某个来源临时失败时，应显示具体来源和原因，而不是让整个页面失效。
+预期结果：页面分别给出来源测试结果、检测时间和条数；测试计入预算。某个来源失败时显示具体原因。密钥不回显，空白保留原值；停用/移除来源在运行时跳过。Google Scholar 明确标注第三方 SerpApi 和额度要求，未配置时不可用于任务。
 
 - [ ] T-09 通过
 
@@ -246,6 +246,12 @@ Get-FileHash .\Literature-Agent-0.3.0-rc.6-Windows-x64.exe -Algorithm SHA256
 | Crossref |  |  |
 | arXiv |  |  |
 | PubMed |  |  |
+| DOAJ |  |  |
+| DataCite |  |  |
+| HAL |  |  |
+| Europe PMC |  |  |
+| Google Scholar（SerpApi，需密钥） |  |  |
+| CORE（需密钥） |  |  |
 
 ### T-10 Jev 默认行为
 
