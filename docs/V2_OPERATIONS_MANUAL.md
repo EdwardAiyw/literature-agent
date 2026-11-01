@@ -1,10 +1,12 @@
 # Literature Agent V2 配置与测试手册
 
-本文是源码开发、API 调试和 Jev 审计的高级运行手册。普通 Windows 用户无需安装依赖或编辑 `.env`，请使用 [RC6 Windows 使用指南](WINDOWS_USER_GUIDE.md) 的安装版页面操作。源码模式默认使用 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。
+本文是源码开发、API 调试和 Jev 审计的高级运行手册。普通 Windows 用户无需安装依赖或编辑 `.env`，请使用 [RC7 Windows 使用指南](WINDOWS_USER_GUIDE.md) 的安装版页面操作。源码模式默认使用 `backend/data/literature_agent_v2.db`；旧版 `literature_agent.db` 不会被读取、覆盖或自动迁移。
 
 服务器部署另见 [Linux 服务器运行与本机网页管理](SERVER_DEPLOYMENT.md)：`LITERATURE_AGENT_SERVER=true` 启用内部调度与持久文件密钥库，`LITERATURE_AGENT_SCHEDULER_PAUSED=true` 暂停新每日调度。网页版可编辑订阅，`PATCH /api/subscriptions/{id}` 保留未提交字段；服务器数据目录替换和恢复需停服处理。
 
-Obsidian 已在最新源码设置页内置文库连接、立即同步、启停独立 Windows 自动任务和状态查询；通过 `/api/obsidian` 操作。高级配置、`LITERATURE_AGENT_OBSIDIAN_CONFIG` 复用已有配置、补齐历史、状态文件和停用命令见 [Obsidian 同步](OBSIDIAN.md)。服务器不需要重启，已发布 RC6 安装包未内置新入口。
+RC7 设置页内置 Obsidian 文库连接、立即同步、启停独立 Windows 自动任务和状态查询；通过 `/api/obsidian` 操作。高级配置、`LITERATURE_AGENT_OBSIDIAN_CONFIG` 复用已有配置、补齐历史、状态文件和停用命令见 [Obsidian 同步](OBSIDIAN.md)。历史 RC6 安装包未内置新入口。
+
+文献来源通过设置页或 `/api/sources` 管理：添加、配置密钥、启停、默认选择、逐来源预算与连接测试。`SERPAPI_API_KEY`、`CORE_API_KEY` 提供可选环境回退，来源仍须添加并启用。详细字段、错误码及 Google Scholar 第三方额度要求见 [来源配置](SOURCES.md)。
 
 邮件归档会读取成功投递对应的 `email_digest.<delivery_id>` 运行产物，导出完整正文和标识符 TXT；旧记录通过共享渲染器重建并标明来源。同步器只读服务器数据；新发送快照的采集需要服务器使用更新后的发送模块。部署和验证结果见 [Obsidian 指南](OBSIDIAN.md#2026-10-19-实机验证)。
 
@@ -16,6 +18,7 @@ Obsidian 已在最新源码设置页内置文库连接、立即同步、启停�
 | 后端 | `http://127.0.0.1:8001` | FastAPI + 本地任务队列 |
 | 健康检查 | `http://127.0.0.1:8001/api/health` | 不暴露密钥 |
 | 运行时设置 | `http://127.0.0.1:8001/api/settings` | 查看配置状态 |
+| 文献来源 | `GET /api/sources`、`PUT/DELETE /api/sources/{id}`、`POST /api/sources/{id}/test` | 连接目录、保存配置、移除及真实小规模测试；不回显密钥 |
 | 期刊影响因子 | `/api/journal-metrics`、`/import`、`/template`、`PUT /api/settings/journal_metrics` | 默认查询官网 JIF，邮件附年份/来源；支持 JCR CSV 补充，见 [指标说明](JOURNAL_METRICS.md) |
 | Zotero 自动批次与附件 | `/api/runs/{run_id}/zotero-batches`、`/zotero-identifiers` | 按任务集合导入、失败重试及 TXT 下载，详见 [Zotero 接口](ZOTERO.md) |
 | Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |

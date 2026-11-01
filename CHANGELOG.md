@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.0-rc.7 - 2026-11-01
+
+- Add page-managed literature connections with add/configure/test/enable/remove actions, secure provider credentials, per-source request budgets and runtime defaults for tasks/subscriptions.
+- Expand coverage with DOAJ, DataCite, HAL and Europe PMC; offer Google Scholar through SerpApi and CORE as optional keyed connections. Preserve date precision, cross-source identifiers, partial results and source caches; keep Scholar snippets separate from abstracts.
+- Skip disabled sources before cache/network access and redact query credentials in HTTPX logs. Retry transient Windows settings-file sharing locks.
+- Include the Obsidian product settings and complete email archives below in the Windows installer; retain historical RC6 assets and existing subscription/data settings.
+
 - Sync complete email text and identifier attachments into Obsidian, with source diagnostics, deduplication statistics and shared JIF provenance in paper notes; label reconstructed historical messages explicitly.
 - Persist rendered mail/attachment/paper snapshots before SMTP for successful-delivery export and protect hand-edited TXT assets with stored hashes.
 

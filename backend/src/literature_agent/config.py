@@ -5,7 +5,8 @@ import json
 import sys
 import threading
 import tempfile
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -66,6 +67,9 @@ class Settings:
     semantic_scholar_api_key: str = ""
     pubmed_api_key: str = ""
     pubmed_email: str = ""
+    serpapi_api_key: str = ""
+    core_api_key: str = ""
+    source_configs: dict = field(default_factory=dict)
     source_cache_ttl_hours: int = 24
     source_daily_request_budget: int = 200
     journal_metrics_auto: bool = True
@@ -119,6 +123,8 @@ class Settings:
             semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY", ""),
             pubmed_api_key=os.getenv("PUBMED_API_KEY", ""),
             pubmed_email=os.getenv("PUBMED_EMAIL", ""),
+            serpapi_api_key=os.getenv("SERPAPI_API_KEY", ""),
+            core_api_key=os.getenv("CORE_API_KEY", ""),
             source_cache_ttl_hours=max(1, int(os.getenv("SOURCE_CACHE_TTL_HOURS", "24"))),
             source_daily_request_budget=max(1, int(os.getenv("SOURCE_DAILY_REQUEST_BUDGET", "200"))),
             journal_metrics_auto=os.getenv("JOURNAL_METRICS_AUTO", "true").lower() in {"1", "true", "yes"},
@@ -150,6 +156,8 @@ SECRET_FIELDS = {
     "openalex_api_key": "OPENALEX_API_KEY",
     "semantic_scholar_api_key": "SEMANTIC_SCHOLAR_API_KEY",
     "pubmed_api_key": "PUBMED_API_KEY",
+    "serpapi_api_key": "SERPAPI_API_KEY",
+    "core_api_key": "CORE_API_KEY",
     "jev_api_key": "JEV_API_KEY",
     "smtp_password": "SMTP_PASSWORD",
 }
@@ -158,6 +166,7 @@ SETTING_FIELDS = {
     "zotero_library_id", "zotero_library_type", "zotero_collection_key", "zotero_collection_name",
     "live", "llm_base_url", "llm_model", "pubmed_email",
     "source_cache_ttl_hours", "source_daily_request_budget",
+    "source_configs",
     "journal_metrics_auto",
     "jev_enabled", "jev_shadow_mode", "jev_model", "jev_timeout_seconds",
     "jev_provider", "jev_base_url", "jev_auto_threshold", "jev_review_threshold", "jev_cache_ttl_hours",
@@ -357,7 +366,16 @@ class ConfigManager:
             next_values["_cleared_secrets"] = sorted(cleared)
             temporary = self.path.with_suffix(".json.tmp")
             temporary.write_text(json.dumps(next_values, ensure_ascii=False, indent=2), encoding="utf-8")
-            temporary.replace(self.path)
+            for attempt in range(5):
+                try:
+                    temporary.replace(self.path)
+                    break
+                except PermissionError:
+                    # Windows indexing/virus scanners can briefly hold a newly
+                    # written settings file without granting delete sharing.
+                    if os.name != "nt" or attempt == 4:
+                        raise
+                    time.sleep(0.04 * (attempt + 1))
             self._values = next_values
             self._settings = self._build()
             return self._settings

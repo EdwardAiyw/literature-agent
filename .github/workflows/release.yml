@@ -81,6 +81,19 @@ jobs:
             $settings = Invoke-RestMethod "http://127.0.0.1:8012/api/settings"
             if ($settings.version -ne $version -or $settings.zotero_collection_name -ne "Literature Agent") { throw "Packaged Zotero settings check failed" }
             if ($settings.journal_metrics_auto -ne $true) { throw "Packaged automatic JIF default check failed" }
+            $sources = @(Invoke-RestMethod "http://127.0.0.1:8012/api/sources")
+            if ($sources.Count -ne 11 -or @($sources | Where-Object added).Count -ne 9) { throw "Packaged source catalogue check failed" }
+            $scholar = $sources | Where-Object id -eq "google_scholar"
+            if ($scholar.added -or $scholar.selectable -or $scholar.credential_field -ne "serpapi_api_key") { throw "Packaged Google Scholar configuration check failed" }
+            $disabled = Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Put -ContentType "application/json" -Body '{"enabled":false,"default_enabled":false,"daily_request_budget":7}'
+            if ($disabled.enabled -or $disabled.selectable -or $disabled.daily_request_budget -ne 7) { throw "Packaged source save check failed" }
+            $savedSources = @(Invoke-RestMethod "http://127.0.0.1:8012/api/sources")
+            if (($savedSources | Where-Object id -eq "doaj").enabled) { throw "Packaged source configuration reload check failed" }
+            Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Delete | Out-Null
+            $restored = Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Put -ContentType "application/json" -Body '{"enabled":true,"default_enabled":true,"daily_request_budget":null}'
+            if (-not $restored.added -or -not $restored.selectable) { throw "Packaged source re-add check failed" }
+            $obsidian = Invoke-WebRequest "http://127.0.0.1:8012/api/obsidian"
+            if ($obsidian.StatusCode -ne 200) { throw "Packaged Obsidian settings check failed" }
             $env:PACKAGED_SMOKE_DB = Join-Path $env:LITERATURE_AGENT_DATA_DIR "literature_agent_v2.db"
             python -c "import os,sqlite3; c=sqlite3.connect(os.environ['PACKAGED_SMOKE_DB']); assert c.execute('SELECT version_num FROM alembic_version').fetchone()[0]=='20261018_0006'; assert c.execute('SELECT count(*) FROM digest_history').fetchone()[0]==0"
             if ($LASTEXITCODE -ne 0) { throw "Packaged digest history migration check failed" }

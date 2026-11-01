@@ -2,30 +2,30 @@
 
 Turn a research topic into a traceable daily literature digest.
 
-[中文](README.md) · [Windows download](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) · [Server deployment](docs/SERVER_DEPLOYMENT.md) · [Issues](https://github.com/EdwardAiyw/literature-agent/issues)
+[中文](README.md) · [Windows download](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) · [Server deployment](docs/SERVER_DEPLOYMENT.md) · [Issues](https://github.com/EdwardAiyw/literature-agent/issues)
 
 Literature Agent is an open-source assistant for individual researchers. It searches scholarly sources, merges duplicate records, screens relevance, generates research briefs, and records results and email deliveries. Run it on a Windows computer or your own Linux server. The UI and linked operational guides are primarily in Chinese.
 
 ## Choose a runtime
 
-**As of October 18, 2026, the RC6 Windows installer, matching source, and upgraded server include delivery-history filtering, dynamic publication cutoffs, automatic Zotero collection imports, and publisher JIF lookup.**
+**RC7 adds configurable source connections and includes Obsidian settings and complete digest archives in the Windows installer.** Delivery-history filtering, dynamic cutoffs, automatic Zotero collection imports and publisher JIF lookup remain included.
 
 | Runtime | Audience | Available features |
 | --- | --- | --- |
-| [Windows RC6 installer](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) | Test users wanting an installer | Delivery-history filtering, dynamic cutoffs, automatic Zotero collection imports, publisher JIF, and the existing workbench and Prompt v2 |
+| [Windows RC7 installer](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) | Test users wanting an installer | Source management, Obsidian, complete digest archives and the capabilities below |
 | Current `main` source | Developers and users needing newer features | All implemented capabilities below |
 | [Linux Docker deployment](docs/SERVER_DEPLOYMENT.md) | Users needing unattended daily operation | Self-built source image, web access through SSH |
 
-RC6 remains a prerelease. All 26 Sandbox lifecycle checks passed, the existing Windows installation was upgraded with data preserved, and the installed binary completed a real five-paper search. Clean-system onboarding, natural schedule triggers, and external inbox receipt still require manual acceptance; see the [installer validation](docs/INSTALLER_RC6_VALIDATION_2026-10-18.md). Windows and Linux share the versioned source but require separate installation or deployment. Updating GitHub does not upgrade installed applications. Historical RC5 tags and assets remain unchanged.
+RC7 remains a prerelease; see the [RC7 release record](docs/RELEASE_RC7.md) for validation and deployment status. Historical RC6 Sandbox and live-search checks do not replace RC7 clean-system onboarding, natural schedule triggers or external inbox acceptance. Windows and Linux share versioned source but require separate installation or deployment. Updating GitHub does not upgrade installed applications. Historical tags and assets remain unchanged.
 
 ## Capabilities
 
-- Search Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed with language and publication-date controls.
+- Manage literature connections in Settings: add, configure, test, enable or remove sources, with saved credentials, default selections and per-source request limits. Nine open sources plus optional Google Scholar (via SerpApi) and CORE are supported. See [source coverage and limits](docs/SOURCES.md).
 - Plan queries, screen relevance, generate structured summaries, and optionally review claims against supplied evidence. Preserve executed queries, Prompt snapshots, and source diagnostics.
 - Schedule HTML/plain-text digests in each subscription's time zone, with DOI and original links.
 - Merge current-search duplicates and exclude papers already successfully emailed by that subscription, including older papers not yet delivered.
 - Import citations individually or automatically into an exact Zotero collection, with durable progress/retry and identifier TXT attachments.
-- Connect Obsidian from Settings: discover vaults, save a local/server source, sync now, manage automatic sync, inspect status, and open linked daily/paper notes while preserving annotations. This [built-in feature on `main`](docs/OBSIDIAN.md) supports Windows scheduling and offline catch-up; the published RC6 installer does not include this entry yet.
+- Connect Obsidian from Settings: discover vaults, save a local/server source, sync now, manage automatic sync, inspect status, and open linked daily/paper notes while preserving annotations. This [built-in RC7 feature](docs/OBSIDIAN.md) supports Windows scheduling and offline catch-up.
 - Archive complete digest text, source diagnostics, deduplication counts, JIF provenance and identifier TXT attachments into the vault. New sends retain the original render snapshot; older reconstructed digests are labeled explicitly.
 - Look up verifiable publisher JIF values with year/source, or import JCR CSV data. Lookup failure does not block delivery.
 - Manage models, SMTP, sources, backups, subscriptions, and versioned Prompts from the UI; optionally inspect LocalJev decisions.
@@ -36,7 +36,7 @@ Scores and summaries support reading decisions. Verify the original paper before
 
 ### Windows installer
 
-1. Download `Literature-Agent-0.3.0-rc.6-Windows-x64.exe` and `SHA256SUMS.txt` from the [RC6 release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6), then verify the checksum.
+1. Download `Literature-Agent-0.3.0-rc.7-Windows-x64.exe` and `SHA256SUMS.txt` from the [RC7 release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7), then verify the checksum.
 2. Install and launch; open <http://127.0.0.1:8001>. Python and Node.js are not required for the installer.
 3. In Settings, select a data directory and configure/test your OpenAI-compatible model, SMTP mailbox, and sources.
 4. Register Windows scheduled tasks, finish onboarding, and run a small search.
@@ -124,7 +124,7 @@ Vite serves <http://127.0.0.1:5175> and proxies `/api` to port `8001`. See the [
 
 ## Validation and development
 
-The RC6 release passed **245 backend tests on Windows and Linux**, the frontend build, **32 full Edge regressions**, and packaged runtime checks. A public installer re-download matched the checksum file and GitHub asset digest; see the [RC6 release record](docs/RELEASE_RC6.md). A real replacement digest selected 10 papers with no overlap under the current identity rules; SMTP accepted it and all 10 Zotero imports completed. This validates that run, not universal source availability or future quotas. See the [validation record](docs/DAILY_DEDUPLICATION.md).
+RC7 passed **299 backend tests**, the production frontend build and **36 full Edge regressions** locally. See the [RC7 release record](docs/RELEASE_RC7.md) for GitHub builds, installer checksums and deployment evidence. Historical real-digest and Zotero acceptance remains in the [daily selection validation](docs/DAILY_DEDUPLICATION.md); it does not guarantee future source availability or quotas.
 
 ```powershell
 cd backend

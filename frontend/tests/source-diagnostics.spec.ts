@@ -1,5 +1,43 @@
 import { expect, test } from "@playwright/test";
 
+test("expanded sources can be selected and saved in a daily subscription", async ({ page, request }) => {
+  await page.route("**/api/onboarding", (route) => route.fulfill({ json: { complete: true, steps: {} } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const catalogue = ["Semantic Scholar", "OpenAlex", "Crossref", "arXiv", "PubMed", "DOAJ", "DataCite", "HAL", "Europe PMC"];
+  for (const label of catalogue) await expect(page.getByRole("checkbox", { name: label, exact: true })).toBeChecked();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  const section = page.locator(".settings-section").filter({ has: page.getByText("文献来源", { exact: true }) });
+  await expect(section).toContainText("9 个来源");
+  await page.getByRole("button", { name: "每日订阅", exact: true }).click();
+  for (const label of catalogue.slice(0, 5)) await page.getByRole("checkbox", { name: label, exact: true }).uncheck();
+  for (const label of catalogue.slice(5)) await expect(page.getByRole("checkbox", { name: label, exact: true })).toBeChecked();
+  const name = `Expanded sources ${Date.now()}`;
+  await page.getByLabel("订阅名称", { exact: true }).fill(name);
+  await page.getByLabel("研究主题", { exact: true }).fill("machine learning");
+  await page.getByLabel("收件人", { exact: true }).fill("reader@example.org");
+  await page.getByLabel("目标篇数", { exact: true }).fill("5");
+  await page.getByLabel("执行时间", { exact: true }).fill("09:00");
+  // Keep this validation subscription disabled so it cannot trigger delivery.
+  await page.locator('input[type="checkbox"]').last().uncheck();
+  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/subscriptions") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "保存订阅", exact: true }).click();
+  const response = await responsePromise;
+  expect(response.ok()).toBeTruthy();
+  const subscription = await response.json();
+  try {
+    expect(subscription.sources).toEqual(["doaj", "datacite", "hal", "europe_pmc"]);
+    expect(subscription.enabled).toBe(false);
+    const row = page.locator(".subscription-row").filter({ hasText: name });
+    await row.getByRole("button", { name: "编辑订阅", exact: true }).click();
+    for (const label of catalogue.slice(5)) await expect(page.getByRole("checkbox", { name: label, exact: true })).toBeChecked();
+    for (const label of catalogue.slice(0, 5)) await expect(page.getByRole("checkbox", { name: label, exact: true })).not.toBeChecked();
+  } finally {
+    await request.delete(`/api/subscriptions/${subscription.id}`);
+  }
+});
+
 for (const sample of [
   { name: "legacy 429", source: "crossref", diagnostic: { status: "failed", count: 0, error: "HTTPStatusError: 429 Too Many Requests" }, label: "暂时限流" },
   { name: "anonymous Semantic Scholar", source: "semantic_scholar", diagnostic: { status: "rate_limited", count: 0, rate_limited: true, final_http_status: 429, attempts: 4, retry_count: 3, retry_after_seconds: 60 }, label: "暂时限流" },
@@ -32,20 +70,29 @@ for (const sample of [
   });
 }
 
-test("source connection test shows each provider instead of claiming all passed", async ({ page }) => {
+test("source connection tests show each provider's actual status", async ({ page }) => {
   await page.route("**/api/onboarding", (route) => route.fulfill({ json: { complete: true, steps: {} } }));
-  await page.route("**/api/settings/sources/test", (route) => route.fulfill({ json: {
-    status: "ok", diagnostics: {
-      crossref: { ok: true, status: "ok", count: 1 },
-      semantic_scholar: { ok: false, status: "rate_limited", count: 0, rate_limited: true, final_http_status: 429 },
-    },
-  } }));
+  const checks: Record<string, any> = {};
+  await page.route("**/api/settings", async (route) => {
+    const response = await route.fetch();
+    const settings = await response.json();
+    settings.sources = settings.sources.map((source: any) => ({ ...source, last_test: checks[source.id] || null }));
+    await route.fulfill({ json: settings });
+  });
+  for (const source of ["crossref", "semantic_scholar"]) {
+    await page.route(`**/api/sources/${source}/test`, async (route) => {
+      checks[source] = { status: source === "crossref" ? "ok" : "rate_limited", count: source === "crossref" ? 1 : 0,
+        checked_at: new Date().toISOString(), error: source === "crossref" ? "" : "HTTP 429" };
+      await route.fulfill({ json: checks[source] });
+    });
+  }
   await page.goto("/");
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: "测试来源", exact: true }).click();
-  const panel = page.getByRole("status").filter({ hasText: "最近一次来源检测" });
-  await expect(panel.locator(".diagnostic").filter({ hasText: "Crossref" })).toContainText("正常");
-  await expect(panel.locator(".diagnostic").filter({ hasText: "Semantic Scholar" })).toContainText("暂时限流");
-  await expect(page.getByText("来源检测完成，请查看各来源结果。", { exact: true })).toBeVisible();
+  const crossref = page.getByRole("article", { name: "Crossref 来源", exact: true });
+  await crossref.getByRole("button", { name: "测试连接", exact: true }).click();
+  await expect(crossref.getByRole("status")).toContainText("连接正常");
+  const semantic = page.getByRole("article", { name: "Semantic Scholar 来源", exact: true });
+  await semantic.getByRole("button", { name: "测试连接", exact: true }).click();
+  await expect(semantic.getByRole("status")).toContainText("暂时限流");
   await expect(page.getByText("连接测试通过。", { exact: true })).toHaveCount(0);
 });

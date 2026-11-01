@@ -3,11 +3,13 @@ from __future__ import annotations
 import html
 import hashlib
 import json
+import logging
 import math
 import re
 import shutil
 import subprocess
 import time
+from calendar import monthrange
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -18,7 +20,18 @@ from xml.etree import ElementTree
 
 import httpx
 
-SUPPORTED_SOURCES = ("fixture", "semantic_scholar", "openalex", "crossref", "arxiv", "pubmed")
+
+class _CredentialLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        record.msg = re.sub(r"([?&](?:api_key|apikey|access_token)=)[^&\s\"]+", r"\1[redacted]", message, flags=re.I)
+        record.args = ()
+        return True
+
+
+# Some providers require query-string keys; httpx logs full request URLs at INFO.
+logging.getLogger("httpx").addFilter(_CredentialLogFilter())
+
 SOURCE_METADATA = {
     "fixture": {"label": "Fixture", "requires_credentials": False, "live": False},
     "semantic_scholar": {"label": "Semantic Scholar", "requires_credentials": False, "live": True},
@@ -26,7 +39,71 @@ SOURCE_METADATA = {
     "crossref": {"label": "Crossref", "requires_credentials": False, "live": True},
     "arxiv": {"label": "arXiv", "requires_credentials": False, "live": True},
     "pubmed": {"label": "PubMed", "requires_credentials": False, "live": True},
+    "doaj": {"label": "DOAJ", "description": "跨学科开放获取期刊文章", "requires_credentials": False, "live": True},
+    "datacite": {"label": "DataCite", "description": "机构仓储、预印本、学位论文及其他文字类学术成果", "requires_credentials": False, "live": True},
+    "hal": {"label": "HAL", "description": "跨学科机构仓储、会议论文和学位论文", "requires_credentials": False, "live": True},
+    "europe_pmc": {"label": "Europe PMC", "description": "生命科学与医学文献，含预印本和开放全文链接", "requires_credentials": False, "live": True},
+    "google_scholar": {"label": "Google Scholar", "description": "通过 SerpApi 检索谷歌学术；按服务额度计费，通常返回检索片段。", "requires_credentials": True, "live": True, "added_by_default": False,
+        "credential_field": "serpapi_api_key", "credential_label": "SerpApi API Key", "access_mode": "第三方服务 · SerpApi", "docs_url": "https://serpapi.com/google-scholar-api"},
+    "core": {"label": "CORE", "description": "跨学科开放获取仓储，提供论文元数据及可用摘要。需注册申请 API Key。", "requires_credentials": True, "live": True, "added_by_default": False,
+        "credential_field": "core_api_key", "credential_label": "CORE API Key", "access_mode": "官方 API · 需密钥", "docs_url": "https://core.ac.uk/services/api"},
 }
+for _name, _description, _docs in (
+    ("semantic_scholar", "跨学科论文、摘要与引用信息；可选密钥可改善额度。", "https://www.semanticscholar.org/product/api"),
+    ("openalex", "跨学科学术元数据和开放获取链接，支持 API Key。", "https://docs.openalex.org/"),
+    ("crossref", "期刊与会议出版物的 DOI 元数据。", "https://www.crossref.org/documentation/retrieve-metadata/rest-api/"),
+    ("arxiv", "计算机、数学、物理等领域预印本。", "https://info.arxiv.org/help/api/index.html"),
+    ("pubmed", "医学、生命科学与健康研究；支持联系邮箱和可选密钥。", "https://www.ncbi.nlm.nih.gov/books/NBK25501/"),
+    ("doaj", "跨学科开放获取期刊文章。", "https://doaj.org/api/docs"),
+    ("datacite", "机构仓储、学位论文和文字类学术成果。", "https://support.datacite.org/docs/api"),
+    ("hal", "跨学科机构仓储、会议论文和学位论文。", "https://api.archives-ouvertes.fr/docs/search"),
+    ("europe_pmc", "生命科学与医学文献，含预印本及开放全文链接。", "https://europepmc.org/RestfulWebService"),
+):
+    SOURCE_METADATA[_name].update(description=_description, docs_url=_docs, access_mode="官方开放接口")
+for _name in ("semantic_scholar", "openalex", "pubmed"):
+    SOURCE_METADATA[_name].update(credential_field=f"{_name}_api_key", credential_label="API Key（可选）")
+SUPPORTED_SOURCES = tuple(SOURCE_METADATA)
+DEFAULT_SOURCES = [name for name, metadata in SOURCE_METADATA.items() if metadata["live"] and metadata.get("added_by_default", True)]
+
+
+def source_configuration(settings: Any, name: str) -> dict:
+    metadata = SOURCE_METADATA[name]
+    saved = getattr(settings, "source_configs", {}).get(name, {})
+    added = saved.get("added", metadata.get("added_by_default", True))
+    credential = getattr(settings, metadata.get("credential_field", ""), "")
+    configured = not metadata["requires_credentials"] or bool(credential)
+    enabled = added and saved.get("enabled", metadata.get("added_by_default", True))
+    return {
+        "added": added, "enabled": enabled, "configured": configured,
+        "credential_configured": bool(credential), "selectable": bool(added and enabled and configured),
+        "default_enabled": bool(enabled and configured and saved.get("default_enabled", metadata.get("added_by_default", True))),
+        "daily_request_budget": saved.get("daily_request_budget") or settings.source_daily_request_budget,
+        "budget_override": saved.get("daily_request_budget"),
+        "last_test": saved.get("last_test"),
+    }
+
+
+def source_catalogue(settings: Any) -> list[dict]:
+    return [{"id": name, **metadata, **source_configuration(settings, name),
+        **({"contact_email": settings.pubmed_email} if name == "pubmed" else {})}
+        for name, metadata in SOURCE_METADATA.items() if metadata["live"]]
+
+
+def default_source_ids(settings: Any) -> list[str]:
+    return [item["id"] for item in source_catalogue(settings) if item["selectable"] and item["default_enabled"]]
+
+
+def source_error(exc: Exception, *secrets: str) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        detail = {401: "密钥无效或缺少认证", 403: "没有访问权限或服务拒绝请求", 402: "服务额度不足", 429: "请求过于频繁"}.get(code, "来源请求失败")
+        message = f"HTTP {code}: {detail}"
+    else:
+        message = f"{type(exc).__name__}: {exc}"
+    for secret in secrets:
+        if secret:
+            message = message.replace(secret, "[redacted]").replace(quote(secret, safe=""), "[redacted]")
+    return message
 
 
 def _text(value: Any) -> str:
@@ -55,14 +132,25 @@ def _date_status(value: str, date_from: str, date_to: str) -> tuple[bool, bool]:
     if not value:
         return True, bool(date_from or date_to)
     try:
-        parsed = date.fromisoformat(value[:10])
+        earliest = latest = date.fromisoformat(value[:10])
     except ValueError:
-        return True, bool(date_from or date_to)
-    if date_from and parsed < date.fromisoformat(date_from[:10]):
+        # Some repositories report only a year or month. Keep that precision and
+        # exclude records only when the entire possible interval is out of range.
+        try:
+            if re.fullmatch(r"\d{4}", value):
+                earliest, latest = date(int(value), 1, 1), date(int(value), 12, 31)
+            elif re.fullmatch(r"\d{4}-\d{2}", value):
+                year, month = map(int, value.split("-"))
+                earliest, latest = date(year, month, 1), date(year, month, monthrange(year, month)[1])
+            else:
+                return True, bool(date_from or date_to)
+        except ValueError:
+            return True, bool(date_from or date_to)
+    if date_from and latest < date.fromisoformat(date_from[:10]):
         return False, False
-    if date_to and parsed > date.fromisoformat(date_to[:10]):
+    if date_to and earliest > date.fromisoformat(date_to[:10]):
         return False, False
-    return True, False
+    return True, len(value) < 10 and bool(date_from or date_to)
 
 
 def _with_date_status(record: dict, date_from: str, date_to: str) -> dict | None:
@@ -123,6 +211,7 @@ def _retry_after_seconds(value: str, fallback: float) -> float:
 
 class BaseSource:
     name = "source"
+    uses_request_gate = True
     minimum_request_interval = 1.1
     maximum_attempts = 4
     maximum_inline_wait = 15.0
@@ -191,7 +280,8 @@ class BaseSource:
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
         records: list[dict] = []
         for query in queries:
-            cache_key = hashlib.sha256(json.dumps({"kind": "source_query.v1", "provider": self.name,
+            cache_key = hashlib.sha256(json.dumps({"kind": "source_query.v2", "provider": self.name,
+                "credential": hashlib.sha256(self.api_key.encode()).hexdigest(),
                 "query": query, "limit": limit, "date_from": date_from, "date_to": date_to},
                 sort_keys=True, ensure_ascii=False).encode()).hexdigest()
             if self.cache:
@@ -208,7 +298,7 @@ class BaseSource:
                 self.errors.append(str(exc))
                 break
             except Exception as exc:
-                self.errors.append(f"{type(exc).__name__}: {exc}")
+                self.errors.append(source_error(exc, self.api_key))
                 if not records:
                     raise
                 break
@@ -273,6 +363,7 @@ class SemanticScholarSource(BaseSource):
 
 class OpenAlexSource(BaseSource):
     name = "openalex"
+    uses_request_gate = False
 
     def search(self, queries: tuple[str, ...], limit: int, date_from: str, date_to: str) -> list[dict]:
         records = []
@@ -356,6 +447,7 @@ class CrossrefSource(BaseSource):
 
 class ArxivSource(BaseSource):
     name = "arxiv"
+    uses_request_gate = False
     namespace = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 
     @staticmethod
@@ -463,6 +555,7 @@ class ArxivSource(BaseSource):
 
 class PubMedSource(BaseSource):
     name = "pubmed"
+    uses_request_gate = False
 
     def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
         return len(queries) * 2
@@ -561,6 +654,225 @@ def _pubmed_date(article: ElementTree.Element) -> str:
     return ""
 
 
+def _markup_text(value: Any) -> str:
+    return _text(html.unescape(re.sub(r"<[^>]+>", " ", str(value or ""))))
+
+
+def _first(value: Any) -> str:
+    return _text(next(iter(value), "") if isinstance(value, list) else value)
+
+
+class DOAJSource(BaseSource):
+    name = "doaj"
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        expression = query
+        if date_from or date_to:
+            expression = f"({query}) AND bibjson.year:[{date_from[:4] or '*'} TO {date_to[:4] or '*'}]"
+        response = self._get(
+            f"https://doaj.org/api/search/articles/{quote(expression, safe='')}",
+            params={"pageSize": min(limit, 100), "page": 1},
+        )
+        for item in response.json().get("results", [])[:limit]:
+            bib = item.get("bibjson") or {}
+            journal = bib.get("journal") or {}
+            identifiers = bib.get("identifier") or []
+            doi = next((_normalize_doi(i.get("id")) for i in identifiers if i.get("type") == "doi"), "")
+            fulltext = next((_text(link.get("url")) for link in bib.get("link", []) if link.get("type") == "fulltext"), "")
+            published = _text(bib.get("year"))
+            month = _text(bib.get("month"))
+            if published and month:
+                if not month.isdigit():
+                    month = str({"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+                        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}.get(month[:3].lower(), ""))
+                if month:
+                    published += f"-{int(month):02d}"
+            source_id = _text(item.get("id"))
+            record = {
+                "title": _markup_text(bib.get("title")), "authors": _authors(bib.get("author")),
+                "abstract": _markup_text(bib.get("abstract")), "published_date": published,
+                "source": self.name, "source_id": source_id, "doi": doi,
+                "venue": _text(journal.get("title")), "venue_type": "journal",
+                "issns": list(dict.fromkeys([*(journal.get("issns") or []),
+                    *[i["id"] for i in identifiers if i.get("type") in {"pissn", "eissn"} and i.get("id")]])),
+                "official_url": f"https://doi.org/{doi}" if doi else fulltext or f"https://doaj.org/article/{source_id}",
+                "open_access_url": fulltext, "language": _first(journal.get("language")).lower() or "unknown",
+                "topics": bib.get("keywords") or [],
+            }
+            if filtered := _with_date_status(record, date_from, date_to):
+                yield filtered
+
+
+class DataCiteSource(BaseSource):
+    name = "datacite"
+    literature_types = ("Text", "Preprint", "JournalArticle", "ConferencePaper", "Dissertation", "Book", "BookChapter", "Report")
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        expression = f"({query}) AND types.resourceTypeGeneral:({' OR '.join(self.literature_types)})"
+        if date_from or date_to:
+            expression += f" AND publicationYear:[{date_from[:4] or '*'} TO {date_to[:4] or '*'}]"
+        response = self._get("https://api.datacite.org/dois", params={"query": expression, "page[size]": min(limit, 100)})
+        for item in response.json().get("data", [])[:limit]:
+            data = item.get("attributes") or {}
+            types = data.get("types") or {}
+            if types.get("resourceTypeGeneral") not in self.literature_types:
+                continue
+            doi = _normalize_doi(data.get("doi") or item.get("id"))
+            published = next((_date(d.get("date")) for d in data.get("dates", [])
+                if d.get("dateType") == "Issued" and re.fullmatch(r"\d{4}(?:-\d{2})?(?:-\d{2})?", _text(d.get("date")))), "")
+            published = published or _text(data.get("publicationYear"))
+            official_url = _text(data.get("url")) or (f"https://doi.org/{doi}" if doi else "")
+            rights = " ".join(str(r.get("rightsUri") or "") + " " + str(r.get("rights") or "") for r in data.get("rightsList", [])).lower()
+            container = data.get("container") or {}
+            record = {
+                "title": _markup_text(next((t.get("title") for t in data.get("titles", []) if not t.get("titleType")), "")
+                    or next((t.get("title") for t in data.get("titles", [])), "")),
+                "authors": _authors(data.get("creators")),
+                "abstract": _markup_text(" ".join(d.get("description") or "" for d in data.get("descriptions", []) if d.get("descriptionType") == "Abstract")),
+                "published_date": published, "source": self.name, "source_id": doi, "doi": doi,
+                "venue": _text(container.get("title")), "venue_type": _text(types.get("resourceTypeGeneral")),
+                "issns": [_text(container.get("identifier"))] if container.get("identifierType") == "ISSN" else [],
+                "official_url": official_url,
+                "open_access_url": official_url if "creativecommons.org/" in rights or "info:eu-repo/semantics/openaccess" in rights else "",
+                "language": _text(data.get("language")) or "unknown",
+                "topics": [s["subject"] for s in data.get("subjects", []) if s.get("subject")],
+                "publication_types": [types.get("resourceType") or types["resourceTypeGeneral"]],
+            }
+            if filtered := _with_date_status(record, date_from, date_to):
+                yield filtered
+
+
+class HALSource(BaseSource):
+    name = "hal"
+    fields = "halId_s,title_s,authFullName_s,abstract_s,producedDate_s,doiId_s,uri_s,fileMain_s,journalTitle_s,journalIssn_s,journalEissn_s,language_s,docType_s,arxivId_s,pubmedId_s"
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        filters = ["docType_s:(ART OR COMM OR PREPRINT OR THESE OR HDR OR REPORT OR OUV OR COUV)"]
+        if date_from or date_to:
+            # Year-wide server bounds retain records whose month/day is unknown.
+            filters.append(f"producedDate_tdate:[{date_from[:4] + '-01-01T00:00:00Z' if date_from else '*'} TO {date_to[:4] + '-12-31T23:59:59Z' if date_to else '*'}]")
+        response = self._get("https://api.archives-ouvertes.fr/search/", params={
+            "q": query, "rows": min(limit, 100), "wt": "json", "fl": self.fields, "fq": filters,
+        })
+        for item in response.json().get("response", {}).get("docs", [])[:limit]:
+            source_id = _first(item.get("halId_s"))
+            record = {
+                "title": _markup_text(_first(item.get("title_s"))), "authors": item.get("authFullName_s") or [],
+                "abstract": _markup_text(_first(item.get("abstract_s"))), "published_date": _date(_first(item.get("producedDate_s"))),
+                "source": self.name, "source_id": source_id, "doi": _normalize_doi(_first(item.get("doiId_s"))),
+                "pmid": _first(item.get("pubmedId_s")), "arxiv_id": _first(item.get("arxivId_s")),
+                "venue": _first(item.get("journalTitle_s")), "publication_types": [_first(item.get("docType_s"))],
+                "issns": [value for field in ("journalIssn_s", "journalEissn_s") if (value := _first(item.get(field)))],
+                "official_url": _first(item.get("uri_s")) or f"https://hal.science/{source_id}",
+                "open_access_url": _first(item.get("fileMain_s")), "language": _first(item.get("language_s")) or "unknown",
+            }
+            if filtered := _with_date_status(record, date_from, date_to):
+                yield filtered
+
+
+class EuropePMCSource(BaseSource):
+    name = "europe_pmc"
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        expression = query
+        if date_from or date_to:
+            expression = f"({query}) AND FIRST_PDATE:[{date_from or '*'} TO {date_to or '*'}]"
+        response = self._get("https://www.ebi.ac.uk/europepmc/webservices/rest/search", params={
+            "query": expression, "format": "json", "resultType": "core", "pageSize": min(limit, 100),
+        })
+        for item in response.json().get("resultList", {}).get("result", [])[:limit]:
+            origin, source_id = _text(item.get("source")), _text(item.get("id"))
+            doi = _normalize_doi(item.get("doi"))
+            journal = (item.get("journalInfo") or {}).get("journal") or {}
+            fulltext = next((_text(link.get("url")) for link in (item.get("fullTextUrlList") or {}).get("fullTextUrl", [])
+                if link.get("availabilityCode") == "OA" or link.get("availability") == "Open access"), "")
+            authors = [_text(a.get("fullName")) for a in (item.get("authorList") or {}).get("author", []) if a.get("fullName")]
+            record = {
+                "title": _markup_text(item.get("title")), "authors": authors or [_text(a) for a in _text(item.get("authorString")).split(",") if a.strip()],
+                "abstract": _markup_text(item.get("abstractText")),
+                "published_date": _date(item.get("firstPublicationDate") or item.get("pubYear")),
+                "source": self.name, "source_id": f"{origin}:{source_id}",
+                "pmid": _text(item.get("pmid") or (source_id if origin == "MED" else "")), "doi": doi,
+                "venue": _text(journal.get("title")), "issns": [journal[k] for k in ("issn", "essn") if journal.get(k)],
+                "official_url": f"https://europepmc.org/article/{quote(origin, safe='')}/{quote(source_id, safe='')}",
+                "open_access_url": fulltext, "citation_count": item.get("citedByCount"),
+                "language": _text(item.get("language")) or "unknown",
+                "publication_types": (item.get("pubTypeList") or {}).get("pubType") or [],
+            }
+            if filtered := _with_date_status(record, date_from, date_to):
+                yield filtered
+
+
+class GoogleScholarSource(BaseSource):
+    name = "google_scholar"
+
+    def estimated_requests(self, queries: tuple[str, ...], limit: int) -> int:
+        return len(queries) * max(1, math.ceil(min(limit, 100) / 20))
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        if not self.api_key:
+            raise ValueError("请先配置 SerpApi API Key")
+        offset, remaining = 0, min(limit, 100)
+        while remaining > 0:
+            count = min(20, remaining)
+            params = {"engine": "google_scholar", "api_key": self.api_key, "q": query, "num": count, "start": offset}
+            if date_from:
+                params["as_ylo"] = date_from[:4]
+            if date_to:
+                params["as_yhi"] = date_to[:4]
+            data = self._get("https://serpapi.com/search.json", params=params).json()
+            if data.get("error"):
+                raise RuntimeError(_text(data["error"]).replace(self.api_key, "[redacted]"))
+            items = data.get("organic_results") or []
+            for item in items[:remaining]:
+                info = item.get("publication_info") or {}
+                year = re.search(r"\b(?:18|19|20)\d{2}\b", _text(info.get("summary")))
+                link = _text(item.get("link"))
+                doi_match = re.search(r"https?://(?:dx\.)?doi\.org/(10\.[^?#\s]+)", link, re.I)
+                record = {
+                    "source": self.name, "source_id": _text(item.get("result_id")),
+                    "title": _markup_text(item.get("title")), "authors": _authors(info.get("authors")),
+                    # A search snippet is not an author-written abstract.
+                    "abstract": "", "search_snippet": _markup_text(item.get("snippet")),
+                    "published_date": year.group() if year else "", "doi": _normalize_doi(doi_match.group(1)) if doi_match else "",
+                    "official_url": link, "open_access_url": "", "language": "unknown",
+                    "citation_count": ((item.get("inline_links") or {}).get("cited_by") or {}).get("total"),
+                }
+                if filtered := _with_date_status(record, date_from, date_to):
+                    yield filtered
+            if len(items) < count or not (data.get("serpapi_pagination") or {}).get("next"):
+                break
+            offset += len(items)
+            remaining -= len(items)
+
+
+class CORESource(BaseSource):
+    name = "core"
+
+    def _iter_query(self, query: str, limit: int, date_from: str, date_to: str) -> Iterator[dict]:
+        if not self.api_key:
+            raise ValueError("请先配置 CORE API Key")
+        expression = query
+        if date_from or date_to:
+            expression = f"({query}) AND yearPublished:[{date_from[:4] or '*'} TO {date_to[:4] or '*'}]"
+        data = self._get("https://api.core.ac.uk/v3/search/works", params={"q": expression, "limit": min(limit, 100)},
+            headers={"Authorization": f"Bearer {self.api_key}"}).json()
+        for item in (data.get("results") or [])[:limit]:
+            source_id = _text(item.get("id"))
+            doi = _normalize_doi(item.get("doi"))
+            record = {
+                "source": self.name, "source_id": source_id, "doi": doi,
+                "title": _markup_text(item.get("title")), "authors": _authors(item.get("authors")),
+                "abstract": _markup_text(item.get("abstract")),
+                "published_date": _date(item.get("publishedDate") or item.get("yearPublished")),
+                "official_url": f"https://doi.org/{doi}" if doi else f"https://core.ac.uk/works/{source_id}",
+                "open_access_url": _text(item.get("downloadUrl")),
+                "language": _text((item.get("language") or {}).get("code")) if isinstance(item.get("language"), dict) else _text(item.get("language")) or "unknown",
+            }
+            if filtered := _with_date_status(record, date_from, date_to):
+                yield filtered
+
+
 def build_sources(client: httpx.Client, settings: Any) -> dict[str, SourceAdapter]:
     return {
         "semantic_scholar": SemanticScholarSource(client, settings.semantic_scholar_api_key),
@@ -568,6 +880,12 @@ def build_sources(client: httpx.Client, settings: Any) -> dict[str, SourceAdapte
         "crossref": CrossrefSource(client, email=settings.pubmed_email or settings.smtp_from),
         "arxiv": ArxivSource(client, email=settings.pubmed_email or settings.smtp_from),
         "pubmed": PubMedSource(client, settings.pubmed_api_key, settings.pubmed_email),
+        "doaj": DOAJSource(client),
+        "datacite": DataCiteSource(client),
+        "hal": HALSource(client),
+        "europe_pmc": EuropePMCSource(client),
+        "google_scholar": GoogleScholarSource(client, settings.serpapi_api_key),
+        "core": CORESource(client, settings.core_api_key),
     }
 
 
@@ -587,22 +905,30 @@ def search_sources(
     queries = tuple(dict.fromkeys(query.strip() for query in queries if query.strip()))[:4]
     records: list[dict] = []
     diagnostics: dict[str, dict] = {}
+    for name in requested[:]:
+        config = source_configuration(settings, name)
+        if not config["selectable"]:
+            status = "not_configured" if config["enabled"] and not config["configured"] else "disabled"
+            diagnostics[name] = {"status": status, "count": 0, "error": "来源未配置密钥" if status == "not_configured" else "来源已停用", "attempts": 0}
+            requested.remove(name)
     def retrieve(name: str):
+        adapter = adapters[name]
+        config = source_configuration(settings, name)
         cache_key = hashlib.sha256(json.dumps({"provider": name, "queries": queries, "limit": limit,
+            "credential": hashlib.sha256(adapter.api_key.encode()).hexdigest(),
             "date_from": date_from, "date_to": date_to}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         if cache:
             cached = cache.get_source_cache(cache_key)
             if cached is not None:
                 return cached, {"status": "cached", "count": len(cached), "error": "", "cache_hit": True, "requests_reserved": 0}
-        adapter = adapters[name]
         request_count = adapter.estimated_requests(queries, limit)
-        if isinstance(adapter, (SemanticScholarSource, CrossrefSource)):
+        if adapter.uses_request_gate:
             adapter.cache = cache
             adapter.cache_ttl_hours = settings.source_cache_ttl_hours
-            adapter.daily_request_budget = settings.source_daily_request_budget
+            adapter.daily_request_budget = config["daily_request_budget"]
         elif cache:
-            if not cache.reserve_source_requests(name, request_count, settings.source_daily_request_budget):
-                raise RuntimeError(f"Daily request budget exhausted ({settings.source_daily_request_budget} requests)")
+            if not cache.reserve_source_requests(name, request_count, config["daily_request_budget"]):
+                raise RuntimeError(f"Daily request budget exhausted ({config['daily_request_budget']} requests)")
             adapter.requests_reserved = request_count
         source_records = adapter.search(queries, limit, date_from, date_to)
         if cache and not adapter.errors:
@@ -624,7 +950,7 @@ def search_sources(
                 diagnostics[name] = diagnostic
             except Exception as exc:
                 adapter = adapters[name]
-                diagnostics[name] = {"status": "failed", "count": 0, "error": f"{type(exc).__name__}: {exc}",
+                diagnostics[name] = {"status": "failed", "count": 0, "error": source_error(exc, adapter.api_key),
                     "cache_hit": False, "requests_reserved": adapter.requests_reserved, "attempts": adapter.attempts,
                     "retry_count": adapter.retry_count, "final_http_status": adapter.final_http_status,
                     "transport": adapter.transport}

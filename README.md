@@ -2,30 +2,30 @@
 
 把研究主题变成可追踪的每日文献邮件。
 
-[English](README.en.md) · [Windows 下载](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) · [服务器部署](docs/SERVER_DEPLOYMENT.md) · [使用指南](docs/WINDOWS_USER_GUIDE.md) · [反馈](https://github.com/EdwardAiyw/literature-agent/issues)
+[English](README.en.md) · [Windows 下载](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) · [服务器部署](docs/SERVER_DEPLOYMENT.md) · [使用指南](docs/WINDOWS_USER_GUIDE.md) · [反馈](https://github.com/EdwardAiyw/literature-agent/issues)
 
 Literature Agent 是面向个人研究者的开源文献助手。输入研究主题、日期和来源后，它会检索论文、合并跨来源记录、筛选相关文献、生成研究摘要，并保留结果、运行过程和邮件投递记录。支持 Windows 本机使用和自有 Linux 服务器常驻运行。
 
 ## 版本与使用方式
 
-**截至 2026-10-18，RC6 Windows 安装包、对应源码和已升级服务器均包含历史推送去重、动态日期、自动 Zotero 集合导入及官网 JIF 查询。**
+**RC7 新增页面化来源管理，支持 11 种连接，并将 Obsidian 文库设置和完整邮件归档纳入 Windows 安装包。** 保留历史推送去重、动态日期、自动 Zotero 集合导入及官网 JIF 查询。
 
 | 使用方式 | 适合谁 | 功能范围 |
 | --- | --- | --- |
-| [Windows RC6 安装包](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) | 希望直接安装的测试用户 | 每日历史去重、动态日期、自动 Zotero 集合导入、官网 JIF，以及既有工作台和 Prompt v2 |
+| [Windows RC7 安装包](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) | 希望直接安装的测试用户 | 来源管理、Obsidian、完整邮件归档，以及下文既有能力 |
 | 最新 `main` 源码 | 开发者与需要新增功能的用户 | 包含下文全部已实现能力 |
 | [Linux Docker 部署](docs/SERVER_DEPLOYMENT.md) | 希望电脑关机后仍每日运行的用户 | 自行构建源码镜像，通过 SSH 隧道管理网页 |
 
-RC6 是预发布测试版。已通过 26 项 Sandbox 安装生命周期检查，并完成现有 Windows 安装覆盖升级、数据一致性核对及安装版真实五篇检索；干净系统首次设置、自然调度触发和外部邮箱到达仍需人工验收。详见 [安装验收记录](docs/INSTALLER_RC6_VALIDATION_2026-10-18.md)。Windows 与 Linux 使用同一版本源码，分别安装或部署；更新 GitHub 不会自动升级已安装程序。旧 RC5 标签和资产保持不变。
+RC7 是预发布测试版，验证及实际部署状态见 [RC7 发布记录](docs/RELEASE_RC7.md)。历史 RC6 的 26 项 Sandbox 检查和真实五篇检索记录仍保留，不能代替 RC7 的首次设置、自然调度和外部邮箱验收。Windows 与 Linux 使用同一版本源码，分别安装或部署；更新 GitHub 不会自动升级已安装程序。旧标签和资产保持不变。
 
 ## 能做什么
 
-- **多来源检索**：Semantic Scholar、OpenAlex、Crossref、arXiv、PubMed，支持中英文检索和日期范围。
+- **可配置文献来源**：在设置页添加、配置、测试和启停来源，管理密钥、默认选择与请求上限；支持 9 个开放来源，以及可选的 Google Scholar（SerpApi）和 CORE，共 11 种连接。详见[覆盖与接入说明](docs/SOURCES.md)。
 - **筛选与摘要**：规划查询、判断相关性、生成结构化摘要，可选证据核查；保留实际检索式、Prompt 快照及来源诊断。
 - **每日邮件**：按订阅时区运行，发送 HTML/纯文本摘要、DOI 与原文链接，记录投递结果。
 - **持续选文**：合并本次重复记录，排除本订阅之前成功推送的论文，也可继续补充未推送过的历史文献。
 - **Zotero**：逐篇导入，或指定已有集合自动导入；支持进度、失败重试和邮件标识符 TXT。
-- **Obsidian**：设置页发现并选择文库，保存本机或服务器连接，立即同步、启停自动同步、查看状态并打开索引；重复导入复用论文笔记，保留个人批注。功能已内置 `main`，详见 [Obsidian 连接](docs/OBSIDIAN.md)；已发布 RC6 安装包尚不包含此入口。
+- **Obsidian**：设置页发现并选择文库，保存本机或服务器连接，立即同步、启停自动同步、查看状态并打开索引；重复导入复用论文笔记，保留个人批注。RC7 安装版内置此入口，详见 [Obsidian 连接](docs/OBSIDIAN.md)。
 - **邮件归档到文库**：同步完整邮件正文、来源诊断、去重统计、JIF 与标识符 TXT 附件；后续推送保存发送时快照，旧邮件明确标注重建来源。
 - **期刊指标**：查询可核实的官网 JIF 并标注年份、来源，也可导入已有 JCR CSV；查询失败不阻断邮件。
 - **运行管理**：页面配置模型、SMTP、来源、备份、订阅和 Prompt 版本；可选 LocalJev 决策审计。
@@ -36,7 +36,7 @@ RC6 是预发布测试版。已通过 26 项 Sandbox 安装生命周期检查，
 
 ### Windows 安装版
 
-1. 从 [RC6 Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) 下载 `Literature-Agent-0.3.0-rc.6-Windows-x64.exe` 和 `SHA256SUMS.txt`，核对校验值。
+1. 从 [RC7 Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) 下载 `Literature-Agent-0.3.0-rc.7-Windows-x64.exe` 和 `SHA256SUMS.txt`，核对校验值。
 2. 安装并启动，打开 <http://127.0.0.1:8001>。无需 Python 或 Node.js。
 3. 在“设置”选择数据目录，填写模型服务、SMTP 邮箱和来源，测试并保存。
 4. 注册 Windows 自动任务，完成首次设置后执行一次小规模检索。
@@ -125,7 +125,7 @@ npm run dev
 
 ## 验证与开发
 
-RC6 发布通过 Windows/Linux **245 项后端测试**、前端构建、Windows **32 项完整 Edge 回归**及打包程序检查；公开安装包重新下载校验一致，详见 [RC6 发布记录](docs/RELEASE_RC6.md)。真实补发选出 10 篇，按当前身份规则核对未与历史重复，SMTP 接受成功，10 篇 Zotero 自动导入完成。这是本次运行的验证，不代表未来检索都能凑齐目标数量。详见 [验证记录](docs/DAILY_DEDUPLICATION.md)。
+RC7 本机通过 **299 项后端测试**、前端构建和 **36 项完整 Edge 回归**。GitHub 构建、安装包校验和部署结果见 [RC7 发布记录](docs/RELEASE_RC7.md)。历史真实推送与 Zotero 导入验收见 [去重验证](docs/DAILY_DEDUPLICATION.md)；不代表未来检索都能凑齐目标数量。
 
 ```powershell
 cd backend

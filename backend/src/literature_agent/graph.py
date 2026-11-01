@@ -212,7 +212,7 @@ def build_graph(settings: Settings, database: Database, prompts: list[dict]):
                     cache=database,
                 )
             for name, result in diagnostics.items():
-                if result["status"] in {"failed", "partial", "rate_limited"}:
+                if result["status"] in {"failed", "partial", "rate_limited", "disabled", "not_configured"}:
                     errors.append(f"retrieval/{name}: {result['error']}")
         artifact = {"source_mode": source_mode, "sources": diagnostics, "retrieved_count": len(records), "errors": errors[-10:]}
         completed(state, "retrieval", f"Retrieved {len(records)} candidate record(s)", 2, artifact)

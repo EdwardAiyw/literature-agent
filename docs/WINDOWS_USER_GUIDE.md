@@ -1,6 +1,6 @@
 # Windows 安装与使用指南
 
-本文面向 RC6 Windows 安装版，包含跨日推送去重、动态截止日期、自动 Zotero 集合导入、标识符附件和自动 JIF。Linux 服务器使用同版本源码单独部署，见 [服务器指南](SERVER_DEPLOYMENT.md)。RC6 仍为预发布版。全新安装、覆盖升级、计划任务执行、恢复和卸载的自动检查已通过；首次设置、自然触发和外部邮箱到达仍需人工验收，见 [实机验收记录](INSTALLER_RC6_VALIDATION_2026-10-18.md)。
+本文面向 RC7 Windows 安装版，包含页面化来源管理、Obsidian 文库连接、完整邮件归档，以及既有跨日去重、动态日期、Zotero 和 JIF。Linux 服务器使用同版本源码单独部署，见 [服务器指南](SERVER_DEPLOYMENT.md)。RC7 仍为预发布版，验收和升级记录见 [RC7 发布说明](RELEASE_RC7.md)；首次设置、自然触发和外部邮箱到达仍需人工验收。历史 RC6 生命周期验收另见 [旧记录](INSTALLER_RC6_VALIDATION_2026-10-18.md)。
 
 ## 安装前要准备什么
 
@@ -18,7 +18,7 @@
 
 ### 可选项目
 
-如需把每日推送自动归档到 Obsidian，最新 `main` 的“设置 → Obsidian 文库”提供保存连接、立即同步、启停自动同步与状态；见 [Obsidian 指南](OBSIDIAN.md)。使用独立的登录/定时任务，已发布 RC6 安装版尚无此新增入口。
+如需把每日推送自动归档到 Obsidian，RC7 的“设置 → Obsidian 文库”提供保存连接、立即同步、启停自动同步与状态；见 [Obsidian 指南](OBSIDIAN.md)。使用独立的登录/定时任务。
 
 - Semantic Scholar API Key：可提高该来源的可用额度和稳定性。
 - OpenAlex API Key：没有也可以使用公开接口。
@@ -29,14 +29,14 @@
 
 ### 第 1 步：下载正确文件
 
-本仓库已经公开。打开 [`v0.3.0-rc.6` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.6) 即可直接下载，无需 GitHub 账号或仓库权限。
+本仓库已经公开。打开 [`v0.3.0-rc.7` Release](https://github.com/EdwardAiyw/literature-agent/releases/tag/v0.3.0-rc.7) 即可直接下载，无需 GitHub 账号或仓库权限。
 
 下载同一 Release 中的两个文件：
 
-- [Literature-Agent-0.3.0-rc.6-Windows-x64.exe](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.6/Literature-Agent-0.3.0-rc.6-Windows-x64.exe)
-- [SHA256SUMS.txt](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.6/SHA256SUMS.txt)
+- [Literature-Agent-0.3.0-rc.7-Windows-x64.exe](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.7/Literature-Agent-0.3.0-rc.7-Windows-x64.exe)
+- [SHA256SUMS.txt](https://github.com/EdwardAiyw/literature-agent/releases/download/v0.3.0-rc.7/SHA256SUMS.txt)
 
-安装包大小为 `29,146,628` 字节。不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。
+不要把 GitHub 自动提供的 `Source code (zip)` 当作安装包；源码压缩包面向开发者，双击不能直接安装。安装包大小和校验记录见 [RC7 发布记录](RELEASE_RC7.md)。
 
 如果 Release 页面没有上述两个资产，或文件名不一致，不要继续安装。
 
@@ -49,17 +49,13 @@
 3. 在打开的蓝色窗口中输入下面的命令，把文件名换成你下载的版本：
 
 ```powershell
-Get-FileHash .\Literature-Agent-0.3.0-rc.6-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\Literature-Agent-0.3.0-rc.7-Windows-x64.exe -Algorithm SHA256
 ```
 
 4. 屏幕会显示一串 64 位字符。
-5. 用记事本打开同一 RC6 Release 的 `SHA256SUMS.txt`，确认安装包的 SHA-256 与其中对应文件的值一致。英文字母大小写不同没有关系，不要使用旧版本的校验值。
+5. 用记事本打开同一 RC7 Release 的 `SHA256SUMS.txt`，确认安装包的 SHA-256 与其中对应文件的值一致。英文字母大小写不同没有关系，不要使用旧版本的校验值。
 
-本次 RC6 安装包的 SHA-256：
-
-```text
-d0d553e64a0356953e3a4b83b8cf536efa2c6394408aacc08b261b2517641515
-```
+以同一 RC7 Release 的校验文件为准；[发布记录](RELEASE_RC7.md)也保留校验结果。
 
 不相同就不要运行安装包，应删除文件并从 GitHub Releases 重新下载。
 
@@ -153,15 +149,13 @@ d0d553e64a0356953e3a4b83b8cf536efa2c6394408aacc08b261b2517641515
 
 ### 4. 配置文献来源
 
-五个公开来源默认都可以使用。没有来源 API Key 时，可以把可选密钥框留空。
+进入“设置 → 文献来源”，可添加、配置、测试、启停或移除连接。9 个开放来源默认添加：Semantic Scholar、OpenAlex、Crossref、arXiv、PubMed、DOAJ、DataCite、HAL、Europe PMC。公开接口仍可能限流或拒绝访问。
 
-- Semantic Scholar：公开访问可能遇到 429 限速；Key 可提高稳定性。
-- OpenAlex：可选 API Key。
-- Crossref：当前不需要单独填写 Key。
-- arXiv：当前不需要单独填写 Key。
-- PubMed：Key 可选；建议填写“PubMed 联系邮箱”。
+点击“添加来源”可选择 Google Scholar 或 CORE。Google Scholar 通过第三方 SerpApi 接入，需申请其 API Key 和可用额度；CORE 需官方 API Key。Scopus、Web of Science、知网和万方尚无适配器，不在可添加列表中。
 
-填完后点击“测试来源”，再点击“保存”。某一个来源暂时失败不会自动判定整个研究任务失败，系统会继续使用其他来源；实际运行后的“来源诊断”会显示每个来源的情况。
+在每个来源的“配置”中填写密钥、每日请求上限及是否默认用于新任务/新订阅，保存后生效。Semantic Scholar、OpenAlex、PubMed 支持可选密钥，PubMed 另支持联系邮箱。密钥框留空保持原值，清除需点击单独操作。
+
+保存后点击该来源的“测试连接”，页面显示检测时间、条数和失败原因。测试会发起真实小规模检索并计入预算。新建任务使用保存的默认选择，已有任务保留来源；停用或移除后运行时跳过该来源。详细覆盖与限制见 [来源说明](SOURCES.md)。
 
 ### 5. Jev 决策层
 
@@ -186,7 +180,7 @@ LocalJev 未运行时保持“启用 Jev”关闭即可，检索、筛选、摘�
 
 保持默认值通常即可：
 
-- 每日请求预算：默认 `200`，用于限制一天内的来源请求总量。
+- 每来源每日请求预算：默认 `200`，分别限制各来源一天内的请求量；来源配置可单独覆盖。
 - 来源缓存：默认 `24` 小时，避免反复请求相同结果。
 
 点击“注册自动任务”。Windows 会创建：
@@ -284,7 +278,7 @@ RC6 提供“截止日期策略”：新订阅默认截止到运行当天，也�
 
 ### 来源诊断
 
-每个来源会显示状态和返回记录数。一个来源失败不代表整次任务一定失败，其他可用来源仍可继续返回结果。RC6 会将 HTTP 429 显示为“暂时限流”；先取得文献、随后限流时显示“部分可用（限流）”，并保留已取得的结果。历史记录中的 `failed` + 429 也会按限流解释，但不会改写历史数据。设置页“测试来源”会分别展示各来源结果，不将部分可用概括为全部通过。
+每个来源会显示状态和返回记录数。一个来源失败不代表整次任务一定失败，其他可用来源仍可继续返回结果。HTTP 429 显示为“暂时限流”；先取得文献、随后限流时显示“部分可用（限流）”，并保留已取得的结果。历史记录中的 `failed` + 429 也会按限流解释，但不会改写历史数据。设置页使用逐来源“测试连接”，分别展示结果；已停用或未配置的来源会在运行时跳过。
 
 ### 论文列表
 
@@ -352,13 +346,13 @@ RC6 提供“截止日期策略”：新订阅默认截止到运行当天，也�
 
 1. 确认没有任务处于“排队中”或“运行中”。
 2. 在“设置”中点击“立即备份”，记录备份路径。
-3. 完成运行后退出正在运行的 Literature Agent，打开 RC6 Release，下载同一版本的安装包和 `SHA256SUMS.txt`。
+3. 完成运行后退出正在运行的 Literature Agent，打开 RC7 Release，下载同一版本的安装包和 `SHA256SUMS.txt`。
 4. 校验 SHA-256 后运行新版安装包覆盖安装。
 5. 启动程序，在“设置 > 关于与开源许可”确认版本已经更新；再检查原有任务、订阅和历史结果。
 
 数据目录和凭据不会被覆盖。不要通过删除数据目录来“更新”。
 
-当前“检查更新”查询 GitHub 的稳定版入口，可能无法发现候选版；RC6 请使用本页的直接下载链接。更新检查需要访问 GitHub Releases。网络暂时不可用时不影响本地功能，可以稍后重试，或直接打开本仓库的 Release 页面检查新版本。
+当前“检查更新”查询 GitHub 的稳定版入口，可能无法发现候选版；RC7 请使用本页的直接下载链接。更新检查需要访问 GitHub Releases。网络暂时不可用时不影响本地功能，可以稍后重试，或直接打开本仓库的 Release 页面检查新版本。
 
 ### 卸载
 
@@ -467,9 +461,9 @@ RC6 延续 RC4 的 Zotero Web API 导入及查重修复（旧 RC3 安装包不�
 
 测试过程中遇到问题或有改进建议，请优先发送邮件至 [aiyuling.usm@gmail.com](mailto:aiyuling.usm@gmail.com)。邮件便于附上截图和完整的相关信息，也方便进一步确认问题。
 
-建议邮件主题使用 `[Literature Agent RC6] 问题简述`，正文尽量包含：
+建议邮件主题使用 `[Literature Agent RC7] 问题简述`，正文尽量包含：
 
-- Literature Agent 版本，例如 `0.3.0-rc.6`。
+- Literature Agent 版本，例如 `0.3.0-rc.7`。
 - Windows 版本。
 - 问题发生前执行的操作和可重复的步骤。
 - 预期结果与实际结果。

@@ -25,7 +25,8 @@ from .email import send_test_message
 from .llm import ModelProvider
 from .prompts import BUILTIN_PROMPTS
 from .schemas import BackupRestoreRequest, DataDirectoryRequest, DecisionCallRead, DeliveryRead, PaperRead, PromptCreate, PromptRead, ReviewRequest, RunArtifactRead, RunEventRead, RunRead, SettingsTestRequest, SettingsUpdate, SubscriptionCreate, SubscriptionRead, SubscriptionUpdate, TaskBulkDelete, TaskCreate, TaskRead, TaskSubscriptionCreate, TaskUpdate, TestSendRequest
-from .sources import SOURCE_METADATA, build_sources
+from .sources import SOURCE_METADATA, build_sources, default_source_ids, source_catalogue, source_configuration, source_error
+from .schemas import SourceConfigUpdate
 from .system_ops import run_scheduler_action, scheduler_status
 from .worker import LocalRunWorker
 from .scheduler import DailyScheduler
@@ -96,7 +97,11 @@ def health() -> dict:
 def create_task(payload: TaskCreate):
     _validate_prompt_overrides(payload.prompt_overrides)
     _validate_zotero_target(payload.model_dump())
-    return database.create_task(payload.model_dump())
+    values = payload.model_dump()
+    if "sources" not in payload.model_fields_set:
+        values["sources"] = default_source_ids(settings)
+    _validate_new_sources(values["sources"])
+    return database.create_task(values)
 
 
 @app.get("/api/tasks", response_model=list[TaskRead])
@@ -129,6 +134,8 @@ def update_task(task_id: str, patch: TaskUpdate):
         raise HTTPException(422, str(exc)) from exc
     _validate_prompt_overrides(validated["prompt_overrides"])
     _validate_zotero_target(validated)
+    if "sources" in patch.model_fields_set:
+        _validate_new_sources([name for name in validated["sources"] if name not in current.get("sources", [])] or ["fixture"])
     return database.update_task(task_id, validated)
 
 
@@ -205,6 +212,9 @@ def _validate_prompt_overrides(overrides: dict[str, str]) -> None:
 @app.post("/api/subscriptions", response_model=SubscriptionRead, status_code=201)
 def create_subscription(payload: SubscriptionCreate):
     values = payload.model_dump()
+    if "sources" not in payload.model_fields_set:
+        values["sources"] = default_source_ids(settings)
+    _validate_new_sources(values["sources"])
     _validate_prompt_overrides(values["prompt_overrides"])
     _validate_zotero_target(values)
     task = database.create_task(_task_payload(values))
@@ -261,6 +271,8 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
         raise HTTPException(422, str(exc)) from exc
     _validate_prompt_overrides(validated["prompt_overrides"])
     _validate_zotero_target(validated)
+    if "sources" in patch.model_fields_set:
+        _validate_new_sources([name for name in validated["sources"] if name not in current.get("sources", [])] or ["fixture"])
     updated = database.update_subscription(subscription_id, validated)
     database.update_task(current["task_id"], _task_payload(validated))
     return updated
@@ -599,7 +611,7 @@ def _public_settings() -> dict:
         "source_daily_request_budget": settings.source_daily_request_budget,
         "source_usage": database.source_usage_snapshot(),
         "famou_enabled": settings.famou_enabled,
-        "sources": [{"id": name, **metadata} for name, metadata in SOURCE_METADATA.items()],
+        "sources": source_catalogue(settings),
         "runtime_nodes": ["query_planner", "retrieval", "dedupe", "relevance_screener", "literature_summarizer", "evidence_reviewer"],
     }
 
@@ -607,6 +619,102 @@ def _public_settings() -> dict:
 @app.get("/api/settings")
 def get_settings():
     return _public_settings()
+
+
+def _validate_new_sources(names: list[str]) -> None:
+    if not names:
+        raise HTTPException(422, "请先在设置中启用来源，并选择至少一个来源")
+    unavailable = [SOURCE_METADATA[name]["label"] for name in names
+        if name != "fixture" and not source_configuration(settings, name)["selectable"]]
+    if unavailable:
+        raise HTTPException(422, "请先在设置中配置并启用来源：" + ", ".join(unavailable))
+
+
+def _source_metadata(name: str) -> dict:
+    if name not in SOURCE_METADATA or name == "fixture":
+        raise HTTPException(404, "未找到文献来源")
+    return SOURCE_METADATA[name]
+
+
+@app.get("/api/sources")
+def list_source_connections():
+    return source_catalogue(settings)
+
+
+@app.put("/api/sources/{name}")
+def configure_source(name: str, payload: SourceConfigUpdate):
+    global settings
+    metadata = _source_metadata(name)
+    current = source_configuration(settings, name)
+    saved = dict(settings.source_configs.get(name, {}))
+    for key in ("enabled", "default_enabled", "daily_request_budget"):
+        if key in payload.model_fields_set and (key == "daily_request_budget" or getattr(payload, key) is not None):
+            saved[key] = getattr(payload, key)
+    saved["added"] = True
+    credential_field = metadata.get("credential_field")
+    if (payload.api_key or payload.clear_api_key) and not credential_field:
+        raise HTTPException(422, "此来源无需配置密钥")
+    if payload.email is not None and name != "pubmed":
+        raise HTTPException(422, "此来源不支持联系邮箱设置")
+    secret_changes = {credential_field: payload.api_key.strip()} if credential_field and payload.api_key and payload.api_key.strip() else {}
+    if payload.clear_api_key:
+        secret_changes = {credential_field: ""} if credential_field else {}
+        saved.update(enabled=False, default_enabled=False)
+    enabled = saved.get("enabled", current["enabled"])
+    key = secret_changes.get(credential_field, getattr(settings, credential_field, "") if credential_field else "")
+    if enabled and metadata["requires_credentials"] and not key:
+        raise HTTPException(422, "启用此来源前，请先填写 " + metadata["credential_label"])
+    if not enabled and saved.get("default_enabled"):
+        raise HTTPException(422, "来源停用时不能设为默认来源")
+    if secret_changes or payload.email is not None and payload.email != settings.pubmed_email:
+        saved.pop("last_test", None)
+    changes = {"source_configs": {**settings.source_configs, name: saved}}
+    if payload.email is not None:
+        changes["pubmed_email"] = payload.email
+    settings = config_manager.update(changes, secret_changes)
+    return next(item for item in source_catalogue(settings) if item["id"] == name)
+
+
+@app.delete("/api/sources/{name}")
+def remove_source_connection(name: str):
+    global settings
+    _source_metadata(name)
+    saved = {**settings.source_configs.get(name, {}), "added": False, "enabled": False, "default_enabled": False}
+    settings = config_manager.update({"source_configs": {**settings.source_configs, name: saved}})
+    return {"status": "removed", "id": name}
+
+
+@app.post("/api/sources/{name}/test")
+def test_source_connection(name: str):
+    global settings
+    _source_metadata(name)
+    snapshot = settings
+    config = source_configuration(snapshot, name)
+    if not config["added"] or not config["configured"]:
+        raise HTTPException(422, "请先保存此来源的连接配置")
+    with httpx.Client(timeout=20, follow_redirects=True) as client:
+        source = build_sources(client, snapshot)[name]
+        try:
+            if source.uses_request_gate:
+                source.cache = database
+                source.daily_request_budget = config["daily_request_budget"]
+                records = list(source._iter_query("retrieval augmented generation", 1, "", ""))
+            else:
+                count = source.estimated_requests(("retrieval augmented generation",), 1)
+                if not database.reserve_source_requests(name, count, config["daily_request_budget"]):
+                    raise RuntimeError("此来源的每日请求预算已用尽")
+                records = source.search(("retrieval augmented generation",), 1, "", "")
+            result = {"status": "partial" if source.errors else "ok", "count": len(records), "error": "; ".join(source.errors)}
+        except Exception as exc:
+            result = {"status": "rate_limited" if source.rate_limited else "failed", "count": 0, "error": source_error(exc, source.api_key)[:500]}
+        result.update(checked_at=datetime.now(timezone.utc).isoformat(), attempts=source.attempts,
+            final_http_status=source.final_http_status)
+    # Do not attach the result to a connection that changed while the request ran.
+    field = SOURCE_METADATA[name].get("credential_field", "")
+    if settings.source_configs.get(name) == snapshot.source_configs.get(name) and getattr(settings, field, "") == getattr(snapshot, field, ""):
+        saved = {**settings.source_configs.get(name, {}), "last_test": result}
+        settings = config_manager.update({"source_configs": {**settings.source_configs, name: saved}})
+    return result
 
 
 @app.get("/api/jev/status")
@@ -688,6 +796,8 @@ def test_settings(section: str, payload: SettingsTestRequest):
             diagnostics = {}
             with httpx.Client(timeout=20, follow_redirects=True) as client:
                 for name, source in build_sources(client, candidate).items():
+                    if not source_configuration(candidate, name)["selectable"]:
+                        continue
                     try:
                         records = source.search(("retrieval augmented generation",), 1, "", "")
                         limited = source.rate_limited

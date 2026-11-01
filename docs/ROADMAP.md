@@ -7,7 +7,7 @@
 
 ## MVP / Beta
 
-- Semantic Scholar/OpenAlex/Crossref/arXiv/PubMed adapters and parallel source diagnostics.
+- Page-managed source connections: nine open adapters plus optional Google Scholar (SerpApi) and CORE; configure credentials, enable/default selections, per-source budgets and connection tests in Settings. See [coverage and limits](SOURCES.md).
 - OpenAI-compatible model provider.
 - Subscription configuration, independent daily CLI, HTML/plain-text SMTP digest, and delivery history.
 - GUI source/date controls and per-source diagnostics.
@@ -22,6 +22,8 @@
 - RC6 (2026-10-18): durable delivery-history filtering, cross-source identities, dynamic subscription cutoffs and restart-safe snapshots; see [daily selection](DAILY_DEDUPLICATION.md).
 
 - RC6 (2026-10-18): publisher JIF lookup with year/source and optional JCR CSV imports; Windows packaging and separate Linux deployment.
+
+- RC7 (2026-11-01): configurable source connections, 11 adapters including optional Google Scholar/CORE, and packaged Obsidian settings with complete email archives. See [release and validation](RELEASE_RC7.md).
 
 ## Post-Beta
 

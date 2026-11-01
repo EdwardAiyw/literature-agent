@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .sources import SUPPORTED_SOURCES
+from .sources import DEFAULT_SOURCES, SUPPORTED_SOURCES
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -69,7 +69,7 @@ class TaskCreate(ZoteroTaskConfig):
     date_from: str = Field(default="", pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
     date_to: str = Field(default="", pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
     target_count: int = Field(default=10, ge=1, le=100)
-    sources: list[str] = Field(default_factory=lambda: ["semantic_scholar", "openalex", "crossref", "arxiv", "pubmed"])
+    sources: list[str] = Field(default_factory=lambda: list(DEFAULT_SOURCES))
     evidence_review: bool = False
     prompt_overrides: dict[str, str] = Field(default_factory=dict)
     origin: Literal["user", "test", "subscription"] = "user"
@@ -179,7 +179,6 @@ class TaskBulkDelete(BaseModel):
         return cleaned
 
 
-DEFAULT_SOURCES = ["semantic_scholar", "openalex", "crossref", "arxiv", "pubmed"]
 PROMPT_ROLES = ("query_planner", "relevance_screener", "literature_summarizer", "evidence_reviewer")
 
 
@@ -558,6 +557,21 @@ class SettingsTestRequest(SettingsUpdate):
     @field_validator("recipient")
     @classmethod
     def validate_test_recipient(cls, value: str | None) -> str | None:
+        return _validate_email(value) if value else value
+
+
+class SourceConfigUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+    enabled: bool | None = None
+    default_enabled: bool | None = None
+    daily_request_budget: int | None = Field(default=None, ge=1, le=100000)
+    api_key: str | None = Field(default=None, max_length=4000)
+    clear_api_key: bool = False
+    email: str | None = Field(default=None, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_contact_email(cls, value: str | None) -> str | None:
         return _validate_email(value) if value else value
 
 

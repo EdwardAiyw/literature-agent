@@ -1,5 +1,12 @@
 # Current State
 
+## RC7 source connections (2026-11-01)
+
+- Settings now owns source connections: add/configure/test/enable/remove, saved credentials, per-source budgets and defaults. Eleven adapters are supported: nine open sources plus optional Google Scholar via SerpApi and CORE. Existing tasks/subscriptions retain their selections; disabled sources are skipped before cache lookup or HTTP requests.
+- New adapters share pacing, actual-request budgets, caching and partial-result handling. Publication-date filtering preserves year/month precision; identifiers flow through existing cross-source deduplication. Four real API probes returned HTTP 200 and two normalized records each. See [source coverage and limits](SOURCES.md).
+- Validation passed locally: 299 backend tests, frontend production build and 36 full Edge regressions. Google Scholar and CORE require user keys; authenticated live checks are pending. SerpApi's public sample and mocked provider contracts were checked; there is no claim of a successful authenticated search for these services.
+- This is a source change; the installed/published RC6 application and Linux deployment have not been upgraded by this work.
+
 ## Obsidian product integration on main (2026-10-19)
 
 - Built-in desktop Settings now discovers vaults and saves local/server connections, with sync-now, automatic task registration/removal, status and open-index controls at `/api/obsidian`. Server mode refuses desktop writes. Source CLI remains compatible; the launcher, registration helper and uninstall hooks support future packaged builds. The immutable published RC6 installer does not contain the new UI/command.
@@ -55,7 +62,7 @@ Its current limitations are a command-line workflow, no reusable task model, no 
 - Independent daily CLI, SMTP HTML/plain-text digest rendering, delivery history, and GUI status views.
 - Schedule-aware `--run-due` execution plus a Windows Task Scheduler registration script.
 - Historical task runs can be reopened in the GUI after CLI or scheduled execution.
-- Live adapters for Semantic Scholar, OpenAlex, Crossref, arXiv, and PubMed, including partial-failure diagnostics, caching, request budgets, and source-specific retry behavior.
+- Live adapters for Semantic Scholar, OpenAlex, Crossref, arXiv, PubMed, DOAJ, DataCite, HAL and Europe PMC, including partial-failure diagnostics, caching, request budgets, and source-specific retry behavior.
 - Page-based onboarding and hot-updated settings for model, SMTP, sources, Jev, runtime limits, data location, backup, restore, scheduler, and update checks.
 - Windows Credential Manager storage for model, SMTP, source, and Jev secrets; setting APIs never return saved secret values.
 - PyInstaller directory packaging, a locally verified Inno Setup installer, and a tag-triggered GitHub Release workflow.
