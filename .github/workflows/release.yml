@@ -41,9 +41,16 @@ jobs:
         run: .venv/Scripts/python.exe -m pytest -q
       - name: Install frontend dependencies and Edge browser
         working-directory: frontend
+        shell: pwsh
         run: |
           npm ci
-          npx playwright install msedge
+          if ($LASTEXITCODE -ne 0) { throw "Frontend dependencies failed to install" }
+          $edge = Join-Path ${env:ProgramFiles(x86)} "Microsoft/Edge/Application/msedge.exe"
+          if (-not (Test-Path -LiteralPath $edge)) {
+            npx playwright install msedge
+            if ($LASTEXITCODE -ne 0) { throw "Edge failed to install" }
+          }
+          else { Write-Host "Using installed Edge $((Get-Item -LiteralPath $edge).VersionInfo.ProductVersion)" }
       - name: Build frontend and run browser regression
         working-directory: frontend
         run: |
@@ -81,13 +88,13 @@ jobs:
             $settings = Invoke-RestMethod "http://127.0.0.1:8012/api/settings"
             if ($settings.version -ne $version -or $settings.zotero_collection_name -ne "Literature Agent") { throw "Packaged Zotero settings check failed" }
             if ($settings.journal_metrics_auto -ne $true) { throw "Packaged automatic JIF default check failed" }
-            $sources = @(Invoke-RestMethod "http://127.0.0.1:8012/api/sources")
+            $sources = Invoke-RestMethod "http://127.0.0.1:8012/api/sources"
             if ($sources.Count -ne 11 -or @($sources | Where-Object added).Count -ne 9) { throw "Packaged source catalogue check failed" }
             $scholar = $sources | Where-Object id -eq "google_scholar"
             if ($scholar.added -or $scholar.selectable -or $scholar.credential_field -ne "serpapi_api_key") { throw "Packaged Google Scholar configuration check failed" }
             $disabled = Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Put -ContentType "application/json" -Body '{"enabled":false,"default_enabled":false,"daily_request_budget":7}'
             if ($disabled.enabled -or $disabled.selectable -or $disabled.daily_request_budget -ne 7) { throw "Packaged source save check failed" }
-            $savedSources = @(Invoke-RestMethod "http://127.0.0.1:8012/api/sources")
+            $savedSources = Invoke-RestMethod "http://127.0.0.1:8012/api/sources"
             if (($savedSources | Where-Object id -eq "doaj").enabled) { throw "Packaged source configuration reload check failed" }
             Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Delete | Out-Null
             $restored = Invoke-RestMethod "http://127.0.0.1:8012/api/sources/doaj" -Method Put -ContentType "application/json" -Body '{"enabled":true,"default_enabled":true,"daily_request_budget":null}'
@@ -128,3 +135,13 @@ jobs:
           files: |
             release/Literature-Agent-*-Windows-x64.exe
             release/SHA256SUMS.txt
+      - name: Preserve failed validation evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-validation-failure
+          path: |
+            test-results/p2-regression-20260924/artifacts/
+            test-results/p2-regression-20260924/html-report/
+          if-no-files-found: ignore
+          retention-days: 7
