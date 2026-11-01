@@ -2,6 +2,7 @@
 
 ## RC7 source connections (2026-11-01)
 
+- The [November 1 daily report and November 2 handoff](DAILY_REPORT_2026-11-01.md) records completed release/upgrades, backup locations and remaining acceptance. Resume with the server's 07:00 natural run review, then configure source connections and explicitly update the existing subscription's selection; no reinstall or redeployment is needed.
 - Settings now owns source connections: add/configure/test/enable/remove, saved credentials, per-source budgets and defaults. Eleven adapters are supported: nine open sources plus optional Google Scholar via SerpApi and CORE. Existing tasks/subscriptions retain their selections; disabled sources are skipped before cache lookup or HTTP requests.
 - New adapters share pacing, actual-request budgets, caching and partial-result handling. Publication-date filtering preserves year/month precision; identifiers flow through existing cross-source deduplication. Four real API probes returned HTTP 200 and two normalized records each. See [source coverage and limits](SOURCES.md).
 - Validation passed locally: 299 backend tests, frontend production build and 36 full Edge regressions. Google Scholar and CORE require user keys; authenticated live checks are pending. SerpApi's public sample and mocked provider contracts were checked; there is no claim of a successful authenticated search for these services.
