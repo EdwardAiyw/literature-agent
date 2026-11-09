@@ -16,7 +16,7 @@ Literature Agent 是面向个人研究者的开源文献助手。输入研究主
 | 最新 `main` 源码 | 开发者与需要新增功能的用户 | 包含下文全部已实现能力 |
 | [Linux Docker 部署](docs/SERVER_DEPLOYMENT.md) | 希望电脑关机后仍每日运行的用户 | 自行构建源码镜像，通过 SSH 隧道管理网页 |
 
-RC7 是预发布测试版，验证及实际部署状态见 [RC7 发布记录](docs/RELEASE_RC7.md)。历史 RC6 的 26 项 Sandbox 检查和真实五篇检索记录仍保留，不能代替 RC7 的首次设置、自然调度和外部邮箱验收。Windows 与 Linux 使用同一版本源码，分别安装或部署；更新 GitHub 不会自动升级已安装程序。旧标签和资产保持不变。
+RC7 是预发布测试版，验证记录见 [RC7 发布记录](docs/RELEASE_RC7.md)。现用 Linux 服务器已于 2026-11-09 部署自动暂停与历史汇总优化，具体提交与验收见 [服务器部署](docs/SERVER_DEPLOYMENT.md)。历史 RC6 的 26 项 Sandbox 检查和真实五篇检索记录仍保留，不能代替 RC7 的首次设置、自然调度和外部邮箱验收。Windows 与 Linux 分别安装或部署；更新 GitHub 不会自动升级已安装程序。旧标签和资产保持不变。
 
 ## 能做什么
 

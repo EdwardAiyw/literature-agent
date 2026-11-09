@@ -1,6 +1,6 @@
 # Linux 服务器部署与本机网页管理
 
-RC7 支持单用户 Linux 服务器模式。每日检索和邮件在服务器运行，本机只打开管理网页；本机关机不会影响服务器任务。Windows 安装包和 Linux 镜像来自同版本源码，分别部署，不进行数据库双向同步。
+RC7 起支持单用户 Linux 服务器模式。每日检索和邮件在服务器运行，本机只打开管理网页；本机关机不会影响服务器任务。Windows 安装包和 Linux 镜像分别部署，具体源码版本以各自部署记录为准，不进行数据库双向同步。
 
 ## 使用网页
 
@@ -30,7 +30,15 @@ ssh -N -T -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -o ServerAliv
 
 每日选文会在筛选前排除本订阅已成功推送的论文，不足目标篇数时按实际数量发送。新订阅默认截止到运行当天；已有订阅保留固定日期策略，可在页面切换。数据库当前升级到 `20261018_0006`，包含独立推送历史及旧邮件回填。详见 [去重、日期策略和部署验收](DAILY_DEDUPLICATION.md)。
 
-## 当前 RC7 部署（2026-11-01）
+## 当前自动暂停与历史汇总部署（2026-11-09）
+
+- 运行镜像 `literature-agent:closure-efb04850e1bd`，源码提交 `efb04850e1bdd89695f0990f578557c54dccd311`，增加 [无新增时自动暂停与历史汇总](SUBSCRIPTION_CLOSURE.md)，并包含模型 JSON/引用校验失败后的单次纠错。健康接口仍返回基础版本 `0.3.0-rc.7`；镜像 OCI revision 记录实际提交。本次未创建新 Release 或 Windows 安装包。
+- 初次升级前备份 `/opt/literature-agent/backups/closure-20261109T090013Z`；纠错修复部署前备份 `/opt/literature-agent/backups/closure-20261109T091607Z`。保留 `literature-agent:rc7-e75abad` 和初次 `literature-agent:closure-3215c1e3e61f` 镜像。两次切换均暂停调度，各自升级前后 **17 张表**的内容及设置、密钥哈希一致，随后恢复原全局调度状态；LocalJev 配置不变，worker 与调度器健康。
+- 最终镜像隔离测试 **327 项通过、1 项 Windows 专用测试跳过**。本机后端 328 项、前端生产构建与新增 Edge 手机交互测试通过；GitHub CI 通过。两次升级本身未触发检索、邮件或 Zotero 写入；已有最近零篇运行按用户要求显式启动汇总，并在修复后复用缓存续做。
+- 验证目录 `/opt/literature-agent/validation/closure-3215c1e3e61f/` 与 `/opt/literature-agent/validation/closure-efb04850e1bd/` 保存各自构建、测试、部署及当前任务开始/重试/完成核验记录；研究报告不进入公开仓库。
+- 用户指定的现用订阅已暂停，26 封历史成功日报汇成 235 篇文献报告，任务 `completed`；暂停通知和汇总邮件均为 `sent`（SMTP 接受，收件箱未核验）。235 个逐篇条目及两个附件核验通过；运行、论文、推送去重历史、Zotero 导入及任务表保持不变。具体覆盖与限制见 [现用任务验收](SUBSCRIPTION_CLOSURE.md#2026-11-09-现用任务验收)。恢复日常执行需编辑该订阅并重新勾选启用。
+
+## 历史 RC7 部署（2026-11-01）
 
 - 运行镜像 `literature-agent:rc7-e75abad`，源码标签 `v0.3.0-rc.7` / 提交 `e75abade0862ecd39337948b65ca23052f8a87af`。健康接口返回 `0.3.0-rc.7`，worker 和 60 秒内部调度正常、无错误。
 - 备份位于 `/opt/literature-agent/backups/rc7-20261101T132509Z`；保留旧镜像 `literature-agent:obsidian-mail-821aac8f09e5`。17 张表及设置、密钥、Compose、LocalJev 配置哈希一致，已有订阅、时间、目标篇数及 Zotero 选择均保留。验证报告：`/opt/literature-agent/validation/rc7-e75abad/deployment.json`。

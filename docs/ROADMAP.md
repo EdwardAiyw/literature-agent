@@ -25,6 +25,8 @@
 
 - RC7 (2026-11-01): configurable source connections, 11 adapters including optional Google Scholar/CORE, and packaged Obsidian settings with complete email archives. See [release and validation](RELEASE_RC7.md).
 
+- Unreleased source, deployed to the current server on 2026-11-09: healthy zero-paper subscription pause, separate notice, and checkpointed synthesis of all successfully delivered literature, with complete Markdown evidence and retry/download controls. See [closure behavior and validation](SUBSCRIPTION_CLOSURE.md). A new Windows installer is not yet published.
+
 ## Post-Beta
 
 - Released in RC4 (2026-10-15): explicit Zotero Web API citation import with paginated DOI metadata deduplication, per-destination status and database replacement locking.

@@ -33,7 +33,7 @@ SMTP 接受成功后，在同一数据库事务中标记成功并保存论文身
 
 ## RC6 最终发布与升级
 
-RC6 Windows 发布通过 **245 项后端测试、32 项完整 Edge 回归** 和打包检查；公开下载校验一致，详见 [发布验证](RELEASE_RC6.md)。服务器现运行 `literature-agent:rc6-ebda008`，最终 Linux 隔离后端 **245 passed**；RC6 升级完整保留 17 张表与配置哈希，备份 `/opt/literature-agent/backups/rc6-20261018T012736Z`。保留原调度与最多 10 篇目标，升级本身未再次发信或导入。以下保留首次去重修复和独立补发的验证过程。
+RC6 Windows 发布通过 **245 项后端测试、32 项完整 Edge 回归** 和打包检查；公开下载校验一致，详见 [发布验证](RELEASE_RC6.md)。当时的服务器镜像为 `literature-agent:rc6-ebda008`，最终 Linux 隔离后端 **245 passed**；RC6 升级完整保留 17 张表与配置哈希，备份 `/opt/literature-agent/backups/rc6-20261018T012736Z`。保留原调度与最多 10 篇目标，升级本身未再次发信或导入。当前镜像与订阅暂停状态见 [服务器部署](SERVER_DEPLOYMENT.md)。以下保留首次去重修复和独立补发的验证过程。
 
 ## 2026-10-18 首次修复验证与部署
 

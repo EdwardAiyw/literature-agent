@@ -1,8 +1,17 @@
 # Current State
 
-## RC7 source connections (2026-11-01)
+## Automatic pause and historical synthesis (2026-11-09)
 
-- The [November 1 daily report and November 2 handoff](DAILY_REPORT_2026-11-01.md) records completed release/upgrades, backup locations and remaining acceptance. Resume with the server's 07:00 natural run review, then configure source connections and explicitly update the existing subscription's selection; no reinstall or redeployment is needed.
+- Main commit `efb04850e1bdd89695f0990f578557c54dccd311` is deployed as `literature-agent:closure-efb04850e1bd`. Healthy completed zero-paper subscriptions pause automatically, send a separate notice, and synthesize all successful digest history with complete paper evidence. Source/model failures do not trigger automatic pause. See [behavior and recovery](SUBSCRIPTION_CLOSURE.md).
+- An explicit `closure/start` request can process an existing latest completed zero-paper run without repeating retrieval, retaining source warnings. Failed report work resumes through `closure/retry` and cached batches; successful notice delivery is skipped. Active closure work blocks conflicting task/deletion/database-replacement operations.
+- Deployment preserved all 17 table fingerprints and settings/secrets hashes before the authorized task action. Worker and scheduler are healthy; the prior RC7 image and full backup remain available. See [deployment and rollback evidence](SERVER_DEPLOYMENT.md). The Windows RC7 installer and immutable release assets are unchanged.
+- Malformed or invalid model synthesis receives one repair using the same evidence and allowed reference IDs; invalid results remain rejected. The first live historical report stopped safely on an unsupported citation after 64 saved batches; the repaired deployment reused them and completed all 71 batches.
+- Validation: 328 backend tests locally; final isolated Linux image 327 passed and one Windows-only skip; frontend build and the added Edge mobile interaction passed; GitHub CI passed. Real report generation and SMTP validation are recorded in [subscription closure](SUBSCRIPTION_CLOSURE.md).
+- The authorized current subscription is paused and its report completed: 26 successful digests, 235 paper identities, no missing historical records, 235 verified appendix entries, Markdown and identifier attachments. SMTP accepted the separate notice and summary at 17:01 and 17:18 Asia/Hong_Kong; inbox arrival remains unverified. No retrieval, Zotero import or successful digest history was repeated. Research files are private and excluded from Git.
+
+## Historical RC7 source connections (2026-11-01)
+
+- The [November 1 daily report and November 2 handoff](DAILY_REPORT_2026-11-01.md) records the historical release/upgrades, backup locations and acceptance scope. Its next-day run-review instructions predate the November 9 closure and no longer describe the current subscription state.
 - Settings now owns source connections: add/configure/test/enable/remove, saved credentials, per-source budgets and defaults. Eleven adapters are supported: nine open sources plus optional Google Scholar via SerpApi and CORE. Existing tasks/subscriptions retain their selections; disabled sources are skipped before cache lookup or HTTP requests.
 - New adapters share pacing, actual-request budgets, caching and partial-result handling. Publication-date filtering preserves year/month precision; identifiers flow through existing cross-source deduplication. Four real API probes returned HTTP 200 and two normalized records each. See [source coverage and limits](SOURCES.md).
 - Validation passed locally: 299 backend tests, frontend production build and 36 full Edge regressions. Google Scholar and CORE require user keys; authenticated live checks are pending. SerpApi's public sample and mocked provider contracts were checked; there is no claim of a successful authenticated search for these services.

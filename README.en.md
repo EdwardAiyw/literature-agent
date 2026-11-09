@@ -16,7 +16,7 @@ Literature Agent is an open-source assistant for individual researchers. It sear
 | Current `main` source | Developers and users needing newer features | All implemented capabilities below |
 | [Linux Docker deployment](docs/SERVER_DEPLOYMENT.md) | Users needing unattended daily operation | Self-built source image, web access through SSH |
 
-RC7 remains a prerelease; see the [RC7 release record](docs/RELEASE_RC7.md) for validation and deployment status. Historical RC6 Sandbox and live-search checks do not replace RC7 clean-system onboarding, natural schedule triggers or external inbox acceptance. Windows and Linux share versioned source but require separate installation or deployment. Updating GitHub does not upgrade installed applications. Historical tags and assets remain unchanged.
+RC7 remains a prerelease; see the [RC7 release record](docs/RELEASE_RC7.md) for validation. The current Linux server received automatic pause and historical synthesis on 2026-11-09; its exact commit and validation are in the [deployment guide](docs/SERVER_DEPLOYMENT.md). Historical RC6 Sandbox and live-search checks do not replace RC7 clean-system onboarding, natural schedule triggers or external inbox acceptance. Windows and Linux require separate installation or deployment. Updating GitHub does not upgrade installed applications. Historical tags and assets remain unchanged.
 
 ## Capabilities
 

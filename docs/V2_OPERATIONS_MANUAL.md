@@ -23,6 +23,7 @@ RC7 设置页内置 Obsidian 文库连接、立即同步、启停独立 Windows 
 | Zotero 自动批次与附件 | `/api/runs/{run_id}/zotero-batches`、`/zotero-identifiers` | 按任务集合导入、失败重试及 TXT 下载，详见 [Zotero 接口](ZOTERO.md) |
 | Jev 审计 | `/api/runs/{run_id}/decisions` | API 与工作台决策路由审计面板 |
 | 任务转每日订阅 | `POST /api/tasks/{task_id}/subscription` | 补收件人、执行时间、时区及可选截止日期策略；保留任务配置和历史，详见 [架构接口说明](ARCHITECTURE.md#convert-an-existing-task-to-a-daily-subscription) |
+| 暂停与历史汇总（最新源码/已升级服务器） | `POST /api/subscriptions/{id}/closure/start`、`POST .../closure/retry`、`GET .../closure/report` | 明确处理已有最近零篇运行、重试失败流程及下载报告；订阅返回 `auto_pause` 状态，详见 [触发条件、409/404 与恢复方法](SUBSCRIPTION_CLOSURE.md) |
 
 V2 工作流是：创建任务 -> 检索 -> 去重 -> 相关性筛选 -> 文献总结 -> 可选证据审查 -> 结果查看。Jev 是类型化决策层，不替代生成式 LLM。
 
