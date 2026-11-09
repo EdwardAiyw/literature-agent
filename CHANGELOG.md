@@ -5,6 +5,7 @@
 - Automatically pause a subscription after a healthy completed search yields zero new qualifying papers. Send a separate pause notice and a historical synthesis of all successfully delivered papers, with cited analysis, complete per-paper evidence, Markdown report and available Zotero identifiers.
 - Persist the paused state and immutable report corpus atomically, checkpoint batch synthesis, recover interrupted reports on startup, and allow failed notice/report retries without repeating successful mail or retrieval. Expose pause reasons, progress, downloads and retry actions in the subscription page; preserve history when resuming. Source/model failures and `--no-send` do not trigger a pause. Released installers and deployed services require a separate upgrade.
 - Allow an explicit request to pause and summarize the latest completed zero-paper subscription run without repeating retrieval, while retaining source warnings and the separate automatic-pause checks.
+- Repair malformed or invalid historical synthesis once using the original evidence and unchanged allowed reference IDs; retain strict validation and cached successful batches if repair fails.
 
 ## 0.3.0-rc.7 - 2026-11-01
 

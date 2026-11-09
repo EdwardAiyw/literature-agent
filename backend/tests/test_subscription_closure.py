@@ -230,10 +230,36 @@ def test_model_output_rejects_invalid_synthesis(runtime, monkeypatch, invalid):
         value["themes"][0]["text"] = "x" * 8000
     else:
         value = {"themes": []}
-    monkeypatch.setattr(provider, "_complete_json", lambda *a: value)
+    calls = []
+    monkeypatch.setattr(provider, "_complete_json", lambda *a: calls.append(a) or value)
     # runtime replaces the pipeline method; exercise the actual validator explicitly.
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="after repair"):
         REAL_SYNTHESIZE(provider, sub["topic"], "zh", [], ["P0001"])
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("invalid", ["unsupported_reference", "malformed_json"])
+def test_model_synthesis_repairs_once_with_original_evidence(runtime, monkeypatch, invalid):
+    _, _, sub, _ = runtime
+    provider = ModelProvider("https://invalid.local", "test", "test")
+    materials = [{"refs": ["P0001"], "evidence": "Only this evidence is available"}]
+    valid = {key: [{"text": "A supported point", "refs": ["P0001"]}] for key in closure.SECTIONS}
+    calls = []
+
+    def complete(system, payload):
+        calls.append((system, payload))
+        if len(calls) == 1:
+            if invalid == "malformed_json":
+                raise json.JSONDecodeError("Invalid JSON", "bad", 0)
+            return {**valid, "themes": [{"text": "An unsupported point", "refs": ["P9999"]}]}
+        return valid
+
+    monkeypatch.setattr(provider, "_complete_json", complete)
+    assert REAL_SYNTHESIZE(provider, sub["topic"], "zh", materials, ["P0001"]) == valid
+    assert len(calls) == 2
+    repair = calls[1][1]
+    assert repair["materials"] == materials and repair["reference_ids"] == ["P0001"]
+    assert repair["validation_error"] and "Do not replace" in repair["repair_instruction"]
 
 
 REAL_SYNTHESIZE = ModelProvider.synthesize_history
