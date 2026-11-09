@@ -9,6 +9,7 @@ from .db import Database
 from .email import render_digest, send_message
 from .graph import build_graph
 from .zotero_jobs import remember_target, reserve_automatic, process_batch
+from .subscription_closure import should_pause, process_closure
 
 
 def subscription_snapshot(database: Database, run: dict, subscription: dict, task: dict) -> tuple[dict, dict]:
@@ -77,6 +78,20 @@ def run_subscription(settings: Settings, database: Database, subscription: dict,
     retrieval = database.get_run_artifact(run["id"], "retrieval") or {}
     diagnostics = retrieval.get("payload", {}).get("sources", {})
     dedupe = database.get_run_artifact(run["id"], "dedupe") or {}
+    if should_pause(database, result, task, papers):
+        stats = dedupe.get("payload", {})
+        reason = "all_delivered" if stats.get("unique_count") and stats.get("remaining_count") == 0 else "no_relevant_papers"
+        current = database.get_subscription(subscription["id"]) or {}
+        previous = current.get("auto_pause") if not current.get("enabled") else None
+        closure_run_id = previous["run_id"] if previous else run["id"]
+        if not previous:
+            database.pause_empty_subscription(run["id"], subscription, task, reason)
+        job = process_closure(settings, database, closure_run_id, sender=send_message)
+        if batch:
+            process_batch(settings, database, run["id"], batch["id"])
+        delivery_id = job.get("history_summary_delivery_id") or job.get("pause_notice_delivery_id")
+        return {**result, "auto_paused": True, "closure_status": job.get("status"),
+                "delivery": database.get_delivery(delivery_id) if delivery_id else None}
     message = render_digest(subscription, papers, diagnostics, dedupe.get("payload", {}))
     delivery = database.create_delivery(subscription["id"], run["id"], "digest", subscription["recipient"], message.subject)
     if result.get("status") != "completed":

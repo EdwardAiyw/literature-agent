@@ -57,7 +57,7 @@ def main() -> int:
                 delivery = result.get("delivery") or {}
                 detail = f" error={delivery.get('error')}" if delivery.get("error") else ""
                 print(f"{subscription['id']}: run={result.get('id')} status={result.get('status')} delivery={delivery.get('status', 'skipped')}{detail}")
-                if result.get("status") != "completed" or result.get("delivery", {}).get("status") == "failed":
+                if result.get("status") != "completed" or (result.get("delivery") or {}).get("status") == "failed" or result.get("closure_status") == "failed":
                     exit_code = 1
             except Exception as exc:
                 print(f"{subscription['id']}: failed: {type(exc).__name__}: {exc}")

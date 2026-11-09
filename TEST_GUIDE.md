@@ -740,3 +740,7 @@ npm run test:e2e -- zotero.spec.ts
 - 延迟返回的旧目标论文加载和导入响应不得恢复旧链接或提示。
 
 自动化覆盖的是导入协议和本地状态行为。真实 Zotero 权限、桌面同步及大型文献库的耗时仍需在专用测试库中验证；这不属于自动化测试中的外部写入。
+
+## 自动暂停与历史汇总
+
+按上文设置隔离数据目录，使用项目 Python 环境执行 `python -m pytest tests/test_subscription_closure.py tests/test_digest_history.py tests/test_selection.py -q`，再执行前端构建及 `subscription-closure.spec.ts`。测试会替换模型和 SMTP，不应接入生产邮箱。行为、接口与最新验证范围见 [自动暂停与历史汇总](docs/SUBSCRIPTION_CLOSURE.md)。

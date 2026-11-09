@@ -8,6 +8,7 @@ from .config import Settings
 from .db import Database
 from .runner import execute_run, run_subscription, subscription_snapshot
 from .zotero_jobs import reserve_automatic, process_batch
+from .subscription_closure import process_closure
 
 
 class LocalRunWorker:
@@ -49,6 +50,11 @@ class LocalRunWorker:
 
     def recover(self) -> int:
         recovered = 0
+        for job in self.database.list_subscription_closures():
+            if job["status"] in {"queued", "running"}:
+                self.database.transition_closure(job["run_id"], {"running"}, "queued")
+                self.submit_closure(job["run_id"])
+                recovered += 1
         for run_id in self.database.list_completed_zotero_targets():
             reserve_automatic(self.database, run_id)
         for batch in self.database.list_zotero_batches():
@@ -74,6 +80,9 @@ class LocalRunWorker:
     def submit_zotero(self, batch: dict) -> None:
         self._submit(batch["run_id"] + ":" + batch["id"], process_batch,
                      self._current_settings(), self.database, batch["run_id"], batch["id"])
+
+    def submit_closure(self, run_id: str) -> None:
+        self._submit(run_id + ":closure", process_closure, self._current_settings(), self.database, run_id)
 
     def close(self) -> None:
         self.executor.shutdown(wait=True, cancel_futures=False)

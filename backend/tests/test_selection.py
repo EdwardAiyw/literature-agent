@@ -183,10 +183,12 @@ def test_subscription_digest_does_not_recommend_rejected_papers(tmp_path, monkey
                                             database, subscription)
     assert result["paper_count"] == 0
     assert result["delivery"]["status"] == "sent"
-    assert len(messages) == 1
-    assert "Unrelated fiction" not in messages[0].text + messages[0].html
-    assert "没有找到符合相关性要求" in messages[0].text
-    assert "没有找到符合相关性要求" in messages[0].html
+    assert result["auto_paused"] and not database.get_subscription(subscription["id"])["enabled"]
+    assert len(messages) == 2
+    assert all("Unrelated fiction" not in message.text + message.html for message in messages)
+    assert "没有符合要求的新增文献" in messages[0].text
+    assert "没有符合要求的新增文献" in messages[0].html
+    assert "历史文献汇总" in messages[1].subject
     database.close()
 
 

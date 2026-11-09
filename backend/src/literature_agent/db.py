@@ -120,7 +120,14 @@ class Database:
         row = self.connection.execute("SELECT * FROM subscriptions WHERE id = ?", (subscription_id,)).fetchone()
         if not row:
             return None
-        return {"date_to_mode": "fixed", **json.loads(row["payload"]), "id": row["id"], "task_id": row["task_id"], "enabled": bool(row["enabled"]), "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        result = {"date_to_mode": "fixed", **json.loads(row["payload"]), "id": row["id"], "task_id": row["task_id"], "enabled": bool(row["enabled"]), "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        if pause := result.get("auto_pause"):
+            artifact = self.get_run_artifact(pause["run_id"], "subscription_closure")
+            if artifact:
+                job = artifact["payload"]
+                result["auto_pause"] = {**pause, "status": job["status"], "error": job.get("error", ""),
+                                        "paper_count": len(job["papers"]), "report_ready": "report" in job}
+        return result
 
     def subscribe_task(self, task_id: str, expected_task: dict, payload: dict) -> dict:
         """Atomically promote a task, retaining its ID/history and guarding duplicate/stale requests."""
@@ -156,14 +163,119 @@ class Database:
         query += " ORDER BY created_at DESC"
         return [self.get_subscription(row["id"]) for row in self.connection.execute(query).fetchall()]
 
-    def update_subscription(self, subscription_id: str, payload: dict) -> dict | None:
+    def update_subscription(self, subscription_id: str, payload: dict, preserve_enabled: bool = False) -> dict | None:
         timestamp = now()
-        result = self.connection.execute(
-            "UPDATE subscriptions SET payload = ?, enabled = ?, updated_at = ? WHERE id = ?",
-            (json.dumps(payload, ensure_ascii=False), int(bool(payload.get("enabled", True))), timestamp, subscription_id),
-        )
-        self.connection.commit()
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            current = self.get_subscription(subscription_id)
+            if current:
+                if current.get("auto_pause"):
+                    payload = {**payload, "auto_pause": current["auto_pause"]}
+                if preserve_enabled:
+                    payload = {**payload, "enabled": current["enabled"]}
+            result = self.connection.execute(
+                "UPDATE subscriptions SET payload = ?, enabled = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(payload, ensure_ascii=False), int(bool(payload.get("enabled", True))), timestamp, subscription_id),
+            )
         return self.get_subscription(subscription_id) if result.rowcount else None
+
+    def sent_digest_corpus(self, subscription_id: str) -> dict:
+        """Read every successful digest, preferring immutable mail snapshots over mutable runs."""
+        from .paper_identity import merge_records, PaperIndex
+        rows = self.connection.execute(
+            "SELECT * FROM deliveries WHERE subscription_id=? AND kind='digest' AND status='sent' ORDER BY COALESCE(sent_at, created_at), rowid",
+            (subscription_id,),
+        ).fetchall()
+        records, missing, reconstructed = [], 0, 0
+        for row in rows:
+            archive = self.get_run_artifact(row["run_id"], "email_digest." + row["id"])
+            history = self.connection.execute("SELECT * FROM digest_history WHERE delivery_id=?", (row["id"],)).fetchone()
+            if archive and isinstance(archive["payload"].get("papers"), list):
+                papers, provenance = archive["payload"]["papers"], "发送时邮件快照"
+            else:
+                reconstructed += 1
+                papers = [json.loads(p[0]) for p in self.connection.execute("SELECT payload FROM papers WHERE run_id=?", (row["run_id"],))]
+                provenance = "按历史运行记录重建"
+                if not papers and history:
+                    papers = json.loads(history["papers"])
+                    provenance = "持久推送历史（可能仅有论文身份）"
+                run = self.get_run(row["run_id"]) if row["run_id"] else None
+                expected = run["paper_count"] if run else len(json.loads(history["papers"])) + history["missing_papers"] if history else len(papers) + 1
+                missing += max(0, expected - len(papers))
+            for paper in papers:
+                records.append({**paper, "history_provenance": provenance})
+        # Prefer the richest evidence when old messages contain another copy of a paper.
+        records.sort(key=lambda p: (bool(p.get("abstract")), bool(p.get("summary"))), reverse=True)
+        papers = merge_records(records)
+        evidence_index = PaperIndex(records)
+        for paper in papers:
+            copies = evidence_index.find(paper) or [paper]
+            if not paper.get("summary"):
+                paper["summary"] = next((p["summary"] for p in copies if p.get("summary")), {})
+            paper["history_provenance"] = "；".join(sorted({p["history_provenance"] for p in copies}))
+            warnings = list(dict.fromkeys(w for p in copies for w in (p.get("summary") or {}).get("evidence_warnings", [])))
+            if warnings:
+                paper["summary"] = {**paper["summary"], "evidence_warnings": warnings}
+        papers.sort(key=lambda p: (p.get("published_date", ""), p.get("title", "")))
+        for index, paper in enumerate(papers, 1):
+            paper["ref"] = f"P{index:04d}"
+        return {"papers": papers, "delivery_count": len(rows), "duplicate_count": len(records) - len(papers),
+                "missing_papers": missing, "reconstructed_deliveries": reconstructed,
+                "first_sent_at": (rows[0]["sent_at"] or rows[0]["created_at"]) if rows else "",
+                "last_sent_at": (rows[-1]["sent_at"] or rows[-1]["created_at"]) if rows else ""}
+
+    def pause_empty_subscription(self, run_id: str, subscription: dict, task: dict, reason: str) -> dict:
+        """Atomically pause dispatch and reserve a durable, immutable closing report."""
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            if saved := self.get_run_artifact(run_id, "subscription_closure"):
+                return saved["payload"]
+            current = self.get_subscription(subscription["id"])
+            if not current:
+                raise ValueError("Subscription not found")
+            if any(r != run_id for r in self.task_blockers(current["task_id"])["active_runs"]):
+                raise ValueError("Cannot pause while another run or closing report is active")
+            timestamp = now()
+            corpus = self.sent_digest_corpus(subscription["id"])
+            manifest = self.get_run_artifact(run_id, "result_manifest") or {}
+            job = {**corpus, "run_id": run_id, "subscription": subscription, "task": task,
+                   "paused_at": timestamp, "reason": reason, "status": "queued", "error": "", "chunks": {},
+                   "source_warnings": manifest.get("payload", {}).get("errors", [])}
+            payload = {k: v for k, v in current.items() if k not in {"id", "task_id", "created_at", "updated_at"}}
+            payload.update(enabled=False, auto_pause={"run_id": run_id, "paused_at": timestamp, "reason": reason})
+            self.connection.execute("UPDATE subscriptions SET enabled=0, payload=?, updated_at=? WHERE id=?",
+                                    (json.dumps(payload, ensure_ascii=False), timestamp, subscription["id"]))
+            self.connection.execute("INSERT INTO run_artifacts(run_id, node, payload, created_at) VALUES (?, 'subscription_closure', ?, ?)",
+                                    (run_id, json.dumps(job, ensure_ascii=False), timestamp))
+        return job
+
+    def list_subscription_closures(self) -> list[dict]:
+        rows = self.connection.execute(
+            "SELECT a.payload FROM run_artifacts a JOIN runs r ON r.id=a.run_id JOIN subscriptions s ON s.id=r.subscription_id WHERE a.node='subscription_closure' ORDER BY a.created_at"
+        ).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def latest_subscription_run(self, subscription_id: str) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM runs WHERE subscription_id=? AND trigger_kind='subscription' ORDER BY started_at DESC, rowid DESC LIMIT 1",
+            (subscription_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def has_pending_closures(self) -> bool:
+        return any(job["status"] in {"queued", "running"} for job in self.list_subscription_closures())
+
+    def transition_closure(self, run_id: str, expected: set[str], status: str) -> dict | None:
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            artifact = self.get_run_artifact(run_id, "subscription_closure")
+            if not artifact or artifact["payload"]["status"] not in expected:
+                return None
+            job = artifact["payload"]
+            job.update(status=status, error="")
+            self.connection.execute("UPDATE run_artifacts SET payload=?, created_at=? WHERE run_id=? AND node='subscription_closure'",
+                                    (json.dumps(job, ensure_ascii=False), now(), run_id))
+        return job
 
     def delete_subscription(self, subscription_id: str) -> bool:
         """Delete a subscription and all data owned by its task in one transaction."""
@@ -270,7 +382,9 @@ class Database:
                         "SELECT id FROM runs WHERE task_id = ? AND trigger_kind = 'subscription' AND started_at >= ? LIMIT 1",
                         (task_id, not_before),
                     ).fetchone()
-                if active or already_ran:
+                closure_active = any(j["status"] in {"queued", "running"} and j["subscription"]["task_id"] == task_id
+                                     for j in self.list_subscription_closures())
+                if active or already_ran or closure_active:
                     self.connection.rollback()
                     return None
                 run_id = str(uuid4())
@@ -739,11 +853,13 @@ class Database:
             "SELECT id FROM runs WHERE task_id = ? AND status IN ('queued', 'running', 'paused') ORDER BY started_at",
             (task_id,),
         ).fetchall()
+        closure_runs = [j["run_id"] for j in self.list_subscription_closures()
+                        if j["status"] in {"queued", "running"} and j["subscription"]["task_id"] == task_id]
         return {
             "subscribed": subscription is not None,
             "active_runs": list(dict.fromkeys([row["id"] for row in active_runs] + [
                 b["run_id"] for b in self.list_zotero_batches() if b["status"] in {"queued", "running"}
-                and (self.get_run(b["run_id"]) or {}).get("task_id") == task_id])),
+                and (self.get_run(b["run_id"]) or {}).get("task_id") == task_id] + closure_runs)),
         }
 
     def _delete_task_data(self, task_id: str) -> None:

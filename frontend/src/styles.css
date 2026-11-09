@@ -244,5 +244,10 @@ legend { color: #505057; font-size: 12px; padding: 0 6px 0 0; }
 .source-form-fields { border: 0; padding: 0; margin: 18px 0; min-width: 0; }
 .source-form-fields label { margin-bottom: 15px; }
 .source-access { margin-top: 8px; }
+.closure-status { display: grid; gap: 6px; margin-top: 10px; overflow-wrap: anywhere; }
+.subscription-row > div { min-width: 0; max-width: 100%; }
+.closure-status .row-actions { flex-wrap: wrap; justify-content: flex-start; }
+.closure-status a { text-decoration: none; }
+.closure-status [role="alert"] { color: #9c2727; }
 .source-picker { min-width: 0; }.source-manage-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; border: 0; padding: 0; color: #e4002b; background: none; font-size: 11px; cursor: pointer; }
 @media (max-width: 800px) { .source-connection { grid-template-columns: minmax(0, 1fr); gap: 12px; }.source-connection-actions { justify-content: start; max-width: none; }.source-toolbar { align-items: stretch; flex-direction: column; }.source-toolbar label { width: 100%; } }

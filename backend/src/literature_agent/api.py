@@ -273,7 +273,7 @@ def update_subscription(subscription_id: str, patch: SubscriptionUpdate):
     _validate_zotero_target(validated)
     if "sources" in patch.model_fields_set:
         _validate_new_sources([name for name in validated["sources"] if name not in current.get("sources", [])] or ["fixture"])
-    updated = database.update_subscription(subscription_id, validated)
+    updated = database.update_subscription(subscription_id, validated, preserve_enabled="enabled" not in patch.model_fields_set)
     database.update_task(current["task_id"], _task_payload(validated))
     return updated
 
@@ -329,6 +329,63 @@ def test_send(subscription_id: str, payload: TestSendRequest | None = None):
     except Exception as exc:
         return database.update_delivery(delivery["id"], status="failed", error=f"{type(exc).__name__}: {exc}")
     return database.update_delivery(delivery["id"], status="sent", sent_at=datetime.now(timezone.utc).isoformat())
+
+
+@app.post("/api/subscriptions/{subscription_id}/closure/start", response_model=SubscriptionRead, status_code=202)
+def close_latest_empty_subscription(subscription_id: str):
+    """Explicitly adopt an existing zero-paper run, preserving its source warnings."""
+    subscription = database.get_subscription(subscription_id)
+    if not subscription:
+        raise HTTPException(404, "Subscription not found")
+    if run_worker is None:
+        raise HTTPException(503, "Run worker is not available")
+    run = database.latest_subscription_run(subscription_id)
+    if not run or run["status"] != "completed" or run["paper_count"] != 0:
+        raise HTTPException(409, "The latest subscription run must be completed with zero papers")
+    if database.get_run_artifact(run["id"], "subscription_closure"):
+        if subscription["enabled"]:
+            database.update_subscription(subscription_id, {**subscription, "enabled": False})
+        return database.get_subscription(subscription_id)
+    task = database.get_task(subscription["task_id"])
+    if not task:
+        raise HTTPException(404, "Subscription task not found")
+    try:
+        database.pause_empty_subscription(run["id"], subscription, task, "user_requested")
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    run_worker.submit_closure(run["id"])
+    return database.get_subscription(subscription_id)
+
+
+@app.post("/api/subscriptions/{subscription_id}/closure/retry", response_model=SubscriptionRead, status_code=202)
+def retry_subscription_closure(subscription_id: str):
+    subscription = database.get_subscription(subscription_id)
+    if not subscription:
+        raise HTTPException(404, "Subscription not found")
+    pause = subscription.get("auto_pause")
+    if not pause or pause["status"] != "failed":
+        raise HTTPException(409, "Only a failed closing report can be retried")
+    if run_worker is None:
+        raise HTTPException(503, "Run worker is not available")
+    job = database.transition_closure(pause["run_id"], {"failed"}, "queued")
+    if not job:
+        raise HTTPException(409, "Closing report is already active")
+    run_worker.submit_closure(pause["run_id"])
+    return database.get_subscription(subscription_id)
+
+
+@app.get("/api/subscriptions/{subscription_id}/closure/report")
+def download_subscription_report(subscription_id: str):
+    subscription = database.get_subscription(subscription_id)
+    if not subscription:
+        raise HTTPException(404, "Subscription not found")
+    pause = subscription.get("auto_pause")
+    artifact = database.get_run_artifact(pause["run_id"], "subscription_closure") if pause else None
+    report = artifact["payload"].get("report") if artifact else None
+    if not report:
+        raise HTTPException(404, "Historical report is not ready")
+    return Response(report, media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="literature-history-report.md"'})
 
 
 @app.get("/api/runs/{run_id}", response_model=RunRead)
@@ -903,7 +960,7 @@ def change_data_directory(payload: DataDirectoryRequest):
         target = Path(payload.path).expanduser().resolve()
         if target == settings.data_dir.resolve():
             return {"status": "ok", "path": str(target)}
-        if database.list_recoverable_runs() or database.has_pending_zotero_batches():
+        if database.list_recoverable_runs() or database.has_pending_zotero_batches() or database.has_pending_closures():
             raise HTTPException(409, "Cannot move data while a run is active")
         try:
             target.mkdir(parents=True, exist_ok=True)
@@ -1022,7 +1079,7 @@ def restore_backup(payload: BackupRestoreRequest):
             Database.validate_backup(source)
         except (OSError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        if database.list_recoverable_runs() or database.has_pending_zotero_batches():
+        if database.list_recoverable_runs() or database.has_pending_zotero_batches() or database.has_pending_closures():
             raise HTTPException(409, "Cannot restore while a run is active")
         safety = settings.data_dir / "backups" / f"before-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
         database.backup(safety)

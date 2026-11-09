@@ -54,6 +54,9 @@ def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(ModelProvider, 'plan_queries', lambda *args: fallback_query_plan(args[1]))
     monkeypatch.setattr(ModelProvider, 'screen', lambda *args: {'relevance_score': .9, 'priority': 'P0', 'recommended_action': 'read', 'relevance_reason': 'Related', 'engine': 'test'})
     monkeypatch.setattr(ModelProvider, 'summarize', lambda _self, record, topic, *args, **kwargs: fallback(record, topic))
+    monkeypatch.setattr(ModelProvider, 'synthesize_history', lambda _self, topic, language, materials, refs: {
+        section: [{'text': 'Saved evidence synthesis', 'refs': refs}] for section in
+        ('themes', 'methods', 'findings', 'agreements_disagreements', 'gaps_next_steps')})
     monkeypatch.setattr(graph, 'search_sources', lambda *args, **kwargs: ([paper()], {'openalex': {'status': 'ok', 'count': 1}}))
     monkeypatch.setattr(runner, 'send_message', lambda *args: None)
     yield db, task, sub, settings

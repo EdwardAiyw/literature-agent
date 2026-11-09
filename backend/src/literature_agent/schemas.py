@@ -345,19 +345,30 @@ class SubscriptionUpdate(BaseModel):
         return _validate_prompt_overrides(value) if value is not None else None
 
 
+class SubscriptionAutoPause(BaseModel):
+    run_id: str
+    paused_at: datetime
+    reason: Literal["all_delivered", "no_relevant_papers", "user_requested"]
+    status: Literal["queued", "running", "failed", "completed"] = "queued"
+    error: str = ""
+    paper_count: int = 0
+    report_ready: bool = False
+
+
 class SubscriptionRead(SubscriptionCreate):
     date_to_mode: Literal["today", "fixed"] = "fixed"
     id: str
     task_id: str
     created_at: datetime
     updated_at: datetime
+    auto_pause: SubscriptionAutoPause | None = None
 
 
 class DeliveryRead(BaseModel):
     id: str
     subscription_id: str
     run_id: str | None = None
-    kind: Literal["digest", "test"]
+    kind: Literal["digest", "test", "pause_notice", "history_summary"]
     status: Literal["pending", "sent", "failed"]
     recipient: str
     subject: str

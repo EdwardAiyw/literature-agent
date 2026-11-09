@@ -65,7 +65,7 @@ For a subscription configured for `07:00`, `Asia/Hong_Kong`, and **10 papers**:
 3. Screen remaining candidates, summarize, and optionally review evidence; select at most 10.
 4. Send the digest and persist delivery identities after SMTP success, then process the optional Zotero import batch.
 
-The target is an **upper bound**. Send fewer when fewer qualify, and an explanatory notice when none qualify. Do not recycle old papers to fill the quota. Ten is a configurable subscription target, not a global limit.
+The target is an **upper bound**. Send fewer when fewer qualify; do not recycle delivered papers to fill the quota. The latest source automatically pauses a subscription after a healthy search yields zero new qualifying papers, then sends a separate pause notice and a complete historical synthesis with a Markdown report and available Zotero identifiers. Source/model failures do not trigger a pause. The subscription page supports report downloads, failed notice/report retries and resuming through the existing enabled setting. See [behavior and API details](docs/SUBSCRIPTION_CLOSURE.md). This unreleased change is not included in published RC7 installers. Ten is a configurable subscription target, not a global limit.
 
 - Identity matching uses normalized DOI, PMID, versionless arXiv/source IDs, and conservative title/author matching. Incomplete metadata can still prevent a match.
 - History is subscription-specific. Changing recipients does not reset it; separate subscriptions can deliver the same paper. One-off tasks only deduplicate their current search.
